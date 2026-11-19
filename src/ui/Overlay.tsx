@@ -40,7 +40,7 @@ export function Overlay() {
       phase.command === 'attack'
         ? { type: 'attack', target: hoverHex }
         : { type: 'magic', ability: phase.command.magic, target: hoverHex };
-    for (const e of previewEffects(match, { unitId: u.id, to: phase.to, facing: u.facing, command })) {
+    for (const e of previewEffects(match, { unitId: u.id, to: phase.to, facing: phase.facing, command })) {
       const t = match.units.find((x) => x.id === e.unitId);
       if (t) tags.push({ unit: t, effect: e });
     }

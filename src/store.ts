@@ -11,7 +11,6 @@ import {
   attackTargets,
   createMatch,
   delayForAction,
-  facingToward,
   getUnit,
   hexEq,
   hexKey,
@@ -27,10 +26,9 @@ import { chooseAction } from './ai/ai';
 export type Phase =
   | { kind: 'idle' }
   | { kind: 'move' }
-  | { kind: 'menu'; to: Hex; sub?: 'magic' | 'summon' }
-  | { kind: 'target'; to: Hex; command: 'attack' | { magic: string } }
-  | { kind: 'summonDir'; to: Hex; summonKind: string }
-  | { kind: 'facing'; to: Hex; command: Command; back: Phase };
+  | { kind: 'menu'; to: Hex; facing: Dir; sub?: 'magic' | 'summon' }
+  | { kind: 'target'; to: Hex; facing: Dir; command: 'attack' | { magic: string } }
+  | { kind: 'summonDir'; to: Hex; facing: Dir; summonKind: string };
 
 export type CommandHover = 'wait' | 'attack' | 'magic' | 'summon' | null;
 
@@ -63,7 +61,7 @@ interface Store {
 function phaseFor(match: MatchState): Phase {
   const u = activeUnit(match);
   if (!u || match.winner !== null || match.sides[u.side].ai) return { kind: 'idle' };
-  if (u.stranded) return { kind: 'facing', to: u.pos, command: { type: 'wait' }, back: { kind: 'idle' } };
+  if (u.stranded) return { kind: 'menu', to: u.pos, facing: u.facing };
   return { kind: 'move' };
 }
 
@@ -149,9 +147,15 @@ export const useGame = create<Store>((set, get) => {
       if (!u) return;
       switch (phase.kind) {
         case 'move': {
-          if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos } });
+          if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
           const n = reachable(match, u).get(hexKey(h));
-          if (n && n.canEnd) set({ phase: { kind: 'menu', to: h } });
+          if (n && n.canEnd) set({ phase: { kind: 'menu', to: h, facing: u.facing } });
+          return;
+        }
+        case 'menu': {
+          // Left-clicking the map while the command menu is open sets Facing.
+          if (hexEq(h, phase.to)) return;
+          set({ phase: { ...phase, facing: closestFacing(phase.to, h) } });
           return;
         }
         case 'target': {
@@ -159,9 +163,9 @@ export const useGame = create<Store>((set, get) => {
             phase.command === 'attack'
               ? { type: 'attack', target: h }
               : { type: 'magic', ability: phase.command.magic, target: h };
-          const err = validateTurn(match, { unitId: u.id, to: phase.to, facing: u.facing, command });
-          if (err) return;
-          set({ phase: { kind: 'facing', to: phase.to, command, back: phase } });
+          const action = { unitId: u.id, to: phase.to, facing: phase.facing, command };
+          if (validateTurn(match, action)) return;
+          commit(action);
           return;
         }
         case 'summonDir': {
@@ -171,11 +175,6 @@ export const useGame = create<Store>((set, get) => {
           });
           if (dir === undefined) return;
           commit({ unitId: u.id, to: phase.to, facing: dir, command: { type: 'summon', kind: phase.summonKind, dir } });
-          return;
-        }
-        case 'facing': {
-          const facing = hexEq(h, phase.to) ? u.facing : facingToward(phase.to, h);
-          commit({ unitId: u.id, to: phase.to, facing, command: phase.command });
           return;
         }
         default:
@@ -188,14 +187,12 @@ export const useGame = create<Store>((set, get) => {
       const u = activeUnit(match);
       switch (phase.kind) {
         case 'menu':
-          if (phase.sub) return set({ phase: { kind: 'menu', to: phase.to } });
+          if (phase.sub) return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing } });
+          if (u?.stranded) return; // cannot move anyway
           return set({ phase: { kind: 'move' }, hoverCommand: null }); // cancel move
         case 'target':
         case 'summonDir':
-          return set({ phase: { kind: 'menu', to: phase.to } });
-        case 'facing':
-          if (u?.stranded) return;
-          return set({ phase: phase.back.kind === 'target' ? phase.back : { kind: 'menu', to: phase.to } });
+          return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing } });
         default:
           return;
       }
@@ -205,17 +202,17 @@ export const useGame = create<Store>((set, get) => {
       const { phase, match } = get();
       const u = activeUnit(match);
       if (!u || phase.kind !== 'menu') return;
-      const to = phase.to;
-      if (c === 'wait') return set({ phase: { kind: 'facing', to, command: { type: 'wait' }, back: phase } });
-      if (c === 'attack') return set({ phase: { kind: 'target', to, command: 'attack' } });
-      if ('sub' in c) return set({ phase: { kind: 'menu', to, sub: c.sub } });
-      if ('summon' in c) return set({ phase: { kind: 'summonDir', to, summonKind: c.summon } });
+      const { to, facing } = phase;
+      if (c === 'wait') return commit({ unitId: u.id, to, facing, command: { type: 'wait' } });
+      if (c === 'attack') return set({ phase: { kind: 'target', to, facing, command: 'attack' } });
+      if ('sub' in c) return set({ phase: { kind: 'menu', to, facing, sub: c.sub } });
+      if ('summon' in c) return set({ phase: { kind: 'summonDir', to, facing, summonKind: c.summon } });
       const ab = kindOf(u.kind).magic.find((m) => m.id === c.magic);
       if (!ab) return;
       if (ab.kind === 'water') {
-        return set({ phase: { kind: 'facing', to, command: { type: 'magic', ability: ab.id, target: to }, back: phase } });
+        return commit({ unitId: u.id, to, facing, command: { type: 'magic', ability: ab.id, target: to } });
       }
-      set({ phase: { kind: 'target', to, command: { magic: ab.id } } });
+      set({ phase: { kind: 'target', to, facing, command: { magic: ab.id } } });
     },
 
     toggleHpBars: () => set((s) => ({ showHpBars: !s.showHpBars })),
@@ -246,6 +243,27 @@ export const useGame = create<Store>((set, get) => {
 
 // ---------- derived helpers used by the UI ----------
 
+/** The hex direction whose on-screen angle is closest to the direction from `from` to `to`. */
+export function closestFacing(from: Hex, to: Hex): Dir {
+  const toXY = (h: Hex) => [Math.sqrt(3) * (h.q + h.r / 2), 1.5 * h.r];
+  const [fx, fy] = toXY(from);
+  const [tx, ty] = toXY(to);
+  const a = Math.atan2(ty - fy, tx - fx);
+  let best: Dir = 0;
+  let bestDiff = Infinity;
+  for (const d of [0, 1, 2, 3, 4, 5] as Dir[]) {
+    // direction d points at -60°·d in this (y-down) frame
+    const da = (-Math.PI / 3) * d;
+    let diff = Math.abs(a - da) % (2 * Math.PI);
+    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+    if (diff < bestDiff - 1e-9) {
+      bestDiff = diff;
+      best = d;
+    }
+  }
+  return best;
+}
+
 /** Previewed Turn Delay for the active Unit based on what the player is hovering. */
 export function previewDelay(s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverCommand'>): number | undefined {
   const u = activeUnit(s.match);
@@ -266,8 +284,6 @@ export function previewDelay(s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'ho
     case 'target':
     case 'summonDir':
       return d(p.to, true);
-    case 'facing':
-      return d(p.to, p.command.type !== 'wait');
     default:
       return undefined;
   }
