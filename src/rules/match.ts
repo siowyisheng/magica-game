@@ -1,4 +1,4 @@
-import { type Dir, type Hex, hexDistance, hexEq, hexKey, neighbor } from './hex';
+import { type Dir, type Hex, facingTowardTarget, hexDistance, hexEq, hexKey, neighbor } from './hex';
 import {
   BASE_DELAY_BY_SPEED,
   MANA_MAX,
@@ -213,6 +213,29 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
   return [];
 }
 
+// ---------- facing ----------
+
+/**
+ * The Facing a Unit ends its turn with: the chosen Facing for Wait, toward
+ * the target for Attack and targeted Magic, toward the summoned hex for Summon.
+ */
+export function resultingFacing(state: MatchState, action: TurnAction): Dir {
+  const cmd = action.command;
+  switch (cmd.type) {
+    case 'wait':
+      return action.facing;
+    case 'summon':
+      return cmd.dir;
+    case 'attack':
+      return facingTowardTarget(action.to, cmd.target, action.facing);
+    case 'magic': {
+      const ab = kindOf(getUnit(state, action.unitId).kind).magic.find((m) => m.id === cmd.ability);
+      if (!ab || ab.kind === 'water') return action.facing;
+      return facingTowardTarget(action.to, cmd.target, action.facing);
+    }
+  }
+}
+
 // ---------- apply ----------
 
 function clone(state: MatchState): MatchState {
@@ -243,7 +266,7 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
     events.push({ type: 'move', unitId: unit.id, from: unit.pos, to: action.to });
     unit.pos = { ...action.to };
   }
-  unit.facing = action.facing;
+  unit.facing = resultingFacing(prev, action);
 
   const cmd = action.command;
   if (cmd.type === 'attack' || cmd.type === 'magic') {
@@ -268,7 +291,6 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
   } else if (cmd.type === 'summon') {
     const sk = kindOf(cmd.kind);
     state.sides[unit.side].mana -= sk.cost;
-    unit.facing = cmd.dir as Dir;
     const id = state.nextUnitId++;
     state.units.push({
       id,

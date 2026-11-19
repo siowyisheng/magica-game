@@ -131,11 +131,14 @@ function UnitCard({ unitId }: { unitId: number }) {
               <span key={i} className={i < u.hp ? (u.side === 0 ? 'on green' : 'on red') : ''} />
             ))}
           </div>
-          <div>
-            {k.element ? <span style={{ color: ELEMENT_COLORS[k.element] }}>{k.element}</span> : 'no element'} ·{' '}
-            {k.alignment === 'none' ? 'unaligned' : `${k.alignment}-aligned`}
-            {pct !== 100 && <span className={pct > 100 ? 'good' : 'bad'}> ({pct > 100 ? '+' : ''}{pct - 100}%)</span>}
-          </div>
+          {(k.element || k.alignment !== 'none') && (
+            <div>
+              {k.element && <span style={{ color: ELEMENT_COLORS[k.element] }}>{k.element}</span>}
+              {k.element && k.alignment !== 'none' && ' · '}
+              {k.alignment !== 'none' && `${k.alignment}-aligned`}
+              {pct !== 100 && <span className={pct > 100 ? 'good' : 'bad'}> ({pct > 100 ? '+' : ''}{pct - 100}%)</span>}
+            </div>
+          )}
           <div className="muted">AV {u.av} · {k.moveTypes.join('+')}{u.stranded ? ' · STRANDED' : ''}</div>
         </div>
       </div>

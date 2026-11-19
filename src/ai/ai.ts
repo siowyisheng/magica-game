@@ -33,6 +33,7 @@ import {
   validateTurn,
   attackTargets,
   activeUnit,
+  resultingFacing,
 } from '../rules';
 
 export const AI_WEIGHTS = {
@@ -302,6 +303,14 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
         threat = threatAt(dest, facing, delay, killed);
       } else {
         ({ facing, threat } = bestFacing(dest, delay, killed));
+        if (command.type !== 'wait') {
+          // Attack / Magic force Facing toward the target.
+          const forced = resultingFacing(state, { ...draft, facing });
+          if (forced !== facing) {
+            facing = forced;
+            threat = threatAt(dest, facing, delay, killed);
+          }
+        }
       }
       const v = unitValue(me);
       score -= Math.min(threat, me.hp) * w.threat * v;

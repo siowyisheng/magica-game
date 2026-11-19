@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { activeUnit, type Command, type Unit, previewEffects } from '../rules';
-import { useGame } from '../store';
+import { hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
 import { DamageTag } from './DamageTag';
@@ -13,6 +13,8 @@ export function Overlay() {
   const hoverHex = useGame((s) => s.hoverHex);
   const showHpBars = useGame((s) => s.showHpBars);
   const rightClick = useGame((s) => s.rightClick);
+  const hoverUnitId = useGame((s) => s.hoverUnitId);
+  const choose = useGame((s) => s.choose);
 
   useEffect(() => {
     let raf = 0;
@@ -34,7 +36,31 @@ export function Overlay() {
   }, []);
 
   const u = activeUnit(match);
-  const tags: { unit: Unit; effect: ReturnType<typeof previewEffects>[number] }[] = [];
+  type Tag = { unit: Unit; effect: ReturnType<typeof previewEffects>[number]; label?: string; note?: string };
+  const tags: Tag[] = [];
+  const quick = hoverQuick({ match, phase, hoverHex, hoverUnitId });
+  if (u && quick) {
+    const { attack, magic } = quick.plans;
+    if (attack) {
+      const e = previewEffects(match, { unitId: u.id, to: attack.dest, facing: u.facing, command: { type: 'attack', target: quick.target.pos } });
+      for (const ef of e) if (ef.unitId === quick.target.id) tags.push({ unit: quick.target, effect: ef, label: 'Attack' });
+    }
+    if (magic) {
+      const e = previewEffects(match, {
+        unitId: u.id,
+        to: magic.dest,
+        facing: u.facing,
+        command: { type: 'magic', ability: magic.ability.id, target: quick.target.pos },
+      });
+      for (const ef of e)
+        tags.push({
+          unit: match.units.find((x) => x.id === ef.unitId)!,
+          effect: ef,
+          label: magic.ability.name,
+          note: magic.affordable ? undefined : `needs ${magic.ability.manaCost}◆`,
+        });
+    }
+  }
   if (u && phase.kind === 'target' && hoverHex) {
     const command: Command =
       phase.command === 'attack'
@@ -56,13 +82,35 @@ export function Overlay() {
             </div>
           </div>
         ))}
-      {tags.map(({ unit, effect }) => (
-        <div key={`tag${unit.id}`} className="anchor top" data-anchor={`tag:${unit.id}`}>
-          <div className="center-bottom">
-            <DamageTag effect={effect} />
+      {[...new Set(tags.map((t) => t.unit.id))].map((id) => (
+        <div key={`tag${id}`} className="anchor top" data-anchor={`tag:${id}`}>
+          <div className="center-bottom tag-stack">
+            {tags
+              .filter((t) => t.unit.id === id)
+              .map((t, i) => (
+                <DamageTag key={i} effect={t.effect} label={t.label} note={t.note} />
+              ))}
           </div>
         </div>
       ))}
+      {phase.kind === 'quickChoice' && (
+        <div
+          className="anchor top interactive"
+          data-anchor={`unit:${phase.targetId}`}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            rightClick();
+          }}
+        >
+          <div className="window command-menu quick-menu" onPointerDown={(e) => e.stopPropagation()}>
+            <button onClick={() => choose('attack')}>Attack</button>
+            <button onClick={() => choose('magic')}>
+              {phase.magic.ability.name} <span className="cost">{phase.magic.ability.manaCost}◆</span>
+            </button>
+            <div className="hint">Right-click: back</div>
+          </div>
+        </div>
+      )}
       {phase.kind === 'menu' && (
         <div
           className="anchor top interactive"
