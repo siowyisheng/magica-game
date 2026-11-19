@@ -180,3 +180,13 @@ button:disabled { opacity: 0.4; cursor: default; }
   background: #0d1020f2; border: 1px solid var(--win-edge); padding: 3px 6px; font-size: 11px; right: 0;
 }
 .mana-stack:hover .mana-tip { display: block; }
+
+/* sound options */
+.sound-options { display: flex; flex-direction: column; gap: 2px; margin: 4px 0; }
+.sound-options .slider { display: flex; align-items: center; gap: 8px; }
+.sound-options .slider span { width: 44px; }
+.sound-options input { accent-color: var(--win-edge-hi); }
+.sound-options .slider input { flex: 1; min-width: 0; }
+.now-playing { display: flex; align-items: center; gap: 6px; }
+.now-playing .track-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.small-btn { padding: 0 6px; line-height: 1.3; }
