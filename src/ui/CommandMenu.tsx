@@ -20,7 +20,6 @@ import {
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
-import { SummonDetail } from './SummonCard';
 
 function canSummonAny(match: MatchState, unitId: number, to: Hex, sk: UnitKind): boolean {
   return DIRS.some((d) => {
@@ -73,7 +72,7 @@ export function CommandMenu() {
         <div className="summon-panel">
           <div className="summon-grid">
             {ELEMENTS.map((e) => (
-              <div key={e} className="summon-col">
+              <div key={e} className="summon-row">
                 {SUMMONS.filter((s) => s.element === e)
                   .slice()
                   .sort((a, b) => a.cost - b.cost)
@@ -85,7 +84,7 @@ export function CommandMenu() {
                         key={s.id}
                         role="button"
                         aria-disabled={!ok}
-                        className={`summon-tile ${ok ? '' : 'disabled'}`}
+                        className={`summon-tile ${ok ? '' : 'disabled'} ${hoverSummon === s.id ? 'hovered' : ''}`}
                         style={{ background: `${ELEMENT_COLORS[e]}2e`, borderColor: `${ELEMENT_COLORS[e]}66` }}
                         onClick={() => ok && choose({ summon: s.id })}
                         onMouseEnter={() => {
@@ -106,7 +105,6 @@ export function CommandMenu() {
               </div>
             ))}
           </div>
-          <div className="summon-detail-slot">{hoverSummon && <SummonDetail kindId={hoverSummon} side={u.side} />}</div>
         </div>
       );
     }
