@@ -30,7 +30,7 @@ import {
   facingTowardTarget,
 } from '../rules';
 import { hoverQuick, quickPlans, summonDirToward, useGame } from '../store';
-import { FENCE_HEIGHT, fenceGeometry, regionSegments, type LineStyle } from './outlines';
+import { FENCE_HEIGHT, fenceGeometry, regionSegments, ribbonGeometry, type LineStyle } from './outlines';
 import { SIDE_COLORS, idleFrameAt, projectileTexture, spriteScale, unitFrameTexture, unitOutlineTexture, unitTexture } from './sprites';
 import { MS_PER_HEX, SUMMON_PHASES, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
@@ -421,20 +421,25 @@ function useOutlines(): OutlineLayer[] {
 /** A translucent fence along the region boundary with a bright band on top. */
 function OutlineMesh({ layer }: { layer: OutlineLayer }) {
   const match = useGame((s) => s.match);
-  const { body, top } = useMemo(() => {
+  const { body, top, cap } = useMemo(() => {
     const segs = regionSegments(match, layer.region);
     const band = Math.min(0.09, layer.style.width * 1.3);
+    // Edges running up/down the screen face the camera edge-on, so a vertical band vanishes there;
+    // a flat band lying on the fence top is visible at every edge angle.
+    const lifted = segs.map((sg) => ({ ...sg, a: sg.a.clone().setY(sg.a.y + FENCE_HEIGHT), b: sg.b.clone().setY(sg.b.y + FENCE_HEIGHT) }));
     return {
       body: fenceGeometry(segs, layer.style, 0, FENCE_HEIGHT - band),
       top: fenceGeometry(segs, layer.style, FENCE_HEIGHT - band, FENCE_HEIGHT),
+      cap: ribbonGeometry(lifted, { ...layer.style, width: Math.max(0.06, layer.style.width) }),
     };
   }, [match, layer]);
   useEffect(
     () => () => {
       body.dispose();
       top.dispose();
+      cap.dispose();
     },
-    [body, top],
+    [body, top, cap],
   );
   const o = layer.style.opacity ?? 1;
   return (
@@ -443,6 +448,9 @@ function OutlineMesh({ layer }: { layer: OutlineLayer }) {
         <meshBasicMaterial color={layer.style.color} transparent opacity={0.22 * o} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       <mesh geometry={top} raycast={() => null} renderOrder={6}>
+        <meshBasicMaterial color={layer.style.color} transparent opacity={o} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <mesh geometry={cap} raycast={() => null} renderOrder={6}>
         <meshBasicMaterial color={layer.style.color} transparent opacity={o} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
     </>

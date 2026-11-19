@@ -85,11 +85,13 @@ button:disabled { opacity: 0.4; cursor: default; }
 .command-menu .cost { float: right; color: #a7c7ff; margin-left: 10px; }
 .command-menu .hint { font-size: 10px; color: var(--muted); margin-top: 2px; }
 /* summon picker: 4 element columns × 7, compact tiles, detail card beside it */
-.summon-panel { display: flex; gap: 6px; align-items: flex-start; }
-[data-flip='1'] .summon-panel { flex-direction: row-reverse; }
-[data-flip='1'] .command-menu:has(.summon-panel) { align-items: flex-end; }
-.summon-grid { display: flex; gap: 3px; }
-.summon-col { display: flex; flex-direction: column; gap: 3px; }
+.summon-panel { display: flex; }
+/* one row per element, cheapest on the left */
+.summon-grid { display: flex; flex-direction: column; gap: 3px; }
+.summon-row { display: flex; gap: 3px; }
+.summon-tile.hovered:not(.disabled) { outline: 2px solid #fff8; }
+.summon-tile.disabled.hovered { outline: 1px solid #fff5; }
+.summon-card-float { position: absolute; left: 0; top: 0; z-index: 45; pointer-events: none; visibility: hidden; }
 .summon-tile {
   position: relative; width: 50px; height: 76px; border: 1px solid; border-radius: 2px; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 2px;
@@ -99,7 +101,6 @@ button:disabled { opacity: 0.4; cursor: default; }
 .summon-tile img { width: 45px; height: 55px; image-rendering: pixelated; }
 .summon-tile .nm { font-size: 10px; line-height: 11px; }
 .summon-tile .cost { position: absolute; top: 1px; right: 3px; font-size: 10px; color: #cfe0ff; text-shadow: 0 1px 1px #000; }
-.summon-detail-slot { width: 250px; min-height: 1px; }
 
 /* damage preview */
 .dmg-tag {

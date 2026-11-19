@@ -4,6 +4,7 @@ import { hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
 import { DamageTag } from './DamageTag';
+import { SummonDetail } from './SummonCard';
 
 /** DOM layer over the canvas; children with data-anchor follow 3D anchors. */
 export function Overlay() {
@@ -15,6 +16,7 @@ export function Overlay() {
   const rightClick = useGame((s) => s.rightClick);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const choose = useGame((s) => s.choose);
+  const hoverSummon = useGame((s) => s.hoverSummon);
 
   useEffect(() => {
     let raf = 0;
@@ -23,6 +25,25 @@ export function Overlay() {
       if (root) {
         const W = root.clientWidth;
         const H = root.clientHeight;
+        // The summon detail card floats beside the hovered tile, never cut off.
+        const card = root.querySelector<HTMLElement>('.summon-card-float');
+        const tile = root.querySelector<HTMLElement>('.summon-tile.hovered');
+        if (card) {
+          if (!tile) card.style.visibility = 'hidden';
+          else {
+            const rb = root.getBoundingClientRect();
+            const tr = tile.getBoundingClientRect();
+            const cw = card.offsetWidth;
+            const ch = card.offsetHeight;
+            const m = 8;
+            let x = tr.right - rb.left + 6;
+            if (x + cw > W - m) x = tr.left - rb.left - 6 - cw;
+            x = Math.max(m, Math.min(x, W - cw - m));
+            const y = Math.max(m, Math.min(tr.top - rb.top + tr.height / 2 - ch / 2, H - ch - m));
+            card.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+            card.style.visibility = 'visible';
+          }
+        }
         root.querySelectorAll<HTMLElement>('[data-anchor]').forEach((el) => {
           const p = anchorPositions.get(el.dataset.anchor!);
           if (!p) {
@@ -121,6 +142,11 @@ export function Overlay() {
       {quick?.plans.magic && (
         <div className="anchor" data-anchor="ghost:M">
           <div className="ghost-badge m">M</div>
+        </div>
+      )}
+      {phase.kind === 'menu' && phase.sub === 'summon' && hoverSummon && u && (
+        <div className="summon-card-float">
+          <SummonDetail kindId={hoverSummon} side={u.side} />
         </div>
       )}
       {phase.kind === 'quickChoice' && (
