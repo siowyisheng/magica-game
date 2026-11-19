@@ -9,11 +9,11 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Summoner**:
-The single leader Unit of each Side. It casts several Magic Abilities and is the only Unit that can Summon. When it dies, its Side loses.
+The single leader Unit of each Side. It casts several Magic Abilities and is the only Unit that can Summon, keeping at most 7 Summons on the map. When it dies, its Side loses.
 _Avoid_: Master, hero, commander
 
 **Summon**:
-A Unit that a Summoner brings onto the map. One of 28 kinds, seven per Element. Each has exactly one Magic Ability.
+A Unit that a Summoner brings onto a hex next to it. The new Summon faces the way it was summoned, and so does the Summoner. There are 28 kinds, seven per Element. Each has exactly one Magic Ability.
 _Avoid_: Monster, minion, creature
 
 **Side**:
@@ -89,6 +89,9 @@ One of the six hex directions a Unit faces.
 A damage multiplier based on the angle between a defender's Facing and the direction the hit comes from: ×1.0 at 0°, ×1.2 at 60°, ×1.6 at 120° and ×2.0 at 180°, interpolated for angles in between. It applies to both Attack and Magic.
 _Avoid_: Backstab bonus, flanking
 
+**Damage**:
+Can be 0. Damage is never raised to a minimum.
+
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed.
 
@@ -104,7 +107,25 @@ The map's water surface Height. Spells can raise or lower it. A hex 1 below the 
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.
 
 **Rough**:
-Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. It gives a 20% defense bonus.
+Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. It cuts Attack and Magic damage taken by 20%.
 
 **Magic Stone**:
-A special hex. A Unit standing on it takes less damage, and it raises Mana generation for the Side that controls it.
+A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 30% less damage. The Side that controls it gains more Mana.
+_Avoid_: Crystal, pedestal
+
+**Zone of Control (ZOC)**:
+The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn.
+
+## Economy
+
+**Mana**:
+A Side's resource for summoning and for Summoner Magic. It is gained at the start of every Game Clock hour.
+
+**Mana Income**:
+What a Side gains each hour: (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons.
+
+**Cost**:
+The Mana needed to Summon a Summon: a multiple of 8, from 16 to 96.
+
+**Upkeep**:
+A Summon's hourly drain on its Side's Mana Income. It is always its Cost ÷ 8.
