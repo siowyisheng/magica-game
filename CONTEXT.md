@@ -72,7 +72,7 @@ _Avoid_: Turn order bar, queue
 Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
 
 **Alignment**:
-Whether a Summon is tied to Day, to Night, or to neither. It gets stat bonuses at its aligned Time of Day and penalties at the opposite one.
+Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF get a bonus; at the opposite one they get a penalty. Speed and Move are never changed by Alignment.
 
 ## Turn structure
 
