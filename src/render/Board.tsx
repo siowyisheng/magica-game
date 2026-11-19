@@ -8,16 +8,13 @@ import {
   type SideId,
   type Unit,
   activeUnit,
-  attackTargets,
   canStandOn,
-  getUnit,
   hexDistance,
   hexEq,
   hexKey,
   hexesInRange,
   kindOf,
   magicAbility,
-  magicTargetHexes,
   mapHexAt,
   neighbor,
   pathTo,
@@ -26,12 +23,14 @@ import {
   surfaceOf,
   unitAt,
   DIRS,
+  validateTurn,
+  type Command,
   unitReach,
   facingTowardTarget,
-  type Reach,
 } from '../rules';
-import { closestFacing, hoverQuick, useGame } from '../store';
-import { SIDE_COLORS, idleFrameAt, projectileTexture, spriteScale, unitFrameTexture, unitTexture } from './sprites';
+import { closestFacing, hoverQuick, quickPlans, useGame } from '../store';
+import { regionSegments, ribbonGeometry, type LineStyle } from './outlines';
+import { SIDE_COLORS, idleFrameAt, projectileTexture, spriteScale, unitFrameTexture, unitOutlineTexture, unitTexture } from './sprites';
 import { MS_PER_HEX, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
@@ -122,7 +121,6 @@ function columnGeo(height: number): THREE.CylinderGeometry {
   return g;
 }
 // Flat hexagons aligned with the (pointy-top) tile columns.
-const capGeo = new THREE.CircleGeometry(0.92, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
 const ringGeo = new THREE.RingGeometry(0.74, 0.92, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
 
 function terrainColor(terrain: string, height: number): string {
@@ -293,49 +291,32 @@ function Water({ match }: { match: MatchState }) {
 
 // ---------- highlights ----------
 
-interface Mark {
-  h: Hex;
-  color: string;
-  opacity: number;
-  /** Draw as an outline ring instead of a fill. */
-  ring?: boolean;
-}
+// ---------- range outlines & target markers ----------
 
-export const RANGE_COLORS = {
-  move: '#4f8dff',
+export const LINE_COLORS = {
+  move: '#ffffff',
   attack: '#ff4a3a',
-  magic: '#b05cff',
-  both: '#ff9a2a',
+  magic: '#4aa8ff',
+  source: '#ffe066',
+  summon: '#ffd23f',
 } as const;
 
-/** Classify hexes of one or more Reaches: move, attack-only, magic-only, or both. */
-function reachMarks(reaches: Reach[], opacity: number): Mark[] {
-  const all = new Map<string, { h: Hex; move: boolean; attack: boolean; magic: boolean }>();
-  const get = (k: string, h: Hex) => {
-    let e = all.get(k);
-    if (!e) all.set(k, (e = { h, move: false, attack: false, magic: false }));
-    return e;
-  };
-  for (const r of reaches) {
-    for (const [k, h] of r.move) get(k, h).move = true;
-    for (const [k, h] of r.attack) get(k, h).attack = true;
-    for (const [k, h] of r.magic) get(k, h).magic = true;
-  }
-  const out: Mark[] = [];
-  for (const e of all.values()) {
-    const color = e.move
-      ? RANGE_COLORS.move
-      : e.attack && e.magic
-        ? RANGE_COLORS.both
-        : e.attack
-          ? RANGE_COLORS.attack
-          : RANGE_COLORS.magic;
-    out.push({ h: e.h, color, opacity: e.move ? opacity : opacity * 0.85 });
-  }
-  return out;
+const PALE_SIDE = { 0: '#b8f0bf', 1: '#f5b8b8' } as const;
+
+interface OutlineLayer {
+  key: string;
+  region: Map<string, Hex>;
+  style: LineStyle;
 }
 
-function useMarks(): Mark[] {
+const dashed = (color: string, phase: number): LineStyle => ({ color, width: 0.07, dash: { period: 0.3, phase } });
+
+function toMap(hexes: Hex[]): Map<string, Hex> {
+  return new Map(hexes.map((h) => [hexKey(h), h] as const));
+}
+
+/** What to outline this frame. */
+function useOutlines(): OutlineLayer[] {
   const match = useGame((s) => s.match);
   const phase = useGame((s) => s.phase);
   const hoverHex = useGame((s) => s.hoverHex);
@@ -343,84 +324,123 @@ function useMarks(): Mark[] {
   const inspected = useGame((s) => s.inspected);
   return useMemo(() => {
     const u = activeUnit(match);
-    const marks: Mark[] = [];
-    if (!u) return marks;
+    const layers: OutlineLayer[] = [];
+    if (!u || phase.kind === 'idle') return layers;
     const kind = kindOf(u.kind);
 
-    // Ranges of toggled-on other units (dimmer).
-    const others = inspected.map((id) => match.units.find((x) => x.id === id)).filter((x): x is Unit => !!x);
-    if (others.length && phase.kind !== 'idle') marks.push(...reachMarks(others.map((o) => unitReach(match, o)), 0.3));
+    // Toggled units: move (pale Side colour), Attack Reach (red dashed), Magic Reach (blue dashed).
+    for (const id of inspected) {
+      const o = match.units.find((x) => x.id === id);
+      if (!o) continue;
+      const r = unitReach(match, o);
+      layers.push({ key: `i${id}m`, region: r.move, style: { color: PALE_SIDE[o.side], width: 0.05, opacity: 0.9 } });
+      if (r.attack.size) layers.push({ key: `i${id}a`, region: r.attack, style: dashed(LINE_COLORS.attack, 0) });
+      if (r.magic.size) layers.push({ key: `i${id}g`, region: r.magic, style: dashed(LINE_COLORS.magic, 0.5) });
+    }
 
     if (phase.kind === 'move' && phase.selected) {
-      marks.push(...reachMarks([unitReach(match, u)], 0.5));
+      layers.push({ key: 'move', region: unitReach(match, u).move, style: { color: LINE_COLORS.move, width: 0.08 } });
       const q = hoverQuick({ match, phase, hoverHex, hoverUnitId });
       if (q) {
-        const seen = new Set<string>();
-        for (const h of [...(q.plans.attack?.sources ?? []), ...(q.plans.magic?.sources ?? [])]) {
-          const k = hexKey(h);
-          if (seen.has(k)) continue;
-          seen.add(k);
-          marks.push({ h, color: '#ffe066', opacity: 0.9, ring: true });
-        }
+        const src = [...(q.plans.attack?.sources ?? []), ...(q.plans.magic?.sources ?? [])];
+        layers.push({ key: 'src', region: toMap(src), style: { color: LINE_COLORS.source, width: 0.06 } });
       }
-    } else if (phase.kind === 'quickChoice') {
-      for (const h of [phase.attack.dest, phase.magic.dest]) marks.push({ h, color: '#ffe066', opacity: 0.9, ring: true });
     } else if (phase.kind === 'target') {
-      const view = { ...match, units: match.units.map((x) => (x.id === u.id ? { ...x, pos: phase.to } : x)) };
-      const caster = getUnit(view, u.id);
-      if (phase.command === 'attack') {
-        const a = kind.attack;
-        for (const h of hexesInRange(phase.to, a.maxRange))
-          if (hexDistance(h, phase.to) >= a.minRange && mapHexAt(match.map, h)) marks.push({ h, color: RANGE_COLORS.attack, opacity: 0.22 });
-        for (const t of attackTargets(view, caster, phase.to)) marks.push({ h: t.pos, color: '#ff3b1f', opacity: 0.55 });
-      } else {
-        const ab = magicAbility(kind, phase.command.magic);
-        if (ab.kind !== 'water') {
-          for (const h of hexesInRange(phase.to, ab.maxRange))
-            if (hexDistance(h, phase.to) >= ab.minRange && mapHexAt(match.map, h)) marks.push({ h, color: RANGE_COLORS.magic, opacity: 0.2 });
-          const valid = magicTargetHexes(match, u, ab, phase.to);
-          for (const h of valid) marks.push({ h, color: '#c98bff', opacity: 0.45 });
-          if (hoverHex && valid.some((v) => hexEq(v, hoverHex))) {
-            for (const h of hexesInRange(hoverHex, ab.radius)) marks.push({ h, color: '#ffe066', opacity: 0.45 });
-          }
-        }
+      const a = phase.command === 'attack' ? kind.attack : magicAbility(kind, phase.command.magic);
+      if ('minRange' in a) {
+        const hexes = hexesInRange(phase.to, a.maxRange).filter((h) => hexDistance(h, phase.to) >= a.minRange && mapHexAt(match.map, h));
+        const isAttack = phase.command === 'attack';
+        layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(isAttack ? LINE_COLORS.attack : LINE_COLORS.magic, 0) });
       }
     } else if (phase.kind === 'summonDir') {
       const sk = kindOf(phase.summonKind);
+      const hexes: Hex[] = [];
       for (const d of DIRS) {
         const h = neighbor(phase.to, d);
         const mh = mapHexAt(match.map, h);
         const occ = unitAt(match, h);
-        if (mh && canStandOn(sk, mh, match.waterLevel) && (!occ || occ.id === u.id) && !hexEq(h, phase.to))
-          marks.push({ h, color: '#ffd23f', opacity: 0.5 });
+        if (mh && canStandOn(sk, mh, match.waterLevel) && (!occ || occ.id === u.id)) hexes.push(h);
       }
-    } else if (phase.kind === 'menu') {
-      // faint ring: left-click anywhere on the map sets Facing (for Wait)
-      for (const d of DIRS) {
-        const h = neighbor(phase.to, d);
-        if (mapHexAt(match.map, h)) marks.push({ h, color: '#ffffff', opacity: 0.12 });
-      }
+      layers.push({ key: 'sum', region: toMap(hexes), style: { color: LINE_COLORS.summon, width: 0.08 } });
+    } else if (phase.kind === 'quickChoice') {
+      layers.push({ key: 'src', region: toMap([phase.attack.dest, phase.magic.dest]), style: { color: LINE_COLORS.source, width: 0.06 } });
     }
-    if (hoverHex && mapHexAt(match.map, hoverHex)) marks.push({ h: hoverHex, color: '#ffe066', opacity: 0.6, ring: true });
-    return marks;
+    return layers;
   }, [match, phase, hoverHex, hoverUnitId, inspected]);
+}
+
+function OutlineMesh({ layer }: { layer: OutlineLayer }) {
+  const match = useGame((s) => s.match);
+  const geo = useMemo(() => ribbonGeometry(regionSegments(match, layer.region), layer.style), [match, layer]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} raycast={() => null} renderOrder={5}>
+      <meshBasicMaterial
+        color={layer.style.color}
+        transparent
+        opacity={layer.style.opacity ?? 1}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={-2}
+      />
+    </mesh>
+  );
 }
 
 function Highlights() {
   const match = useGame((s) => s.match);
-  const marks = useMarks();
+  const hoverHex = useGame((s) => s.hoverHex);
+  const layers = useOutlines();
   return (
     <>
-      {marks.map((m, i) => {
-        const [x, z] = hexToWorld(m.h);
-        return (
-          <mesh key={i} geometry={m.ring ? ringGeo : capGeo} position={[x, topY(match, m.h) + 0.02 + i * 0.0005, z]} raycast={() => null}>
-            <meshBasicMaterial color={m.color} transparent opacity={m.opacity} depthWrite={false} />
-          </mesh>
-        );
-      })}
+      {layers.map((l) => (
+        <OutlineMesh key={l.key} layer={l} />
+      ))}
+      {hoverHex && mapHexAt(match.map, hoverHex) && (
+        <mesh
+          geometry={ringGeo}
+          position={[hexToWorld(hoverHex)[0], topY(match, hoverHex) + 0.03, hexToWorld(hoverHex)[1]]}
+          raycast={() => null}
+        >
+          <meshBasicMaterial color="#ffe066" transparent opacity={0.6} depthWrite={false} />
+        </mesh>
+      )}
     </>
   );
+}
+
+export type TargetMark = 'attack' | 'magic' | 'both' | 'heal';
+
+/** Units the acting unit can act on right now, and how. */
+function useTargetMarks(): Map<number, TargetMark> {
+  const match = useGame((s) => s.match);
+  const phase = useGame((s) => s.phase);
+  return useMemo(() => {
+    const out = new Map<number, TargetMark>();
+    const u = activeUnit(match);
+    if (!u) return out;
+    if (phase.kind === 'move' && phase.selected) {
+      for (const t of match.units) {
+        if (t.id === u.id) continue;
+        const q = quickPlans(match, u, t);
+        const a = !!q.attack;
+        const m = !!q.magic && q.magic.affordable;
+        if (a && m) out.set(t.id, 'both');
+        else if (a) out.set(t.id, 'attack');
+        else if (m) out.set(t.id, q.magic!.ability.kind === 'heal' ? 'heal' : 'magic');
+      }
+    } else if (phase.kind === 'target') {
+      for (const t of match.units) {
+        const command: Command =
+          phase.command === 'attack' ? { type: 'attack', target: t.pos } : { type: 'magic', ability: phase.command.magic, target: t.pos };
+        if (validateTurn(match, { unitId: u.id, to: phase.to, facing: phase.facing, command })) continue;
+        if (phase.command === 'attack') out.set(t.id, 'attack');
+        else out.set(t.id, magicAbility(kindOf(u.kind), phase.command.magic).kind === 'heal' ? 'heal' : 'magic');
+      }
+    }
+    return out;
+  }, [match, phase]);
 }
 
 // ---------- units ----------
@@ -478,6 +498,7 @@ function UnitView({
   previewPath,
   inspected = false,
   ghost = false,
+  mark,
 }: {
   unit: Unit;
   displayPos: Hex;
@@ -486,9 +507,13 @@ function UnitView({
   previewPath?: Hex[];
   /** Its ranges are toggled on. */
   inspected?: boolean;
-  /** A translucent stand-in (e.g. the alternate quick-action hex); not interactive. */
+  /** A translucent stand-in (e.g. a quick-action destination); not interactive. */
   ghost?: boolean;
+  /** Valid quick-action / command target: draws a coloured sprite outline. */
+  mark?: TargetMark;
 }) {
+  const outline = useRef<THREE.Sprite>(null);
+  const outlineMat = useRef<THREE.SpriteMaterial>(null);
   const match = useGame((s) => s.match);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const setHoverUnit = useGame((s) => s.setHoverUnit);
@@ -575,9 +600,21 @@ function UnitView({
     if (arrow.current) arrow.current.rotation.y = heading ?? dirAngle(facing);
     if (bodyMat.current) {
       bodyMat.current.color.set(baseColor).lerp(new THREE.Color('#ff4040'), flash * 0.8);
-      const tex = unitFrameTexture(unit.kind, unit.side, idleFrameAt(now, (unit.id * 1.37) % 4));
+      const frame = idleFrameAt(now, (unit.id * 1.37) % 4);
+      const tex = unitFrameTexture(unit.kind, unit.side, frame);
       if (bodyMat.current.map !== tex) bodyMat.current.map = tex;
+      if (outlineMat.current && mark) {
+        const ot = unitOutlineTexture(unit.kind, unit.side, frame);
+        if (outlineMat.current.map !== ot) {
+          outlineMat.current.map = ot;
+          outlineMat.current.needsUpdate = true;
+        }
+        const both = mark === 'both' && Math.floor(now / 400) % 2 === 1;
+        outlineMat.current.color.set(mark === 'heal' ? '#5fe07a' : mark === 'magic' || both ? LINE_COLORS.magic : LINE_COLORS.attack);
+        outlineMat.current.opacity = 0.75 + 0.25 * Math.sin(now / 160);
+      }
     }
+    if (outline.current && body.current) outline.current.position.copy(body.current.position);
   });
 
   return (
@@ -590,8 +627,14 @@ function UnitView({
           <meshBasicMaterial color={hovered ? '#ffe066' : inspected ? '#9fd0ff' : '#ffffff'} transparent opacity={0.9} />
         </mesh>
       )}
+      {mark && !ghost && (
+        <sprite ref={outline} scale={[scale * (18 / 22), scale, 1]} position={[0, scale / 2 + 0.05, 0]} raycast={() => null} renderOrder={9}>
+          <spriteMaterial ref={outlineMat} transparent alphaTest={0.3} depthTest={false} />
+        </sprite>
+      )}
       <sprite
         ref={body}
+        renderOrder={10}
         scale={[scale * (18 / 22), scale, 1]}
         position={[0, scale / 2 + 0.05, 0]}
         raycast={ghost ? () => null : undefined}
@@ -610,7 +653,7 @@ function UnitView({
           clickHex(displayPos);
         }}
       >
-        <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={0.5} color={baseColor} opacity={ghost ? 0.45 : 1} />
+        <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={ghost ? 0.2 : 0.5} color={baseColor} opacity={ghost ? 0.45 : 1} depthWrite={!ghost} />
       </sprite>
     </group>
   );
@@ -624,22 +667,31 @@ function Units() {
   const inspected = useGame((s) => s.inspected);
   const anim = useGame((s) => s.anim);
   const active = activeUnit(match);
+  const marks = useTargetMarks();
   const quick = useMemo(() => hoverQuick({ match, phase, hoverHex, hoverUnitId }), [match, phase, hoverHex, hoverUnitId]);
-  // Where the acting unit is shown: its menu destination, or the quick-action hex.
-  const shownAt = useMemo((): { to: Hex; facing: number; alt?: Hex } | null => {
-    if (!active) return null;
-    if (quick) {
-      const main = quick.plans.attack ?? quick.plans.magic!;
-      const alt = quick.plans.attack && quick.plans.magic && !hexEq(quick.plans.attack.dest, quick.plans.magic.dest) ? quick.plans.magic.dest : undefined;
-      return { to: main.dest, facing: facingTowardTarget(main.dest, quick.target.pos, active.facing), alt };
+  // Quick-action destinations: shown as instant ghosts; the acting unit stays put.
+  const ghosts = useMemo(() => {
+    if (!active || !quick) return [];
+    const out: { key: string; at: Hex; label: 'A' | 'M' }[] = [];
+    if (quick.plans.attack) out.push({ key: 'A', at: quick.plans.attack.dest, label: 'A' });
+    if (quick.plans.magic) out.push({ key: 'M', at: quick.plans.magic.dest, label: 'M' });
+    return out;
+  }, [active, quick]);
+  useEffect(() => {
+    for (const k of ['ghost:A', 'ghost:M']) anchorSources.delete(k);
+    for (const g of ghosts) {
+      const v = worldAt(match, g.at).add(new THREE.Vector3(0, 0.25, 0));
+      anchorSources.set(`ghost:${g.label}`, () => v);
     }
-    if ('to' in phase) return { to: phase.to, facing: phase.facing };
-    return null;
-  }, [active, quick, phase]);
+    return () => {
+      for (const k of ['ghost:A', 'ghost:M']) anchorSources.delete(k);
+    };
+  }, [ghosts, match]);
+  const shownAt = active && 'to' in phase ? { to: phase.to, facing: phase.facing } : null;
   const previewPath = useMemo(() => {
     if (!active || !shownAt || hexEq(active.pos, shownAt.to)) return undefined;
     return pathTo(reachable(match, active), shownAt.to);
-  }, [match, active, shownAt]);
+  }, [match, active, shownAt?.to.q, shownAt?.to.r]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
       {match.units.map((u) => {
@@ -664,19 +716,22 @@ function Units() {
             isActive={active?.id === u.id}
             previewPath={path}
             inspected={inspected.includes(u.id)}
+            mark={marks.get(u.id)}
           />
         );
       })}
-      {active && shownAt?.alt && quick && (
-        <UnitView
-          key={`ghost${active.id}`}
-          unit={active}
-          displayPos={shownAt.alt}
-          facing={facingTowardTarget(shownAt.alt, quick.target.pos, active.facing)}
-          isActive={false}
-          ghost
-        />
-      )}
+      {active &&
+        quick &&
+        ghosts.map((g) => (
+          <UnitView
+            key={`ghost${g.key}${hexKey(g.at)}`}
+            unit={active}
+            displayPos={g.at}
+            facing={facingTowardTarget(g.at, quick.target.pos, active.facing)}
+            isActive={false}
+            ghost
+          />
+        ))}
     </>
   );
 }

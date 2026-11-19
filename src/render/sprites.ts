@@ -288,3 +288,33 @@ export function projectileTexture(style: 'arrow' | 'orb', element: Element | nul
   projCache.set(key, t);
   return t;
 }
+
+// ---------- target outline (silhouette dilated by 1px, white; tinted per use) ----------
+
+const outlineCache = new Map<string, THREE.Texture>();
+
+export function unitOutlineTexture(kindId: string, side: SideId, frame: IdleFrame): THREE.Texture {
+  const key = `${kindId}|${side}|${frame}`;
+  const hit = outlineCache.get(key);
+  if (hit) return hit;
+  const src = unitFrameCanvas(kindId, side, frame);
+  const w = src.width;
+  const h = src.height;
+  const data = src.getContext('2d')!.getImageData(0, 0, w, h).data;
+  const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && data[(y * w + x) * 4 + 3] > 0;
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = h;
+  const ctx = cv.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      if (solid(x, y)) continue;
+      if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) ctx.fillRect(x, y, 1, 1);
+    }
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  outlineCache.set(key, t);
+  return t;
+}

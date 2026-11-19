@@ -28,10 +28,10 @@ npm run build
 
 ## Controls
 
-- On your turn the acting unit is **selected**. Its Move Range shows in blue, Attack Reach in red, Magic Reach in purple, and hexes both can hit in orange.
+- On your turn the acting unit is **selected**. A white line traces the outer edge of its Move Range. Units it can act on right now get a coloured sprite outline: red for Attack, blue for Magic, flashing red/blue for both, green for a heal.
 - **Left-click** a blue hex to move there (or the unit itself to stay), which opens the command menu. While the menu is open, left-click the map to set Facing for Wait. Attack and Magic always face the target.
-- **Hover a unit in reach** to see the hex the unit would act from (best Facing Modifier, then farthest, then not moving), every hex it could act from, and both previews. **Left-click** it to move there and act. If both Attack and Magic are possible, you pick one.
-- **Right-click a unit** to toggle its ranges (up to 3; they clear when the turn ends). Right-click elsewhere, or left-click outside the ranges, to deselect. Then click anywhere to select the unit again.
+- **Hover a unit in reach** to see translucent ghosts at the hexes it would Attack (A) and cast Magic (M) from (best Facing Modifier, then farthest, then not moving), a yellow outline around every hex it could act from, and both previews. **Left-click** it to move there and act. If both Attack and Magic are possible, you pick one.
+- **Right-click a unit** to toggle its ranges (up to 3; they clear when the turn ends): its Move Range in a pale line of its Side colour, Attack Reach as a red dashed line, Magic Reach as a blue dashed line. Right-click elsewhere, or left-click outside the ranges, to deselect. Then click anywhere to select the unit again.
 - **Right-click** in menus goes back a step (in the command menu it cancels the move; while placing a summon it returns to the summon list).
 - **Right-drag**: pan. **Mouse wheel**: zoom.
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.

@@ -93,6 +93,16 @@ export function Overlay() {
           </div>
         </div>
       ))}
+      {quick?.plans.attack && (
+        <div className="anchor" data-anchor="ghost:A">
+          <div className="ghost-badge a">A</div>
+        </div>
+      )}
+      {quick?.plans.magic && (
+        <div className="anchor" data-anchor="ghost:M">
+          <div className="ghost-badge m">M</div>
+        </div>
+      )}
       {phase.kind === 'quickChoice' && (
         <div
           className="anchor top interactive"
