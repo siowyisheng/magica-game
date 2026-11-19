@@ -224,7 +224,7 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
   for (const dest of dests) {
     const pos = positionalScore(dest);
     const commands: Command[] = [{ type: 'wait' }];
-    if (!me.stranded) {
+    if (!me.stranded || !hexEq(dest, me.pos)) {
       const view: MatchState = { ...state, units: state.units.map((u) => (u.id === me.id ? { ...u, pos: dest } : u)) };
       const moved = { ...me, pos: dest };
       for (const t of attackTargets(view, moved, dest)) commands.push({ type: 'attack', target: t.pos });

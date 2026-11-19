@@ -21,6 +21,12 @@ export function moveRange(state: MatchState, unit: Unit): Hex[] {
   return out;
 }
 
+/** Hexes the Unit could Attack or cast Magic from: a Stranded unit must move first. */
+function actionSources(state: MatchState, unit: Unit): Hex[] {
+  const dests = moveRange(state, unit);
+  return unit.stranded ? dests.filter((h) => !hexEq(h, unit.pos)) : dests;
+}
+
 function reachFrom(state: MatchState, dests: Hex[], min: number, max: number, radius: number): Map<string, Hex> {
   const out = new Map<string, Hex>();
   for (const d of dests) {
@@ -46,9 +52,10 @@ export function unitReach(state: MatchState, unit: Unit): Reach {
   const dests = moveRange(state, unit);
   const k = kindOf(unit.kind);
   const move = new Map(dests.map((h) => [hexKey(h), h] as const));
-  const attack = reachFrom(state, dests, 1, k.attack.range, 0);
+  const sources = actionSources(state, unit);
+  const attack = reachFrom(state, sources, 1, k.attack.range, 0);
   const m = primaryMagic(unit);
-  const magic = m ? reachFrom(state, dests, minAimDistance(m), m.range, m.radius) : new Map<string, Hex>();
+  const magic = m ? reachFrom(state, sources, minAimDistance(m), m.range, m.radius) : new Map<string, Hex>();
   return { move, attack, magic };
 }
 
@@ -90,7 +97,7 @@ function withUnitAt(state: MatchState, id: number, pos: Hex): MatchState {
 export function planAttack(state: MatchState, unit: Unit, target: Unit): TargetPlan | null {
   if (target.side === unit.side || target.id === unit.id) return null;
   const a = kindOf(unit.kind).attack;
-  const sources = moveRange(state, unit).filter((h) => {
+  const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
     return d >= 1 && d <= a.range;
   });
@@ -107,7 +114,7 @@ export interface MagicPlan extends TargetPlan {
 export function planMagic(state: MatchState, unit: Unit, target: Unit): MagicPlan | null {
   const ab = primaryMagic(unit);
   if (!ab || target.id === unit.id) return null;
-  const sources = moveRange(state, unit).filter((h) => {
+  const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
     if (d < minAimDistance(ab) || d > ab.range) return false;
     const view = withUnitAt(state, unit.id, h);

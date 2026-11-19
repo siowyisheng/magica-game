@@ -83,7 +83,6 @@ interface Store {
 function phaseFor(match: MatchState): Phase {
   const u = activeUnit(match);
   if (!u || match.winner !== null || match.sides[u.side].ai) return { kind: 'idle' };
-  if (u.stranded) return { kind: 'menu', to: u.pos, facing: u.facing };
   return { kind: 'move', selected: true };
 }
 
@@ -260,7 +259,6 @@ export const useGame = create<Store>((set, get) => {
         case 'menu':
           if (other) return toggleInspect(other.id);
           if (phase.sub) return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing }, hoverSummon: null });
-          if (u.stranded) return; // cannot move anyway
           return set({ phase: { kind: 'move', selected: true }, hoverCommand: null }); // cancel move
         case 'target':
           if (other) return toggleInspect(other.id);

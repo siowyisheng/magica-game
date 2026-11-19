@@ -41,6 +41,8 @@ export function CommandMenu() {
   const u = activeUnit(match);
   if (!u || phase.kind !== 'menu') return null;
   const kind = kindOf(u.kind);
+  // A Stranded unit that stays put can only Wait.
+  const stuck = u.stranded && phase.to.q === u.pos.q && phase.to.r === u.pos.r;
   const to = phase.to;
   const mana = match.sides[u.side].mana;
   const moved = { ...u, pos: to };
@@ -111,14 +113,14 @@ export function CommandMenu() {
     return (
       <>
         <button onClick={() => choose('wait')} {...hover('wait')}>Wait</button>
-        <button disabled={u.stranded || !canAttack} onClick={() => choose('attack')} {...hover('attack')}>Attack</button>
+        <button disabled={stuck || !canAttack} onClick={() => choose('attack')} {...hover('attack')}>Attack</button>
         {kind.isSummoner ? (
-          <button disabled={u.stranded} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
+          <button disabled={stuck} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
         ) : (
           (() => {
             const ab = kind.magic[0];
             const usable =
-              !u.stranded &&
+              !stuck &&
               mana >= ab.manaCost &&
               (ab.kind === 'water' ? canCastWater(match, ab.delta) : magicTargetHexes(match, u, ab, to).length > 0);
             return (
@@ -129,7 +131,7 @@ export function CommandMenu() {
           })()
         )}
         {kind.isSummoner && (
-          <button disabled={u.stranded} onClick={() => choose({ sub: 'summon' })} {...hover('summon')}>Summon ▸</button>
+          <button disabled={stuck} onClick={() => choose({ sub: 'summon' })} {...hover('summon')}>Summon ▸</button>
         )}
       </>
     );

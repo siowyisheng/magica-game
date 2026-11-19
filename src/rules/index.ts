@@ -9,3 +9,4 @@ export * from './data/tuning';
 export { ELEMENTS } from './data/summons';
 export { SCAFFOLD_MAP } from './maps/scaffold';
 export * from './reach';
+export { validateMapWater, MAX_FLOOD_SHARE } from './maps/validate';

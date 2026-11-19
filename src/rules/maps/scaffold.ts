@@ -2,9 +2,9 @@ import { offsetToAxial } from '../hex';
 import type { HexTerrain, MapDef, MapHex } from '../types';
 
 // A fixed 15×13 (odd-r offset) map, mirrored top↔bottom.
-// Water Level 2: height 1 = Shallow, height 0 = Deep.
+// Water Level 2: height 1 = Shallow, height -1 = Deep (still Deep after one Ebb).
 // Legend per char: '.' plain h3, ',' rough h3, '^' plain h4, '#' plain h5,
-// 'r' rough h4, 'l' low plain h2, '~' shallow h1, '=' deep h0,
+// 'r' rough h4, 'l' low plain h2, '~' shallow h1, '=' deep h-1,
 // 'S' stone h3, 'L' stone on low ground h2, 'T' stone on plateau h4.
 const ROWS_TOP = [
   '..,,...^...,,..', // 0 (red summoner spawn at col 7)
@@ -27,7 +27,7 @@ function cell(ch: string): { height: number; terrain: HexTerrain } {
     case 'r': return { height: 4, terrain: 'rough' };
     case 'l': return { height: 2, terrain: 'plain' };
     case '~': return { height: 1, terrain: 'plain' };
-    case '=': return { height: 0, terrain: 'plain' };
+    case '=': return { height: -1, terrain: 'plain' };
     case 'S': return { height: 3, terrain: 'stone' };
     case 'L': return { height: 2, terrain: 'stone' };
     case 'T': return { height: 4, terrain: 'stone' };

@@ -161,3 +161,21 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 .ghost-badge.a { background: #d8382a; margin-left: -10px; }
 .ghost-badge.m { background: #2f86e0; margin-left: 10px; }
+
+/* mana + income + upkeep bars (one Mana scale); numbers on hover */
+.mana-stack { position: relative; }
+.mana-stack .mana { margin-bottom: 2px; }
+.mana-stack .mana > span { width: 56px; flex: none; text-align: right; }
+.mana-stack .mana-bar { border-width: 1px; }
+/* same width and border as the Mana bar so all three share one scale */
+.sub-bar { position: relative; height: 4px; background: #000; border: 1px solid #2a3250; margin: 1px 0; width: calc(100% - 62px); }
+.sub-bar .fill { position: absolute; left: 0; top: 0; bottom: 0; }
+.sub-bar.income .fill { background: #e0b040; }
+.sub-bar.upkeep .fill { background: #e0603a; }
+.sub-bar .mark { position: absolute; top: -1px; bottom: -1px; width: 1px; background: #10121a; }
+.sub-bar .over { position: absolute; right: -10px; top: -6px; font-size: 10px; color: #e0b040; }
+.mana-tip {
+  display: none; position: absolute; left: 0; top: 100%; z-index: 50; margin-top: 2px;
+  background: #0d1020f2; border: 1px solid var(--win-edge); padding: 3px 6px; font-size: 11px; right: 0;
+}
+.mana-stack:hover .mana-tip { display: block; }

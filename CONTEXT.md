@@ -85,7 +85,7 @@ The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no
 _Avoid_: Skill, spell (as a code term)
 
 **Stranded**:
-A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage and can only Wait.
+A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage, then may move by its normal rules into hexes it can enter, and then act as usual. If it stays where it is, it can only Wait.
 
 ## Facing and damage
 
@@ -108,7 +108,7 @@ The exact result of a Command against a target, shown before the Command is conf
 How high a hex is. Walk and Slow can climb at most 1 Height per hex they move, at +1 Move Point; going down 1 Height is free. Fly ignores Height.
 
 **Water Level**:
-The map's water surface Height. Rise and Ebb change it, up to 1 above its starting value and down to the level at which no water hexes remain. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
+The map's water surface Height. Rise and Ebb change it by one step at a time, from 1 below its starting value to 1 above it. Every map with water keeps some Deep Water at the lowest level, and the highest level floods at most 40% of the map. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
 
 **Plain**:
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.

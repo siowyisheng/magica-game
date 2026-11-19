@@ -100,7 +100,8 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
   const state: MatchState = {
     map,
     waterLevel: map.waterLevel,
-    minWaterLevel: Math.min(minHeight, map.waterLevel),
+    // 1 below the start, but never below the level at which no water remains
+    minWaterLevel: Math.max(map.waterLevel - 1, Math.min(minHeight, map.waterLevel)),
     maxWaterLevel: map.waterLevel + 1,
     hasWater,
     clock: map.startClock,
@@ -141,7 +142,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
   const unit = getUnit(state, action.unitId);
   const kind = kindOf(unit.kind);
   const moved = !hexEq(unit.pos, action.to);
-  if (unit.stranded && (moved || action.command.type !== 'wait')) return 'stranded units can only Wait';
+  if (unit.stranded && !moved && action.command.type !== 'wait') return 'stranded units that stay put can only Wait';
   if (moved) {
     const node = reachable(state, unit).get(hexKey(action.to));
     if (!node || !node.canEnd) return 'destination not reachable';

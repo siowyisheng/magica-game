@@ -21,6 +21,7 @@ import {
   type MatchState,
   type Unit,
   type HexTerrain,
+  isStranded,
   hexDistance,
 } from './index';
 import { ELEMENTS } from './data/summons';
@@ -419,5 +420,42 @@ describe('targeting without minimum range', () => {
     const heal = kindOf('undine').magic[0];
     if (heal.kind === 'water') throw new Error('unexpected');
     expect(magicTargetHexes(s, undine, heal, undine.pos).some((h) => h.q === 0 && h.r === 2)).toBe(true);
+  });
+});
+
+describe('water level bounds and map water rules', () => {
+  it('Ebb goes at most 1 below the start; the scaffold map keeps Deep Water and floods ≤ 40% on Rise', async () => {
+    const { validateMapWater } = await import('./index');
+    const s = createMatch(SCAFFOLD_MAP);
+    expect(s.minWaterLevel).toBe(SCAFFOLD_MAP.waterLevel - 1);
+    expect(s.maxWaterLevel).toBe(SCAFFOLD_MAP.waterLevel + 1);
+    expect(validateMapWater(SCAFFOLD_MAP)).toEqual([]);
+  });
+});
+
+describe('stranded movement', () => {
+  it('a stranded unit may move into hexes it can enter and act; staying put allows only Wait', async () => {
+    const { validateTurn, reachable } = await import('./index');
+    // shark (swim only) stranded on land next to water
+    const s = createMatch(testMap(6, 6, (q) => (q >= 3 ? { height: 0 } : { height: 2 }), 2));
+    const shark = place(s, 'shark', 0, 2, 2, 0, 0);
+    shark.stranded = true;
+    activate(s, shark);
+    const foe = place(s, 'imp', 1, 5, 2);
+    void foe;
+    const nodes = reachable(s, shark);
+    expect(nodes.get(hexKey(hex(3, 2)))?.canEnd).toBe(true);
+    expect(validateTurn(s, { unitId: shark.id, to: shark.pos, facing: 0, command: { type: 'attack', target: hex(3, 2) } })).toMatch(/only Wait/);
+    expect(validateTurn(s, { unitId: shark.id, to: hex(4, 2), facing: 0, command: { type: 'attack', target: hex(5, 2) } })).toBeNull();
+    expect(validateTurn(s, { unitId: shark.id, to: shark.pos, facing: 0, command: { type: 'wait' } })).toBeNull();
+  });
+
+  it('slow+swim units are never stranded', () => {
+    const land = createMatch(testMap(3, 3, () => ({ height: 3 }), 2));
+    const crab = place(land, 'crab', 0, 1, 1);
+    const water = createMatch(testMap(3, 3, () => ({ height: -1 }), 2));
+    const crab2 = place(water, 'crab', 0, 1, 1);
+    expect(isStranded(land, crab)).toBe(false);
+    expect(isStranded(water, crab2)).toBe(false);
   });
 });
