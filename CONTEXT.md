@@ -70,7 +70,7 @@ Whether a Summon is tied to Day, to Night, or to neither. It gets stat bonuses a
 ## Turn structure
 
 **Command**:
-What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic or Summon. Choosing a Facing comes before the Command.
+What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic or Summon. Facing is chosen before the Command and cannot change after it. Summon is the exception: it turns the Summoner to face the direction it summoned in.
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:

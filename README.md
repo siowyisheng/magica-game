@@ -21,13 +21,13 @@ npm run build
 | `src/rules/data/` | Tuning tables (Base Delay by Speed, Mana and cover constants), the Summoner and the 28 placeholder Summons. |
 | `src/rules/maps/scaffold.ts` | The fixed 15×13 map with 7 Magic Stones and a river (Water Level 2). |
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
-| `src/store.ts` | UI state machine (move → command → target → facing). It produces one `TurnAction` for the rules. |
+| `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
 | `src/render/` | three.js scene: isometric orthographic camera, hex columns, water, stones, highlights, procedural billboard sprites, and a pixelation pass (low-DPR canvas upscaled with nearest-neighbour). |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
 
 ## Controls
 
-- **Left-click**: choose a destination (or click the unit itself to stay), then a command, a target, and a facing.
+- **Left-click**: choose a destination (or click the unit itself to stay). While the command menu is open, left-click the map to turn the unit toward that hex, then pick a command. Wait ends the turn at once, and Facing can't change after Attack, Magic or Summon.
 - **Right-click**: go back a step (in the command menu this cancels the move).
 - **Right-drag**: pan. **Mouse wheel**: zoom.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.

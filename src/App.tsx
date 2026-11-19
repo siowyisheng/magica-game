@@ -15,10 +15,11 @@ function PhaseHint() {
   const text: Record<string, string> = {
     idle: `${who} is acting…`,
     move: `${who}: click a blue hex to move, or the unit itself to stay`,
-    menu: `${who}: choose a command (right-click to cancel the move)`,
+    menu: u.stranded
+      ? `${who} is Stranded: left-click the map to set facing, then Wait`
+      : `${who}: left-click the map to set facing, then choose a command (right-click cancels the move)`,
     target: `${who}: hover a target to preview, click to confirm`,
     summonDir: `${who}: click a highlighted adjacent hex to summon`,
-    facing: u.stranded ? `${who} is Stranded: click to choose facing and Wait` : `${who}: point to choose facing, click to confirm`,
   };
   return <div className="phase-hint">{text[phase.kind]}</div>;
 }

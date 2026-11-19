@@ -25,9 +25,8 @@ import {
   surfaceOf,
   unitAt,
   DIRS,
-  facingToward,
 } from '../rules';
-import { useGame } from '../store';
+import { closestFacing, useGame } from '../store';
 import { SIDE_COLORS, unitTexture } from './sprites';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
@@ -273,7 +272,8 @@ function useMarks(): Mark[] {
         if (mh && canStandOn(sk, mh, match.waterLevel) && (!occ || occ.id === u.id) && !hexEq(h, phase.to))
           marks.push({ h, color: '#ffd23f', opacity: 0.5 });
       }
-    } else if (phase.kind === 'facing') {
+    } else if (phase.kind === 'menu') {
+      // faint ring: left-click anywhere on the map sets Facing
       for (const d of DIRS) {
         const h = neighbor(phase.to, d);
         if (mapHexAt(match.map, h)) marks.push({ h, color: '#ffffff', opacity: 0.12 });
@@ -406,7 +406,8 @@ function Units() {
         let facing: number = u.facing;
         if (active && u.id === active.id && 'to' in phase) {
           pos = phase.to;
-          if (phase.kind === 'facing' && hoverHex && !hexEq(hoverHex, phase.to)) facing = facingToward(phase.to, hoverHex);
+          facing = phase.facing;
+          if (phase.kind === 'summonDir' && hoverHex && hexDistance(hoverHex, phase.to) === 1) facing = closestFacing(phase.to, hoverHex);
         }
         return <UnitView key={u.id} unit={u} displayPos={pos} facing={facing} isActive={active?.id === u.id} />;
       })}
