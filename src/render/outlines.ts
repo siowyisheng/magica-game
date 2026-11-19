@@ -140,3 +140,41 @@ export function ribbonGeometry(segs: Segment[], style: LineStyle): THREE.BufferG
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   return g;
 }
+
+/** World height of the outline fences: about 1.1 Height levels. */
+export const FENCE_HEIGHT = 1.1 * STEP;
+
+/**
+ * Vertical strips standing on each boundary edge, from `y0` to `y1` above the
+ * tile top (solid or dashed along the edge). Seen from the camera they read
+ * as bands rather than hairlines, and rise above neighbouring columns.
+ */
+export function fenceGeometry(segs: Segment[], style: LineStyle, y0: number, y1: number): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const quad = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const a0 = a.clone().setY(a.y + y0);
+    const b0 = b.clone().setY(b.y + y0);
+    const a1 = a.clone().setY(a.y + y1);
+    const b1 = b.clone().setY(b.y + y1);
+    pos.push(a0.x, a0.y, a0.z, b0.x, b0.y, b0.z, b1.x, b1.y, b1.z);
+    pos.push(a0.x, a0.y, a0.z, b1.x, b1.y, b1.z, a1.x, a1.y, a1.z);
+  };
+  for (const s of segs) {
+    if (!style.dash) {
+      quad(s.a, s.b);
+      continue;
+    }
+    const len = s.a.distanceTo(s.b);
+    const { period, phase } = style.dash;
+    const dir = s.b.clone().sub(s.a).normalize();
+    for (let t = -phase * period; t < len; t += period) {
+      const t0 = Math.max(0, t);
+      const t1 = Math.min(len, t + period / 2);
+      if (t1 <= t0) continue;
+      quad(s.a.clone().addScaledVector(dir, t0), s.a.clone().addScaledVector(dir, t1));
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}

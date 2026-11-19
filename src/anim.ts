@@ -34,6 +34,8 @@ export type AnimStep =
     }
   | { kind: 'hit'; unitIds: number[]; t0: number; t1: number }
   /** Summoner glows and approaches, a light blooms on the hex, the summon fades in, the Summoner backs off. */
+  /** A light swells on the Magic Stone (ease in/out); the stone changes colour at the peak. */
+  | { kind: 'capture'; hex: Hex; side: SideId; t0: number; t1: number }
   | { kind: 'summon'; unitId: number; from: Hex; target: Hex; summonKind: string; side: SideId; facing: Dir; t0: number; t1: number };
 
 export interface TurnAnim {
@@ -53,6 +55,7 @@ const MELEE_MS = 520;
 const MELEE_IMPACT = 0.55; // fraction of the melee step when the bonk lands
 const HIT_MS = 220;
 export const SUMMON_MS = 1250;
+export const CAPTURE_MS = 900;
 /** Phases of the summon step as fractions of its duration. */
 export const SUMMON_PHASES = { approachEnd: 0.24, lightStart: 0.18, fadeStart: 0.36, fadeEnd: 0.74, backStart: 0.8 } as const;
 
@@ -127,6 +130,13 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       t1: t + SUMMON_MS,
     });
     t += SUMMON_MS;
+  }
+
+  // Capture: the acting unit ends its turn on a Magic Stone its Side doesn't control.
+  const stone = before.stones.find((st) => hexEq(st.hex, action.to));
+  if (stone && stone.owner !== unit.side) {
+    steps.push({ kind: 'capture', hex: action.to, side: unit.side, t0: t, t1: t + CAPTURE_MS });
+    t += CAPTURE_MS;
   }
 
   const facing = cmd.type === 'summon' ? cmd.dir : action.facing;
