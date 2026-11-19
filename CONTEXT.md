@@ -17,7 +17,7 @@ A Unit that a Summoner brings onto a hex next to it. The new Summon faces the wa
 _Avoid_: Monster, minion, creature
 
 **Side**:
-One of the two opposing players (human or AI) and every Unit they control.
+One of the two opposing players (human or AI) and every Unit they control. The Side Colour is green for the human player by default and red for the opponent.
 _Avoid_: Team, faction, player (when meaning the group of Units)
 
 ## Stats
@@ -48,7 +48,7 @@ _Avoid_: Weakness, advantage
 The match's 24-hour in-game time. One minute of Game Clock equals one point of Action Value. In the scaffold it starts at 06:00.
 
 **Action Value (AV)**:
-How many Game Clock minutes are left before a Unit acts next. The Unit with the lowest AV acts.
+How many Game Clock minutes are left before a Unit acts next. The Unit with the lowest AV acts. Summoners start a match with their Base Delay, as if they had just Waited.
 _Avoid_: Initiative, ticks, ATB
 
 **Base Delay**:
@@ -113,6 +113,9 @@ Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. 
 A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 30% less damage. The Side that controls it gains more Mana.
 _Avoid_: Crystal, pedestal
 
+**Stone Heal**:
+Any Unit that starts its turn on a Magic Stone, whoever controls it, heals 1 HP, up to 10. A Stranded Unit takes the Stranded damage first.
+
 **Capture**:
 A Unit that ends its turn on a Magic Stone gives control of the Stone to its Side. Being Summoned onto a Stone does not count. Control lasts until an enemy Unit Captures it, including while the Stone is under water.
 
@@ -122,7 +125,7 @@ The hexes next to a Unit that the Unit itself could move into. An opposing Unit 
 ## Economy
 
 **Mana**:
-A Side's resource for summoning and for Summoner Magic. It is gained at the start of every Game Clock hour.
+A Side's shared resource for summoning and for every Magic Ability its Units cast, Summoners' and Summons' alike. It is gained at the start of every Game Clock hour.
 
 **Mana Income**:
 What a Side gains each hour: (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons. Mana never drops below 0 or rises above 120.
