@@ -30,7 +30,7 @@ import {
   facingTowardTarget,
 } from '../rules';
 import { hoverQuick, quickPlans, summonDirToward, useGame } from '../store';
-import { regionSegments, ribbonGeometry, type LineStyle } from './outlines';
+import { FENCE_HEIGHT, fenceGeometry, regionSegments, type LineStyle } from './outlines';
 import { SIDE_COLORS, idleFrameAt, projectileTexture, spriteScale, unitFrameTexture, unitOutlineTexture, unitTexture } from './sprites';
 import { MS_PER_HEX, SUMMON_PHASES, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
@@ -132,19 +132,65 @@ function terrainColor(terrain: string, height: number): string {
 
 const STONE_NEUTRAL = '#a8804a'; // light brown (glow brightens it)
 
+const lightTex = (() => {
+  const n = 64;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const ctx = cv.getContext('2d')!;
+  const g = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  g.addColorStop(0, 'rgba(255,255,240,1)');
+  g.addColorStop(0.35, 'rgba(255,240,170,0.75)');
+  g.addColorStop(1, 'rgba(255,220,120,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, n, n);
+  return new THREE.CanvasTexture(cv);
+})();
+
 /** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
 /** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
-function StoneColumn({ height, owner }: { height: number; owner: SideId | null }) {
-  const color = owner === null ? STONE_NEUTRAL : SIDE_COLORS[owner];
+/** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
+function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: number; owner: SideId | null }) {
   const mat = useRef<THREE.MeshLambertMaterial>(null);
+  const light = useRef<THREE.Sprite>(null);
+  const lightMat = useRef<THREE.SpriteMaterial>(null);
   useFrame(({ clock }) => {
-    const t = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 2.2);
-    if (mat.current) mat.current.emissiveIntensity = 0.24 + 0.18 * t;
+    const pulse = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 2.2);
+    let shown = owner;
+    let glow = 0;
+    const anim = useGame.getState().anim;
+    if (anim) {
+      const t = performance.now() - anim.start;
+      for (const st of anim.steps) {
+        if (st.kind !== 'capture' || !hexEq(st.hex, h) || t < st.t0) continue;
+        const p = Math.min(1, (t - st.t0) / (st.t1 - st.t0));
+        // ease in to the peak, ease out after it; colour flips at the brightest moment
+        glow = p < 0.5 ? easeInOut(p / 0.5) : 1 - easeInOut((p - 0.5) / 0.5);
+        if (p >= 0.5) shown = st.side;
+      }
+    }
+    if (mat.current) {
+      const c = shown === null ? STONE_NEUTRAL : SIDE_COLORS[shown];
+      mat.current.color.set(c);
+      mat.current.emissive.set(c);
+      mat.current.emissiveIntensity = 0.24 + 0.18 * pulse + 1.2 * glow;
+    }
+    if (light.current && lightMat.current) {
+      light.current.visible = glow > 0.001;
+      const sc = 1 + 2.2 * glow;
+      light.current.scale.set(sc, sc * 1.5, 1);
+      lightMat.current.opacity = glow;
+    }
   });
+  const color = owner === null ? STONE_NEUTRAL : SIDE_COLORS[owner];
   return (
-    <mesh geometry={columnGeo(height)}>
-      <meshLambertMaterial ref={mat} color={color} emissive={color} emissiveIntensity={0.3} flatShading />
-    </mesh>
+    <>
+      <mesh geometry={columnGeo(height)}>
+        <meshLambertMaterial ref={mat} color={color} emissive={color} emissiveIntensity={0.3} flatShading />
+      </mesh>
+      <sprite ref={light} visible={false} position={[0, height * STEP + 0.6, 0]} raycast={() => null} renderOrder={12}>
+        <spriteMaterial ref={lightMat} map={lightTex} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </sprite>
+    </>
   );
 }
 
@@ -193,7 +239,7 @@ function Tile({
   return (
     <group position={[x, 0, z]} onPointerMove={onMove} onClick={onClick}>
       {terrain === 'stone' ? (
-        <StoneColumn height={height} owner={owner ?? null} />
+        <StoneColumn hex={h} height={height} owner={owner ?? null} />
       ) : (
         <mesh geometry={columnGeo(height)}>
           <meshLambertMaterial color={color} flatShading />
@@ -372,22 +418,34 @@ function useOutlines(): OutlineLayer[] {
   }, [match, phase, hoverHex, hoverUnitId, inspected]);
 }
 
+/** A translucent fence along the region boundary with a bright band on top. */
 function OutlineMesh({ layer }: { layer: OutlineLayer }) {
   const match = useGame((s) => s.match);
-  const geo = useMemo(() => ribbonGeometry(regionSegments(match, layer.region), layer.style), [match, layer]);
-  useEffect(() => () => geo.dispose(), [geo]);
+  const { body, top } = useMemo(() => {
+    const segs = regionSegments(match, layer.region);
+    const band = Math.min(0.09, layer.style.width * 1.3);
+    return {
+      body: fenceGeometry(segs, layer.style, 0, FENCE_HEIGHT - band),
+      top: fenceGeometry(segs, layer.style, FENCE_HEIGHT - band, FENCE_HEIGHT),
+    };
+  }, [match, layer]);
+  useEffect(
+    () => () => {
+      body.dispose();
+      top.dispose();
+    },
+    [body, top],
+  );
+  const o = layer.style.opacity ?? 1;
   return (
-    <mesh geometry={geo} raycast={() => null} renderOrder={5}>
-      <meshBasicMaterial
-        color={layer.style.color}
-        transparent
-        opacity={layer.style.opacity ?? 1}
-        side={THREE.DoubleSide}
-        depthWrite={false}
-        polygonOffset
-        polygonOffsetFactor={-2}
-      />
-    </mesh>
+    <>
+      <mesh geometry={body} raycast={() => null} renderOrder={5}>
+        <meshBasicMaterial color={layer.style.color} transparent opacity={0.22 * o} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <mesh geometry={top} raycast={() => null} renderOrder={6}>
+        <meshBasicMaterial color={layer.style.color} transparent opacity={o} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+    </>
   );
 }
 
@@ -818,19 +876,6 @@ function Projectile({ step }: { step: Extract<AnimStep, { kind: 'projectile' }> 
   );
 }
 
-const lightTex = (() => {
-  const n = 64;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = n;
-  const ctx = cv.getContext('2d')!;
-  const g = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
-  g.addColorStop(0, 'rgba(255,255,240,1)');
-  g.addColorStop(0.35, 'rgba(255,240,170,0.75)');
-  g.addColorStop(1, 'rgba(255,220,120,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, n, n);
-  return new THREE.CanvasTexture(cv);
-})();
 
 /** The bright light on the summoned hex and the summon fading in inside it. */
 function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {

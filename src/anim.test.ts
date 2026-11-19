@@ -43,3 +43,17 @@ describe('summon animation', () => {
     expect(a.duration).toBeGreaterThan(1000);
   });
 });
+
+describe('capture animation', () => {
+  it('plays a capture step when the actor ends its turn on a stone it does not control', () => {
+    const map = flatMap(6, 6);
+    map.hexes = map.hexes.map((h) => (h.hex.q === 1 && h.hex.r === 4 ? { ...h, terrain: 'stone' as const } : h));
+    const s = createMatch(map);
+    const me = getUnit(s, s.activeUnitId!); // (0,5)
+    const a = planTurnAnim(s, { unitId: me.id, to: hex(1, 4), facing: 1, command: { type: 'wait' } }, 0);
+    expect(a.steps.map((x) => x.kind)).toEqual(['move', 'capture']);
+    s.stones[0].owner = me.side;
+    const b = planTurnAnim(s, { unitId: me.id, to: hex(1, 4), facing: 1, command: { type: 'wait' } }, 0);
+    expect(b.steps.map((x) => x.kind)).toEqual(['move']);
+  });
+});

@@ -209,9 +209,9 @@ export const useGame = create<Store>((set, get) => {
             if (canAttack && canMagic) {
               return set({ phase: { kind: 'quickChoice', targetId: target.id, attack: q.attack!, magic: q.magic! } });
             }
-            if (canAttack) return commit({ unitId: u.id, to: q.attack!.dest, facing: u.facing, command: { type: 'attack', target: target.pos } });
+            if (canAttack) return commit({ unitId: u.id, to: q.attack!.dest, facing: u.facing, command: { type: 'attack', target: target.pos }  }, false); // quick action: slide from the unit's hex
             if (canMagic) {
-              return commit({ unitId: u.id, to: q.magic!.dest, facing: u.facing, command: { type: 'magic', ability: q.magic!.ability.id, target: target.pos } });
+              return commit({ unitId: u.id, to: q.magic!.dest, facing: u.facing, command: { type: 'magic', ability: q.magic!.ability.id, target: target.pos }  }, false); // quick action: slide from the unit's hex
             }
             if (q.magic) return; // in Magic Reach but not affordable: do nothing
             return set({ phase: { kind: 'move', selected: false } });
@@ -278,9 +278,9 @@ export const useGame = create<Store>((set, get) => {
       if (!u) return;
       if (phase.kind === 'quickChoice') {
         const target = getUnit(match, phase.targetId);
-        if (c === 'attack') return commit({ unitId: u.id, to: phase.attack.dest, facing: u.facing, command: { type: 'attack', target: target.pos } });
+        if (c === 'attack') return commit({ unitId: u.id, to: phase.attack.dest, facing: u.facing, command: { type: 'attack', target: target.pos }  }, false); // quick action: slide from the unit's hex
         if (c === 'magic') {
-          return commit({ unitId: u.id, to: phase.magic.dest, facing: u.facing, command: { type: 'magic', ability: phase.magic.ability.id, target: target.pos } });
+          return commit({ unitId: u.id, to: phase.magic.dest, facing: u.facing, command: { type: 'magic', ability: phase.magic.ability.id, target: target.pos }  }, false); // quick action: slide from the unit's hex
         }
         return;
       }

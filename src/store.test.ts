@@ -154,3 +154,24 @@ describe('choosing a summon hex', () => {
     expect(summonDirToward(state, me.id, me.pos, 'imp', me.pos)).toBeNull();
   });
 });
+
+describe('quick action animation', () => {
+  it('slides the unit from its own hex (the move is animated, not skipped)', () => {
+    useGame.setState({ animate: true });
+    useGame.getState().newMatch();
+    const m = useGame.getState().match;
+    const me = activeUnit(m)!;
+    const foe = m.units.find((x) => x.side !== me.side)!;
+    const units = m.units.map((x) => (x.id === foe.id ? { ...x, pos: hex(me.pos.q + 2, me.pos.r - 3), facing: 1 as const } : x));
+    useGame.setState({ match: { ...m, units } });
+    const q = quickPlans(useGame.getState().match, me, getUnit(useGame.getState().match, foe.id));
+    useGame.getState().clickHex(hex(me.pos.q + 2, me.pos.r - 3));
+    if (useGame.getState().phase.kind === 'quickChoice') useGame.getState().choose('attack');
+    const anim = useGame.getState().anim;
+    expect(anim).not.toBeNull();
+    const mv = anim!.steps.find((s) => s.kind === 'move');
+    expect(mv && mv.kind === 'move' && mv.path[0]).toEqual(me.pos);
+    expect(q.attack).not.toBeNull();
+    useGame.setState({ animate: false, anim: null });
+  });
+});
