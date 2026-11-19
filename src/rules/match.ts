@@ -9,7 +9,7 @@ import {
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { kindOf } from './kinds';
-import { affectedUnits, attackTargets, computeDamage, computeHeal, type Effect } from './combat';
+import { affectedUnits, attackTargets, computeDamage, computeHeal, minAimDistance, type Effect } from './combat';
 import { canStandOn, isStranded, mapHexAt, reachable, surfaceOf, unitAt } from './terrain';
 import type { GameEvent, MagicAbility, MapDef, MatchState, SideId, TurnAction, Unit, UnitKind } from './types';
 
@@ -100,7 +100,8 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
   const state: MatchState = {
     map,
     waterLevel: map.waterLevel,
-    minWaterLevel: Math.min(minHeight, map.waterLevel),
+    // 1 below the start, but never below the level at which no water remains
+    minWaterLevel: Math.max(map.waterLevel - 1, Math.min(minHeight, map.waterLevel)),
     maxWaterLevel: map.waterLevel + 1,
     hasWater,
     clock: map.startClock,
@@ -141,7 +142,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
   const unit = getUnit(state, action.unitId);
   const kind = kindOf(unit.kind);
   const moved = !hexEq(unit.pos, action.to);
-  if (unit.stranded && (moved || action.command.type !== 'wait')) return 'stranded units can only Wait';
+  if (unit.stranded && !moved && action.command.type !== 'wait') return 'stranded units that stay put can only Wait';
   if (moved) {
     const node = reachable(state, unit).get(hexKey(action.to));
     if (!node || !node.canEnd) return 'destination not reachable';
@@ -164,7 +165,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
       if (state.sides[unit.side].mana < ab.manaCost) return 'not enough mana';
       if (ab.kind === 'water') return canCastWater(state, ab.delta) ? null : 'water level cannot change further';
       const d = hexDistance(action.to, cmd.target);
-      if (d < ab.minRange || d > ab.maxRange) return 'target out of range';
+      if (d < minAimDistance(ab) || d > ab.range) return 'target out of range';
       if (!mapHexAt(state.map, cmd.target)) return 'target off map';
       if (affectedUnits(view, getUnit(view, unit.id), ab, cmd.target).length === 0) return 'no valid target';
       return null;
@@ -201,13 +202,13 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
   if (cmd.type === 'attack') {
     const t = unitAt(view, cmd.target);
     if (!t) return [];
-    return [computeDamage(view, caster, action.to, t, 'physical', kind.attack.power)];
+    return [computeDamage(view, caster, action.to, t, 'physical')];
   }
   if (cmd.type === 'magic') {
     const ab = kind.magic.find((m) => m.id === cmd.ability);
     if (!ab || ab.kind === 'water') return [];
     return affectedUnits(view, caster, ab, cmd.target).map((t) =>
-      ab.kind === 'heal' ? computeHeal(view, caster, t, ab.power) : computeDamage(view, caster, action.to, t, 'magic', ab.power),
+      ab.kind === 'heal' ? computeHeal(view, caster, t) : computeDamage(view, caster, action.to, t, 'magic'),
     );
   }
   return [];

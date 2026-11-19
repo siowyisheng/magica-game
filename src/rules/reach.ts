@@ -1,7 +1,7 @@
 // Move Range, Attack Reach, Magic Reach and targeting plans (pure).
 
 import { type Hex, hexDistance, hexEq, hexKey, hexesInRange } from './hex';
-import { affectedUnits, facingModifier } from './combat';
+import { affectedUnits, facingModifier, minAimDistance } from './combat';
 import { kindOf } from './kinds';
 import { mapHexAt, reachable } from './terrain';
 import type { MagicAbility, MatchState, Unit } from './types';
@@ -19,6 +19,12 @@ export function moveRange(state: MatchState, unit: Unit): Hex[] {
   const out: Hex[] = [];
   for (const n of reachable(state, unit).values()) if (n.canEnd) out.push(n.hex);
   return out;
+}
+
+/** Hexes the Unit could Attack or cast Magic from: a Stranded unit must move first. */
+function actionSources(state: MatchState, unit: Unit): Hex[] {
+  const dests = moveRange(state, unit);
+  return unit.stranded ? dests.filter((h) => !hexEq(h, unit.pos)) : dests;
 }
 
 function reachFrom(state: MatchState, dests: Hex[], min: number, max: number, radius: number): Map<string, Hex> {
@@ -46,9 +52,10 @@ export function unitReach(state: MatchState, unit: Unit): Reach {
   const dests = moveRange(state, unit);
   const k = kindOf(unit.kind);
   const move = new Map(dests.map((h) => [hexKey(h), h] as const));
-  const attack = reachFrom(state, dests, k.attack.minRange, k.attack.maxRange, 0);
+  const sources = actionSources(state, unit);
+  const attack = reachFrom(state, sources, 1, k.attack.range, 0);
   const m = primaryMagic(unit);
-  const magic = m ? reachFrom(state, dests, m.minRange, m.maxRange, m.radius) : new Map<string, Hex>();
+  const magic = m ? reachFrom(state, sources, minAimDistance(m), m.range, m.radius) : new Map<string, Hex>();
   return { move, attack, magic };
 }
 
@@ -90,9 +97,9 @@ function withUnitAt(state: MatchState, id: number, pos: Hex): MatchState {
 export function planAttack(state: MatchState, unit: Unit, target: Unit): TargetPlan | null {
   if (target.side === unit.side || target.id === unit.id) return null;
   const a = kindOf(unit.kind).attack;
-  const sources = moveRange(state, unit).filter((h) => {
+  const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
-    return d >= a.minRange && d <= a.maxRange;
+    return d >= 1 && d <= a.range;
   });
   if (!sources.length) return null;
   return { dest: bestSource(unit, target, sources, true), sources };
@@ -107,9 +114,9 @@ export interface MagicPlan extends TargetPlan {
 export function planMagic(state: MatchState, unit: Unit, target: Unit): MagicPlan | null {
   const ab = primaryMagic(unit);
   if (!ab || target.id === unit.id) return null;
-  const sources = moveRange(state, unit).filter((h) => {
+  const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
-    if (d < ab.minRange || d > ab.maxRange) return false;
+    if (d < minAimDistance(ab) || d > ab.range) return false;
     const view = withUnitAt(state, unit.id, h);
     const caster = view.units.find((u) => u.id === unit.id)!;
     return affectedUnits(view, caster, ab, target.pos).some((u) => u.id === target.id);

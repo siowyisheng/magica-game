@@ -1,5 +1,5 @@
 import { type Hex, hexDistance, hexesInRange, hexSub, ringPosition, hexEq } from './hex';
-import { COVER_PERCENT, FACING_KNOTS } from './data/tuning';
+import { COVER_PERCENT, DAMAGE_K, FACING_KNOTS, HEAL_DIVISOR } from './data/tuning';
 import { kindOf } from './kinds';
 import { mapHexAt, surfaceOf, unitAt } from './terrain';
 import { alignmentPercent } from './time';
@@ -105,7 +105,6 @@ export function computeDamage(
   attackerPos: Hex,
   defender: Unit,
   hit: HitKind,
-  power: number,
 ): Effect {
   const ak = kindOf(attacker.kind);
   const dk = kindOf(defender.kind);
@@ -116,7 +115,7 @@ export function computeDamage(
   const el = elementModifier(ak.element, dk.element);
   const fac = facingModifier(defender.pos, defender.facing, attackerPos);
   const cover = coverPercent(state, defender.pos);
-  const num = power * aStat * el.num * fac.num * (100 - cover);
+  const num = DAMAGE_K * aStat * el.num * fac.num * (100 - cover);
   const den = Math.max(1, dStat) * el.den * fac.den * 100;
   const amount = Math.min(defender.hp, roundRatio(num, den));
   return {
@@ -126,7 +125,7 @@ export function computeDamage(
     hpBefore: defender.hp,
     lethal: amount >= defender.hp,
     breakdown: {
-      base: (power * aStat) / Math.max(1, dStat),
+      base: (DAMAGE_K * aStat) / Math.max(1, dStat),
       element: el.num / el.den,
       facing: fac.num / fac.den,
       facingAngle: facingAngleDegrees(defender.pos, defender.facing, attackerPos),
@@ -137,10 +136,10 @@ export function computeDamage(
   };
 }
 
-export function computeHeal(state: MatchState, caster: Unit, target: Unit, power: number): Effect {
+export function computeHeal(state: MatchState, caster: Unit, target: Unit): Effect {
   const ck = kindOf(caster.kind);
   const pct = alignmentPercent(ck.alignment, state.clock);
-  const raw = roundRatio(power * ck.stats.mp * pct, 1000);
+  const raw = roundRatio(ck.stats.mp * pct, 100 * HEAL_DIVISOR);
   const amount = Math.min(raw, 10 - target.hp);
   return { unitId: target.id, kind: 'heal', amount, hpBefore: target.hp, lethal: false };
 }
@@ -152,16 +151,20 @@ export function attackTargets(state: MatchState, unit: Unit, from: Hex): Unit[] 
   return state.units.filter((u) => {
     if (u.hp <= 0 || u.side === unit.side) return false;
     const d = hexDistance(from, u.pos);
-    return d >= a.minRange && d <= a.maxRange;
+    return d >= 1 && d <= a.range;
   });
 }
 
 type AreaAbility = Extract<MagicAbility, { kind: 'damage' | 'heal' }>;
 
+/** Damage hits enemies only; heals hit allies (the caster included). */
 function matchesTargets(ability: AreaAbility, caster: Unit, u: Unit): boolean {
-  if (ability.targets === 'any') return true;
-  if (ability.targets === 'ally') return u.side === caster.side;
-  return u.side !== caster.side;
+  return ability.kind === 'heal' ? u.side === caster.side : u.side !== caster.side;
+}
+
+/** Closest hex a Magic Ability may be aimed at: damage never at the caster's own hex. */
+export function minAimDistance(ability: AreaAbility): number {
+  return ability.kind === 'damage' ? 1 : 0;
 }
 
 /** Units affected by an area/single ability centred on `target`. */
@@ -180,9 +183,9 @@ export function magicTargetHexes(state: MatchState, caster: Unit, ability: AreaA
   const moved: Unit = { ...caster, pos: from };
   const view: MatchState = { ...state, units: state.units.map((u) => (u.id === caster.id ? moved : u)) };
   const out: Hex[] = [];
-  for (const h of hexesInRange(from, ability.maxRange)) {
+  for (const h of hexesInRange(from, ability.range)) {
     const d = hexDistance(from, h);
-    if (d < ability.minRange) continue;
+    if (d < minAimDistance(ability)) continue;
     if (!mapHexAt(state.map, h)) continue;
     if (affectedUnits(view, moved, ability, h).length > 0) out.push(h);
   }

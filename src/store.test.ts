@@ -116,7 +116,7 @@ describe('selection, quick actions and range toggles', () => {
   it('right-click toggles other units’ ranges (max 3, oldest dropped) and clears when the turn ends', () => {
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
-    const extra = [201, 202, 203].map((id, i) => ({ ...me, id, kind: 'ember-imp', side: 1 as const, pos: hex(i, 0), av: 500 }));
+    const extra = [201, 202, 203].map((id, i) => ({ ...me, id, kind: 'imp', side: 1 as const, pos: hex(i, 0), av: 500 }));
     useGame.setState({ match: { ...m, units: [...m.units, ...extra] } });
     const foe = m.units.find((x) => x.side !== me.side)!;
     for (const id of [foe.id, 201, 202, 203]) {
@@ -132,5 +132,25 @@ describe('selection, quick actions and range toggles', () => {
     useGame.getState().clickHex(me.pos);
     useGame.getState().choose('wait');
     expect(useGame.getState().inspected).toEqual([]);
+  });
+});
+
+describe('choosing a summon hex', () => {
+  it('selects the valid adjacent hex closest in angle to the cursor, even through crowded hexes', async () => {
+    const { summonDirToward, validSummonDirs } = await import('./store');
+    useGame.setState({ animate: false });
+    useGame.getState().newMatch();
+    const m = useGame.getState().match;
+    const me = activeUnit(m)!;
+    // block the NE neighbour's lower neighbours (SW and SE of it) and the E neighbour
+    const ne = hex(me.pos.q + 1, me.pos.r - 1);
+    const blockers = [hex(me.pos.q + 1, me.pos.r), hex(me.pos.q + 2, me.pos.r - 1)].map((pos, i) => ({ ...me, id: 400 + i, kind: 'imp', pos }));
+    const state = { ...m, units: [...m.units, ...blockers] };
+    const valid = validSummonDirs(state, me.id, me.pos, 'imp');
+    expect(valid).toContain(1);
+    // cursor over a blocker two hexes away still lands on the NE hex
+    expect(summonDirToward(state, me.id, me.pos, 'imp', hex(me.pos.q + 2, me.pos.r - 1))).toBe(1);
+    expect(summonDirToward(state, me.id, me.pos, 'imp', ne)).toBe(1);
+    expect(summonDirToward(state, me.id, me.pos, 'imp', me.pos)).toBeNull();
   });
 });

@@ -126,7 +126,6 @@ export function reachable(state: MatchState, unit: Unit): Map<string, ReachNode>
   const out = new Map<string, ReachNode>();
   const startKey = hexKey(unit.pos);
   out.set(startKey, { hex: unit.pos, cost: 0, prev: null, canEnd: true });
-  if (unit.stranded) return out;
 
   const flies = kind.moveTypes.includes('fly');
   const zoc = flies ? new Set<string>() : enemyZoc(state, unit.side);

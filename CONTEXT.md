@@ -81,11 +81,11 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: minimum and maximum range, valid targets and effects. Summons have one Magic Ability; Summoners have several.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. Summons have one Magic Ability; Summoners have several.
 _Avoid_: Skill, spell (as a code term)
 
 **Stranded**:
-A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage and can only Wait.
+A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage, then may move by its normal rules into hexes it can enter, and then act as usual. If it stays where it is, it can only Wait.
 
 ## Facing and damage
 
@@ -97,7 +97,7 @@ A damage multiplier based on the angle between a defender's Facing and the direc
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-Can be 0. Damage is never raised to a minimum.
+A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic), then multiplied by Element, Facing, cover and Alignment. Can be 0; never raised to a minimum.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed.
@@ -108,7 +108,7 @@ The exact result of a Command against a target, shown before the Command is conf
 How high a hex is. Walk and Slow can climb at most 1 Height per hex they move, at +1 Move Point; going down 1 Height is free. Fly ignores Height.
 
 **Water Level**:
-The map's water surface Height. Rise and Ebb change it, up to 1 above its starting value and down to the level at which no water hexes remain. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
+The map's water surface Height. Rise and Ebb change it by one step at a time, from 1 below its starting value to 1 above it. Every map with water keeps some Deep Water at the lowest level, and the highest level floods at most 40% of the map. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
 
 **Plain**:
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.

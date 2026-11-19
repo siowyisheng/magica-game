@@ -36,3 +36,8 @@ export const NIGHT_START = 20 * 60;
 export const NIGHT_END = 4 * 60;
 
 export const MINUTES_PER_DAY = 24 * 60;
+
+/** Damage = DAMAGE_K × ATK/DEF (or MP/MDF) × modifiers. */
+export const DAMAGE_K = 3;
+/** Heal = MP / HEAL_DIVISOR (rounded). */
+export const HEAL_DIVISOR = 3;

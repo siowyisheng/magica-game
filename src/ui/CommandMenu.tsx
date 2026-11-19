@@ -20,6 +20,7 @@ import {
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
+import { SummonDetail } from './SummonCard';
 
 function canSummonAny(match: MatchState, unitId: number, to: Hex, sk: UnitKind): boolean {
   return DIRS.some((d) => {
@@ -36,9 +37,12 @@ export function CommandMenu() {
   const choose = useGame((s) => s.choose);
   const setHoverCommand = useGame((s) => s.setHoverCommand);
   const setHoverSummon = useGame((s) => s.setHoverSummon);
+  const hoverSummon = useGame((s) => s.hoverSummon);
   const u = activeUnit(match);
   if (!u || phase.kind !== 'menu') return null;
   const kind = kindOf(u.kind);
+  // A Stranded unit that stays put can only Wait.
+  const stuck = u.stranded && phase.to.q === u.pos.q && phase.to.r === u.pos.r;
   const to = phase.to;
   const mana = match.sides[u.side].mana;
   const moved = { ...u, pos: to };
@@ -66,51 +70,57 @@ export function CommandMenu() {
     if (phase.sub === 'summon') {
       const full = summonCount(match, u.side) >= MAX_SUMMONS;
       return (
-        <div className="summon-grid">
-          {ELEMENTS.map((e) => (
-            <div key={e} className="summon-col">
-              <div className="el-head" style={{ color: ELEMENT_COLORS[e] }}>{e}</div>
-              {SUMMONS.filter((s) => s.element === e)
-                .slice()
-                .sort((a, b) => a.cost - b.cost)
-                .map((s) => {
-                  const ok = !full && mana >= s.cost && canSummonAny(match, u.id, to, s);
-                  return (
-                    <button
-                      key={s.id}
-                      disabled={!ok}
-                      onClick={() => choose({ summon: s.id })}
-                      onMouseEnter={() => {
-                        setHoverCommand('summon');
-                        setHoverSummon(s.id);
-                      }}
-                      onMouseLeave={() => {
-                        setHoverCommand(null);
-                        setHoverSummon(null);
-                      }}
-                    >
-                      <img src={unitIconUrl(s.id, u.side)} alt="" />
-                      <span className="nm">{s.name}</span>
-                      <span className="cost">{s.cost}</span>
-                    </button>
-                  );
-                })}
-            </div>
-          ))}
+        <div className="summon-panel">
+          <div className="summon-grid">
+            {ELEMENTS.map((e) => (
+              <div key={e} className="summon-col">
+                {SUMMONS.filter((s) => s.element === e)
+                  .slice()
+                  .sort((a, b) => a.cost - b.cost)
+                  .map((s) => {
+                    const ok = !full && mana >= s.cost && canSummonAny(match, u.id, to, s);
+                    // a div, not a disabled button, so hover (and the detail card) works even when unaffordable
+                    return (
+                      <div
+                        key={s.id}
+                        role="button"
+                        aria-disabled={!ok}
+                        className={`summon-tile ${ok ? '' : 'disabled'}`}
+                        style={{ background: `${ELEMENT_COLORS[e]}2e`, borderColor: `${ELEMENT_COLORS[e]}66` }}
+                        onClick={() => ok && choose({ summon: s.id })}
+                        onMouseEnter={() => {
+                          setHoverCommand('summon');
+                          setHoverSummon(s.id);
+                        }}
+                        onMouseLeave={() => {
+                          setHoverCommand(null);
+                          setHoverSummon(null);
+                        }}
+                      >
+                        <img src={unitIconUrl(s.id, u.side)} alt="" />
+                        <span className="nm">{s.name}</span>
+                        <span className="cost">{s.cost}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            ))}
+          </div>
+          <div className="summon-detail-slot">{hoverSummon && <SummonDetail kindId={hoverSummon} side={u.side} />}</div>
         </div>
       );
     }
     return (
       <>
         <button onClick={() => choose('wait')} {...hover('wait')}>Wait</button>
-        <button disabled={u.stranded || !canAttack} onClick={() => choose('attack')} {...hover('attack')}>Attack</button>
+        <button disabled={stuck || !canAttack} onClick={() => choose('attack')} {...hover('attack')}>Attack</button>
         {kind.isSummoner ? (
-          <button disabled={u.stranded} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
+          <button disabled={stuck} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
         ) : (
           (() => {
             const ab = kind.magic[0];
             const usable =
-              !u.stranded &&
+              !stuck &&
               mana >= ab.manaCost &&
               (ab.kind === 'water' ? canCastWater(match, ab.delta) : magicTargetHexes(match, u, ab, to).length > 0);
             return (
@@ -121,7 +131,7 @@ export function CommandMenu() {
           })()
         )}
         {kind.isSummoner && (
-          <button disabled={u.stranded} onClick={() => choose({ sub: 'summon' })} {...hover('summon')}>Summon ▸</button>
+          <button disabled={stuck} onClick={() => choose({ sub: 'summon' })} {...hover('summon')}>Summon ▸</button>
         )}
       </>
     );

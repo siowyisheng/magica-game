@@ -21,6 +21,7 @@ import {
   type MatchState,
   type Unit,
   type HexTerrain,
+  isStranded,
   hexDistance,
 } from './index';
 import { ELEMENTS } from './data/summons';
@@ -113,6 +114,18 @@ describe('roster', () => {
     }
   });
 
+  it('uses short names, max-only ranges, and Summon Magic costs of 4–16', () => {
+    for (const k of SUMMONS) {
+      expect(k.name.length).toBeLessThanOrEqual(6);
+      expect(k.attack).toEqual({ range: k.attack.range });
+      const m = k.magic[0];
+      expect(m.manaCost).toBeGreaterThanOrEqual(4);
+      expect(m.manaCost).toBeLessThanOrEqual(16);
+      expect(m).not.toHaveProperty('minRange');
+      expect(m).not.toHaveProperty('power');
+    }
+  });
+
   it('gives Summoners walk+wade, most Earth summons wade, and no Fire summon wade', () => {
     expect(kindOf('summoner').moveTypes).toEqual(['walk', 'wade']);
     const earth = SUMMONS.filter((x) => x.element === 'earth');
@@ -127,22 +140,28 @@ describe('damage', () => {
   it('applies ATK/DEF ratio, element counter and facing; can be 0', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60; // neutral time
-    const hound = place(state, 'cinder-hound', 0, 1, 1); // fire, ATK 15
-    const hawk = place(state, 'storm-hawk', 1, 2, 1, 3); // air, DEF 9, faces W toward hound
-    const front = computeDamage(state, hound, hound.pos, hawk, 'physical', 3);
+    const hound = place(state, 'hound', 0, 1, 1); // fire, ATK 15
+    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air, DEF 9, faces W toward hound
+    const front = computeDamage(state, hound, hound.pos, hawk, 'physical');
     // 3 × 15/9 × 2 (fire counters air) × 1.0 = 10
     expect(front.amount).toBe(10);
     expect(front.lethal).toBe(true);
 
-    const crab = place(state, 'reef-crab', 1, 3, 3, 0); // water DEF 14
-    const weak = computeDamage(state, hound, hex(2, 3), crab, 'physical', 3);
+    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 14
+    const weak = computeDamage(state, hound, hex(2, 3), crab, 'physical');
     // 3 × 15/14 × 0.5 (water counters fire) × 2.0 (from behind) = 3.21 → 3
     expect(weak.amount).toBe(3);
 
-    const titan = place(state, 'mountain-titan', 1, 4, 4, 3);
-    const sprite = place(state, 'gale-sprite', 0, 3, 4);
-    // air vs earth counter but tiny ATK: 1 × 10/18 × 2 × 1 = 1.1 →1 ; power 0 → 0
-    expect(computeDamage(state, sprite, sprite.pos, titan, 'physical', 0).amount).toBe(0);
+  });
+
+  it('can deal 0 damage', () => {
+    // Day-aligned air Sprite at night (ATK 10 ×0.8) into a fire Golem (DEF 17, counters air) on a Magic Stone:
+    // 3 × 8/17 × 0.5 × 0.7 = 0.49 → 0
+    const state = createMatch(testMap(6, 6, (q, r) => (q === 4 && r === 4 ? { terrain: 'stone' } : {})));
+    state.clock = 22 * 60;
+    const golem = place(state, 'golem', 1, 4, 4, 3);
+    const sprite = place(state, 'sprite', 0, 3, 4);
+    expect(computeDamage(state, sprite, sprite.pos, golem, 'physical').amount).toBe(0);
   });
 
   it('reduces damage on rough (20%) and magic stones (30%)', () => {
@@ -150,22 +169,24 @@ describe('damage', () => {
     state.clock = 18 * 60;
     const a = place(state, 'summoner', 0, 1, 1);
     const b = place(state, 'summoner', 1, 2, 1, 3);
-    // 10 × 8/10 = 8 ; rough → 6.4 → 6
-    expect(computeDamage(state, a, a.pos, b, 'physical', 10).amount).toBe(6);
+    // 3 × 8/10 = 2.4 ; rough → 1.92 → 2
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
+    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(20);
     b.pos = hex(2, 2);
     a.pos = hex(1, 2);
-    // stone → 5.6 → 6 (round half up of 5.6)
-    expect(computeDamage(state, a, a.pos, b, 'physical', 10).amount).toBe(6);
+    // stone → 1.68 → 2
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
+    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(30);
   });
 
   it('applies day/night alignment', () => {
     const state = createMatch(testMap(6, 6));
-    const archer = place(state, 'pyre-archer', 0, 1, 1); // day, fire ATK 14
+    const archer = place(state, 'archer', 0, 1, 1); // day, fire ATK 14
     const sum = place(state, 'summoner', 1, 3, 1, 3); // DEF 10
     state.clock = 12 * 60; // day: ATK ×1.2
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical', 3).amount).toBe(5); // 5.04
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(5); // 5.04
     state.clock = 22 * 60; // night: ×0.8
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical', 3).amount).toBe(3); // 3.36
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(3); // 3.36
   });
 });
 
@@ -187,11 +208,11 @@ describe('movement', () => {
   it('lets fly cross water but not end on it; swim only in water', () => {
     const state = createMatch(testMap(5, 1, (q) => (q === 1 || q === 2 ? { height: 0 } : { height: 2 }), 2)); // water level 2: h0 deep
     state.units = [];
-    const hawk = place(state, 'storm-hawk', 0, 0, 0);
+    const hawk = place(state, 'hawk', 0, 0, 0);
     const n = reachable(state, hawk);
     expect(n.get(hexKey(hex(1, 0)))?.canEnd).toBe(false);
     expect(n.get(hexKey(hex(3, 0)))?.canEnd).toBe(true);
-    const shark = place(state, 'shark-knight', 0, 1, 0);
+    const shark = place(state, 'shark', 0, 1, 0);
     const s = reachable(state, shark);
     expect(s.get(hexKey(hex(2, 0)))?.canEnd).toBe(true);
     expect(s.has(hexKey(hex(3, 0)))).toBe(false);
@@ -200,15 +221,15 @@ describe('movement', () => {
   it('stops ground units entering an enemy Zone of Control; flyers ignore it', () => {
     const state = createMatch(testMap(8, 3));
     state.units = [];
-    const walker = place(state, 'cinder-hound', 0, 0, 1); // MOV 6
-    place(state, 'mud-golemling', 1, 3, 1);
+    const walker = place(state, 'hound', 0, 0, 1); // MOV 6
+    place(state, 'clod', 1, 3, 1);
     const n = reachable(state, walker);
     // hex (2,1) is in ZOC; (1,1) is not. Hound cannot pass (2,1) to reach (2,0)->... beyond
     expect(n.get(hexKey(hex(2, 1)))?.cost).toBe(2);
     expect(n.get(hexKey(hex(3, 0)))?.cost).toBe(3); // reachable, but it is a ZOC stop
     expect(n.has(hexKey(hex(4, 0)))).toBe(false);
     expect(n.has(hexKey(hex(4, 1)))).toBe(false);
-    const hawk = place(state, 'storm-hawk', 0, 0, 0);
+    const hawk = place(state, 'hawk', 0, 0, 0);
     const h = reachable(state, hawk);
     expect(h.get(hexKey(hex(5, 0)))?.cost).toBe(5);
   });
@@ -216,8 +237,8 @@ describe('movement', () => {
   it('cannot pass through enemies but can pass through allies', () => {
     const state = createMatch(testMap(5, 1));
     state.units = [];
-    const a = place(state, 'cinder-hound', 0, 0, 0);
-    const ally = place(state, 'cinder-hound', 0, 1, 0);
+    const a = place(state, 'hound', 0, 0, 0);
+    const ally = place(state, 'hound', 0, 1, 0);
     let n = reachable(state, a);
     expect(n.get(hexKey(hex(1, 0)))?.canEnd).toBe(false);
     expect(n.get(hexKey(hex(2, 0)))?.canEnd).toBe(true);
@@ -239,8 +260,8 @@ describe('match flow', () => {
   it('summons next to the summoner with facing and Move+Attack AV; costs mana', () => {
     const s = createMatch(testMap(6, 6));
     const me = getUnit(s, s.activeUnitId!);
-    const { state, events } = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'summon', kind: 'ember-imp', dir: 1 } });
-    const imp = state.units.find((u) => u.kind === 'ember-imp')!;
+    const { state, events } = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'summon', kind: 'imp', dir: 1 } });
+    const imp = state.units.find((u) => u.kind === 'imp')!;
     expect(imp.facing).toBe(1);
     expect(getUnit(state, me.id).facing).toBe(1);
     expect(state.sides[0].mana).toBeLessThan(40);
@@ -252,11 +273,11 @@ describe('match flow', () => {
     const me = getUnit(s, s.activeUnitId!); // at (0,5)
     expect(me.pos).toEqual(hex(0, 5));
     // summon onto (1,4): dir NE (1,-1)
-    const r1 = applyTurn(s, { unitId: me.id, to: me.pos, facing: 1, command: { type: 'summon', kind: 'ember-imp', dir: 1 } });
+    const r1 = applyTurn(s, { unitId: me.id, to: me.pos, facing: 1, command: { type: 'summon', kind: 'imp', dir: 1 } });
     expect(r1.state.stones[0].owner).toBe(null);
     // let the imp wait on the stone
     const st = r1.state;
-    const imp = st.units.find((u) => u.kind === 'ember-imp')!;
+    const imp = st.units.find((u) => u.kind === 'imp')!;
     activate(st, imp);
     const r2 = applyTurn(st, { unitId: imp.id, to: imp.pos, facing: 1, command: { type: 'wait' } });
     expect(r2.state.stones[0].owner).toBe(0);
@@ -267,7 +288,7 @@ describe('match flow', () => {
     expect(manaIncome(s, 0)).toBe(32);
     s.stones = [{ hex: hex(3, 3), owner: 0 }];
     expect(manaIncome(s, 0)).toBe(48);
-    place(s, 'inferno-drake', 0, 2, 2); // upkeep 11
+    place(s, 'drake', 0, 2, 2); // upkeep 11
     expect(manaIncome(s, 0)).toBe(37);
     const me = getUnit(s, s.activeUnitId!);
     const before = s.sides[0].mana;
@@ -304,7 +325,7 @@ describe('match flow', () => {
   it('heals 1 HP at the start of a turn on a magic stone', () => {
     const s = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     s.units.find((u) => u.side === 1)!.av = 500;
-    const imp = place(s, 'ember-imp', 0, 2, 2, 0, 1);
+    const imp = place(s, 'imp', 0, 2, 2, 0, 1);
     imp.hp = 5;
     const me = getUnit(s, s.activeUnitId!);
     const r = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'wait' } });
@@ -378,5 +399,63 @@ describe('facing toward target and reach', () => {
       if (k.moveTypes.includes('slow')) expect(k.moveTypes).toContain('swim');
       if (k.moveTypes.includes('walk')) expect(k.stats.mov).toBeGreaterThanOrEqual(4);
     }
+  });
+});
+
+describe('targeting without minimum range', () => {
+  it('lets ranged attackers hit adjacent enemies; damage never aims at own hex; heals may include self', async () => {
+    const { attackTargets, magicTargetHexes } = await import('./index');
+    const s = createMatch(testMap(6, 6));
+    const archer = place(s, 'archer', 0, 2, 2);
+    place(s, 'imp', 1, 3, 2);
+    expect(attackTargets(s, archer, archer.pos).map((u) => u.kind)).toContain('imp');
+    // Newt's Steam Burst is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
+    const newt = place(s, 'newt', 0, 2, 4);
+    place(s, 'imp', 1, 3, 4);
+    const ab = kindOf('newt').magic[0];
+    if (ab.kind === 'water') throw new Error('unexpected');
+    expect(magicTargetHexes(s, newt, ab, newt.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
+    const undine = place(s, 'undine', 0, 0, 2);
+    undine.hp = 6;
+    const heal = kindOf('undine').magic[0];
+    if (heal.kind === 'water') throw new Error('unexpected');
+    expect(magicTargetHexes(s, undine, heal, undine.pos).some((h) => h.q === 0 && h.r === 2)).toBe(true);
+  });
+});
+
+describe('water level bounds and map water rules', () => {
+  it('Ebb goes at most 1 below the start; the scaffold map keeps Deep Water and floods ≤ 40% on Rise', async () => {
+    const { validateMapWater } = await import('./index');
+    const s = createMatch(SCAFFOLD_MAP);
+    expect(s.minWaterLevel).toBe(SCAFFOLD_MAP.waterLevel - 1);
+    expect(s.maxWaterLevel).toBe(SCAFFOLD_MAP.waterLevel + 1);
+    expect(validateMapWater(SCAFFOLD_MAP)).toEqual([]);
+  });
+});
+
+describe('stranded movement', () => {
+  it('a stranded unit may move into hexes it can enter and act; staying put allows only Wait', async () => {
+    const { validateTurn, reachable } = await import('./index');
+    // shark (swim only) stranded on land next to water
+    const s = createMatch(testMap(6, 6, (q) => (q >= 3 ? { height: 0 } : { height: 2 }), 2));
+    const shark = place(s, 'shark', 0, 2, 2, 0, 0);
+    shark.stranded = true;
+    activate(s, shark);
+    const foe = place(s, 'imp', 1, 5, 2);
+    void foe;
+    const nodes = reachable(s, shark);
+    expect(nodes.get(hexKey(hex(3, 2)))?.canEnd).toBe(true);
+    expect(validateTurn(s, { unitId: shark.id, to: shark.pos, facing: 0, command: { type: 'attack', target: hex(3, 2) } })).toMatch(/only Wait/);
+    expect(validateTurn(s, { unitId: shark.id, to: hex(4, 2), facing: 0, command: { type: 'attack', target: hex(5, 2) } })).toBeNull();
+    expect(validateTurn(s, { unitId: shark.id, to: shark.pos, facing: 0, command: { type: 'wait' } })).toBeNull();
+  });
+
+  it('slow+swim units are never stranded', () => {
+    const land = createMatch(testMap(3, 3, () => ({ height: 3 }), 2));
+    const crab = place(land, 'crab', 0, 1, 1);
+    const water = createMatch(testMap(3, 3, () => ({ height: -1 }), 2));
+    const crab2 = place(water, 'crab', 0, 1, 1);
+    expect(isStranded(land, crab)).toBe(false);
+    expect(isStranded(water, crab2)).toBe(false);
   });
 });

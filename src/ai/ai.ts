@@ -103,13 +103,13 @@ function maxDamageFrom(state: MatchState, e: EnemyReach, me: Unit, h: Hex, f: Di
   for (const p of e.positions) {
     if (hexEq(p, h)) continue;
     const d = hexDistance(p, h);
-    if (d >= ek.attack.minRange && d <= ek.attack.maxRange) {
-      best = Math.max(best, computeDamage(state, e.unit, p, target, 'physical', ek.attack.power).amount);
+    if (d >= 1 && d <= ek.attack.range) {
+      best = Math.max(best, computeDamage(state, e.unit, p, target, 'physical').amount);
     }
     for (const m of spells) {
       if (m.kind !== 'damage') continue;
-      if (d >= m.minRange && d <= m.maxRange + m.radius) {
-        best = Math.max(best, computeDamage(state, e.unit, p, target, 'magic', m.power).amount);
+      if (d <= m.range + m.radius) {
+        best = Math.max(best, computeDamage(state, e.unit, p, target, 'magic').amount);
       }
     }
   }
@@ -224,7 +224,7 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
   for (const dest of dests) {
     const pos = positionalScore(dest);
     const commands: Command[] = [{ type: 'wait' }];
-    if (!me.stranded) {
+    if (!me.stranded || !hexEq(dest, me.pos)) {
       const view: MatchState = { ...state, units: state.units.map((u) => (u.id === me.id ? { ...u, pos: dest } : u)) };
       const moved = { ...me, pos: dest };
       for (const t of attackTargets(view, moved, dest)) commands.push({ type: 'attack', target: t.pos });
