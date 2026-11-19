@@ -14,7 +14,7 @@ function PhaseHint() {
   const who = `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}`;
   const text: Record<string, string> = {
     idle: `${who} is acting…`,
-    move: `${who}: click a blue hex to move, or the unit itself to stay`,
+    move: `${who}: click a highlighted hex to move, or the unit itself to stay`,
     menu: u.stranded
       ? `${who} is Stranded: left-click the map to set facing, then Wait`
       : `${who}: left-click the map to set facing, then choose a command (right-click cancels the move)`,
