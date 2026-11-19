@@ -101,7 +101,7 @@ The exact result of a Command against a target, shown before the Command is conf
 How high a hex is. Walk and Slow can climb at most 1 Height per hex they move, at +1 Move Point; going down 1 Height is free. Fly ignores Height.
 
 **Water Level**:
-The map's water surface Height. Spells can raise or lower it. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
+The map's water surface Height. Rise and Ebb change it, up to 1 above its starting value and down to the level at which no water hexes remain. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
 
 **Plain**:
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.
@@ -113,8 +113,11 @@ Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. 
 A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 30% less damage. The Side that controls it gains more Mana.
 _Avoid_: Crystal, pedestal
 
+**Capture**:
+A Unit that ends its turn on a Magic Stone gives control of the Stone to its Side. Being Summoned onto a Stone does not count. Control lasts until an enemy Unit Captures it, including while the Stone is under water.
+
 **Zone of Control (ZOC)**:
-The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn.
+The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn. Fly Units ignore ZOC. A Unit that starts its turn in a ZOC may leave it.
 
 ## Economy
 
@@ -122,7 +125,7 @@ The hexes next to a Unit that the Unit itself could move into. An opposing Unit 
 A Side's resource for summoning and for Summoner Magic. It is gained at the start of every Game Clock hour.
 
 **Mana Income**:
-What a Side gains each hour: (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons.
+What a Side gains each hour: (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons. Mana never drops below 0 or rises above 120.
 
 **Cost**:
 The Mana needed to Summon a Summon: a multiple of 8, from 16 to 96.
