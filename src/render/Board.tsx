@@ -28,7 +28,8 @@ import {
   DIRS,
 } from '../rules';
 import { closestFacing, useGame } from '../store';
-import { SIDE_COLORS, unitTexture } from './sprites';
+import { SIDE_COLORS, projectileTexture, unitTexture } from './sprites';
+import { MS_PER_HEX, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
 
@@ -333,19 +334,62 @@ const arrowGeo = (() => {
   return new THREE.ShapeGeometry(s).rotateX(Math.PI / 2);
 })();
 
-function UnitView({ unit, displayPos, facing, isActive }: { unit: Unit; displayPos: Hex; facing: number; isActive: boolean }) {
+/** World position of a hex's standing surface. */
+function worldAt(match: MatchState, h: Hex): THREE.Vector3 {
+  const [x, z] = hexToWorld(h);
+  return new THREE.Vector3(x, topY(match, h), z);
+}
+
+/** Sample a hex path at progress p ∈ [0,1]; also returns the segment's heading. */
+function samplePath(match: MatchState, path: Hex[], p: number): { pos: THREE.Vector3; heading: number | null } {
+  if (path.length < 2) return { pos: worldAt(match, path[0]), heading: null };
+  const f = Math.min(Math.max(p, 0), 1) * (path.length - 1);
+  const i = Math.min(Math.floor(f), path.length - 2);
+  const a = worldAt(match, path[i]);
+  const b = worldAt(match, path[i + 1]);
+  const k = f - i;
+  const pos = a.clone().lerp(b, k);
+  // small hop per step so slides read as footsteps
+  pos.y += Math.sin(k * Math.PI) * 0.12 + Math.max(0, b.y - a.y) * Math.sin(k * Math.PI) * 0.5;
+  return { pos, heading: Math.atan2(b.x - a.x, b.z - a.z) };
+}
+
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+function UnitView({
+  unit,
+  displayPos,
+  facing,
+  isActive,
+  previewPath,
+}: {
+  unit: Unit;
+  displayPos: Hex;
+  facing: number;
+  isActive: boolean;
+  previewPath?: Hex[];
+}) {
   const match = useGame((s) => s.match);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const setHoverUnit = useGame((s) => s.setHoverUnit);
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
   const group = useRef<THREE.Group>(null);
+  const arrow = useRef<THREE.Mesh>(null);
+  const body = useRef<THREE.Sprite>(null);
+  const bodyMat = useRef<THREE.SpriteMaterial>(null);
   const [tx, tz] = hexToWorld(displayPos);
   const ty = topY(match, displayPos);
   const tex = useMemo(() => unitTexture(unit.kind, unit.side), [unit.kind, unit.side]);
   const k = kindOf(unit.kind);
   const scale = k.isSummoner ? 1.35 : k.role === 'dragon' || k.role === 'tank' ? 1.3 : 1.1;
   const hovered = hoverUnitId === unit.id;
+  const baseColor = hovered ? '#ffffcc' : '#ffffff';
+
+  // Local slide for the player's (uncommitted) move preview.
+  const previewKey = previewPath ? previewPath.map(hexKey).join('>') : '';
+  const preview = useRef<{ key: string; start: number }>({ key: '', start: 0 });
+  if (preview.current.key !== previewKey) preview.current = { key: previewKey, start: performance.now() };
 
   useEffect(() => {
     const v = new THREE.Vector3();
@@ -361,15 +405,58 @@ function UnitView({ unit, displayPos, facing, isActive }: { unit: Unit; displayP
   useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
-    const t = Math.min(1, dt * 10);
-    g.position.x += (tx - g.position.x) * t;
-    g.position.y += (ty - g.position.y) * t;
-    g.position.z += (tz - g.position.z) * t;
+    const now = performance.now();
+    const anim = useGame.getState().anim;
+    let pos: THREE.Vector3 | null = null;
+    let heading: number | null = null;
+    const offset = new THREE.Vector3();
+    let flash = 0;
+
+    if (anim) {
+      const t = now - anim.start;
+      for (const st of anim.steps) {
+        if (st.kind === 'move' && st.unitId === unit.id) {
+          const p = (t - st.t0) / (st.t1 - st.t0);
+          if (p <= 1) ({ pos, heading } = samplePath(match, st.path, p));
+        } else if (st.kind === 'melee' && st.unitId === unit.id && t >= st.t0 && t <= st.t1) {
+          const a = worldAt(match, st.from);
+          const b = worldAt(match, st.target);
+          const dir = b.sub(a).setY(0).normalize();
+          const p = (t - st.t0) / (st.t1 - st.t0);
+          // wind up (pull back), bonk (lunge), recover
+          let d: number;
+          if (p < 0.45) d = -0.38 * easeInOut(p / 0.45);
+          else if (p < 0.6) d = -0.38 + 1.03 * ((p - 0.45) / 0.15);
+          else d = 0.65 * (1 - easeInOut((p - 0.6) / 0.4));
+          offset.addScaledVector(dir, d);
+          offset.y += p < 0.45 ? 0.12 * (p / 0.45) : p < 0.6 ? 0.12 : 0.12 * (1 - (p - 0.6) / 0.4);
+        } else if (st.kind === 'hit' && st.unitIds.includes(unit.id) && t >= st.t0 && t <= st.t1) {
+          const p = (t - st.t0) / (st.t1 - st.t0);
+          offset.x += Math.sin(p * Math.PI * 8) * 0.07 * (1 - p);
+          flash = 1 - p;
+        }
+      }
+    } else if (previewPath && previewPath.length > 1) {
+      const p = (now - preview.current.start) / (MS_PER_HEX * (previewPath.length - 1));
+      if (p <= 1) ({ pos, heading } = samplePath(match, previewPath, p));
+    }
+
+    if (pos) {
+      g.position.copy(pos);
+    } else {
+      const s = Math.min(1, dt * 12);
+      g.position.x += (tx - g.position.x) * s;
+      g.position.y += (ty - g.position.y) * s;
+      g.position.z += (tz - g.position.z) * s;
+    }
+    if (body.current) body.current.position.set(offset.x, scale / 2 + 0.05 + offset.y, offset.z);
+    if (arrow.current) arrow.current.rotation.y = heading ?? dirAngle(facing);
+    if (bodyMat.current) bodyMat.current.color.set(baseColor).lerp(new THREE.Color('#ff4040'), flash * 0.8);
   });
 
   return (
     <group ref={group} position={[tx, ty, tz]}>
-      <mesh geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
+      <mesh ref={arrow} geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
         <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
       </mesh>
       {(hovered || isActive) && (
@@ -378,6 +465,7 @@ function UnitView({ unit, displayPos, facing, isActive }: { unit: Unit; displayP
         </mesh>
       )}
       <sprite
+        ref={body}
         scale={[scale * (18 / 22), scale, 1]}
         position={[0, scale / 2 + 0.05, 0]}
         onPointerOver={(e) => {
@@ -395,7 +483,7 @@ function UnitView({ unit, displayPos, facing, isActive }: { unit: Unit; displayP
           clickHex(displayPos);
         }}
       >
-        <spriteMaterial map={tex} transparent alphaTest={0.5} color={hovered ? '#ffffcc' : '#ffffff'} />
+        <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={0.5} color={baseColor} />
       </sprite>
     </group>
   );
@@ -405,19 +493,82 @@ function Units() {
   const match = useGame((s) => s.match);
   const phase = useGame((s) => s.phase);
   const hoverHex = useGame((s) => s.hoverHex);
+  const anim = useGame((s) => s.anim);
   const active = activeUnit(match);
+  const previewPath = useMemo(() => {
+    if (!active || !('to' in phase) || hexEq(active.pos, phase.to)) return undefined;
+    return pathTo(reachable(match, active), phase.to);
+  }, [match, phase, active]);
   return (
     <>
       {match.units.map((u) => {
         let pos = u.pos;
         let facing: number = u.facing;
-        if (active && u.id === active.id && 'to' in phase) {
+        let path: Hex[] | undefined;
+        if (anim && u.id === anim.actorId) {
+          pos = anim.to;
+          facing = anim.facing;
+        } else if (active && u.id === active.id && 'to' in phase) {
           pos = phase.to;
           facing = phase.facing;
+          path = previewPath;
           if (phase.kind === 'summonDir' && hoverHex && hexDistance(hoverHex, phase.to) === 1) facing = closestFacing(phase.to, hoverHex);
         }
-        return <UnitView key={u.id} unit={u} displayPos={pos} facing={facing} isActive={active?.id === u.id} />;
+        return <UnitView key={u.id} unit={u} displayPos={pos} facing={facing} isActive={active?.id === u.id} previewPath={path} />;
       })}
+    </>
+  );
+}
+
+// ---------- projectiles ----------
+
+function Projectile({ step }: { step: Extract<AnimStep, { kind: 'projectile' }> }) {
+  const match = useGame((s) => s.match);
+  const ref = useRef<THREE.Sprite>(null);
+  const mat = useRef<THREE.SpriteMaterial>(null);
+  const tex = useMemo(() => projectileTexture(step.style, step.element, step.heal), [step.style, step.element, step.heal]);
+  const a = useMemo(() => worldAt(match, step.from).add(new THREE.Vector3(0, 0.7, 0)), [match, step.from]);
+  const b = useMemo(() => worldAt(match, step.to).add(new THREE.Vector3(0, 0.7, 0)), [match, step.to]);
+  const tmp = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }) => {
+    const anim = useGame.getState().anim;
+    const sp = ref.current;
+    if (!sp || !anim) return;
+    const t = performance.now() - anim.start;
+    const p = (t - step.t0) / (step.t1 - step.t0);
+    sp.visible = p >= 0 && p <= 1;
+    if (!sp.visible) return;
+    const arc = step.style === 'arrow' ? 1.1 : 0.35;
+    const at = (q: number) => tmp.copy(a).lerp(b, q).setY(a.y + (b.y - a.y) * q + Math.sin(q * Math.PI) * arc * Math.min(1, a.distanceTo(b) / 3));
+    const cur = at(p).clone();
+    sp.position.copy(cur);
+    if (mat.current) {
+      if (step.style === 'arrow') {
+        // point along the on-screen velocity
+        const next = at(Math.min(1, p + 0.02)).clone();
+        const s0 = cur.clone().project(camera);
+        const s1 = next.project(camera);
+        mat.current.rotation = Math.atan2(s1.y - s0.y, s1.x - s0.x);
+      } else {
+        mat.current.rotation += 0.2;
+        const pulse = 1 + Math.sin(t * 0.03) * 0.15;
+        sp.scale.set(0.6 * pulse, 0.6 * pulse, 1);
+      }
+    }
+  });
+  return (
+    <sprite ref={ref} visible={false} scale={step.style === "arrow" ? [0.8, 0.4, 1] : [0.6, 0.6, 1]} raycast={() => null}>
+      <spriteMaterial ref={mat} map={tex} transparent depthTest={false} />
+    </sprite>
+  );
+}
+
+function Projectiles() {
+  const anim = useGame((s) => s.anim);
+  if (!anim) return null;
+  return (
+    <>
+      {anim.steps.map((st, i) => (st.kind === 'projectile' ? <Projectile key={`${anim.start}:${i}`} step={st} /> : null))}
     </>
   );
 }
@@ -486,6 +637,7 @@ function Scene() {
       <Water match={match} />
       <Highlights />
       <Units />
+      <Projectiles />
       <Projector />
     </>
   );

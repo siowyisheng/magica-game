@@ -47,10 +47,10 @@ export function App() {
   }, [version, match, tickAi]);
   return (
     <div className="app">
-      <Timeline />
       <div className="main">
         <div className="board">
           <Board />
+          <Timeline />
           <PhaseHint />
           <GameOver />
         </div>

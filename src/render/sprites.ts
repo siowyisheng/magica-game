@@ -150,3 +150,48 @@ export function unitIconUrl(kindId: string, side: SideId): string {
   }
   return u;
 }
+
+// ---------- projectiles ----------
+
+const projCache = new Map<string, THREE.Texture>();
+
+/** Pixel-art projectile: an arrow/shard (physical) or a glowing orb (magic). */
+export function projectileTexture(style: 'arrow' | 'orb', element: Element | null, heal: boolean): THREE.Texture {
+  const key = `${style}|${element}|${heal}`;
+  const hit = projCache.get(key);
+  if (hit) return hit;
+  const base = heal ? '#7dffa0' : element ? ELEMENT_COLORS[element] : '#c58bff';
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d')!;
+  if (style === 'arrow') {
+    cv.width = 16;
+    cv.height = 8;
+    ctx.fillStyle = '#10121a';
+    ctx.fillRect(1, 3, 11, 3);
+    ctx.fillRect(10, 1, 4, 7);
+    ctx.fillStyle = '#d8c8a0';
+    ctx.fillRect(2, 4, 9, 1); // shaft
+    ctx.fillStyle = base;
+    ctx.fillRect(11, 2, 2, 5); // head
+    ctx.fillRect(13, 3, 2, 3);
+    ctx.fillRect(1, 3, 2, 1); // fletching
+    ctx.fillRect(1, 5, 2, 1);
+  } else {
+    cv.width = 12;
+    cv.height = 12;
+    const light = shade(base, 1.5);
+    for (let y = 0; y < 12; y++)
+      for (let x = 0; x < 12; x++) {
+        const d = Math.hypot(x - 5.5, y - 5.5);
+        if (d > 5.5) continue;
+        ctx.fillStyle = d < 2 ? '#ffffff' : d < 3.6 ? light : d < 4.8 ? base : '#10121a';
+        ctx.fillRect(x, y, 1, 1);
+      }
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  projCache.set(key, t);
+  return t;
+}

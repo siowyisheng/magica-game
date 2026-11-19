@@ -23,6 +23,7 @@ npm run build
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
 | `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
 | `src/render/` | three.js scene: isometric orthographic camera, hex columns, water, stones, highlights, procedural billboard sprites, and a pixelation pass (low-DPR canvas upscaled with nearest-neighbour). |
+| `src/anim.ts` | Pure turn-animation plan (slide along path, melee wind-up and bonk, projectiles, hit shake). The board samples it, and the store applies the new state when it ends. |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
 
 ## Controls
@@ -30,6 +31,7 @@ npm run build
 - **Left-click**: choose a destination (or click the unit itself to stay). While the command menu is open, left-click the map to turn the unit toward that hex, then pick a command. Wait ends the turn at once, and Facing can't change after Attack, Magic or Summon.
 - **Right-click**: go back a step (in the command menu this cancels the move).
 - **Right-drag**: pan. **Mouse wheel**: zoom.
+- The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.
 - While hovering a destination or command, the acting unit's icon jumps to its previewed slot on the timeline.
 - Options panel: toggle the HP/AV bars, change pixel size, switch Red to hotseat, or make Green an AI.
@@ -38,4 +40,4 @@ npm run build
 
 - All Summon names, stats and costs are placeholders: data in `src/rules/data/summons.ts`.
 - Timeline entries after a unit's next turn are *projections* that assume a Move + Attack turn. They are drawn dotted.
-- There are no animations beyond position easing, and no sound, status effects, line of sight or Tauri packaging yet.
+- Animations are simple (slides, bonks, projectiles). There's no sound, status effects, line of sight or Tauri packaging yet.

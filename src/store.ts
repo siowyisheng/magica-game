@@ -21,6 +21,7 @@ import {
   formatClock,
 } from './rules';
 import { chooseAction } from './ai/ai';
+import { planTurnAnim, type TurnAnim } from './anim';
 
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
 export type Phase =
@@ -42,6 +43,10 @@ interface Store {
   pixelSize: number;
   log: string[];
   aiThinking: boolean;
+  /** The turn animation currently playing; `match` updates when it ends. */
+  anim: TurnAnim | null;
+  /** Play turn animations (off in tests). */
+  animate: boolean;
   /** Bumped on every applied turn; used to animate. */
   version: number;
 
@@ -95,7 +100,7 @@ function describe(match: MatchState, e: GameEvent): string | null {
 }
 
 export const useGame = create<Store>((set, get) => {
-  const commit = (action: TurnAction) => {
+  const commit = (action: TurnAction, byHuman = true) => {
     const { match } = get();
     const err = validateTurn(match, action);
     if (err) {
@@ -105,13 +110,21 @@ export const useGame = create<Store>((set, get) => {
     // describe with the pre-state for names of units that die
     const { state, events } = applyTurn(match, action);
     const lines = events.map((e) => describe({ ...state, units: [...match.units, ...state.units] }, e)).filter(Boolean) as string[];
-    set((s) => ({
-      match: state,
-      phase: phaseFor(state),
-      hoverCommand: null,
-      log: [...lines.reverse(), ...s.log].slice(0, 40),
-      version: s.version + 1,
-    }));
+    const finish = () =>
+      set((s) => ({
+        match: state,
+        anim: null,
+        phase: phaseFor(state),
+        hoverCommand: null,
+        log: [...lines.reverse(), ...s.log].slice(0, 40),
+        version: s.version + 1,
+      }));
+    const anim = get().animate ? planTurnAnim(match, action, performance.now(), byHuman) : null;
+    if (!anim || anim.duration <= 0) return finish();
+    set({ anim, phase: { kind: 'idle' }, hoverCommand: null });
+    setTimeout(() => {
+      if (get().anim === anim) finish();
+    }, anim.duration);
   };
 
   const initial = createMatch(SCAFFOLD_MAP, { ai: [false, true], seed: Date.now() & 0xffff });
@@ -126,12 +139,14 @@ export const useGame = create<Store>((set, get) => {
     pixelSize: 2,
     log: ['Match start — 06:00'],
     aiThinking: false,
+    anim: null,
+    animate: true,
     version: 0,
 
     newMatch: () => {
       const ai = get().match.sides.map((s) => s.ai) as [boolean, boolean];
       const m = createMatch(SCAFFOLD_MAP, { ai, seed: Date.now() & 0xffff });
-      set({ match: m, phase: phaseFor(m), log: ['Match start — 06:00'], version: get().version + 1 });
+      set({ match: m, anim: null, phase: phaseFor(m), log: ['Match start — 06:00'], version: get().version + 1 });
     },
     setHoverHex: (h) => {
       const cur = get().hoverHex;
@@ -226,16 +241,16 @@ export const useGame = create<Store>((set, get) => {
     },
 
     tickAi: () => {
-      const { match, aiThinking } = get();
+      const { match, aiThinking, anim } = get();
       const u = activeUnit(match);
-      if (aiThinking || !u || match.winner !== null || !match.sides[u.side].ai) return;
+      if (aiThinking || anim || !u || match.winner !== null || !match.sides[u.side].ai) return;
       set({ aiThinking: true });
       setTimeout(() => {
         const m = get().match;
-        if (m !== match) return set({ aiThinking: false });
+        if (m !== match || get().anim) return set({ aiThinking: false });
         const action = chooseAction(m);
         set({ aiThinking: false });
-        commit(action);
+        commit(action, false);
       }, 450);
     },
   };
