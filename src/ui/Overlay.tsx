@@ -21,12 +21,32 @@ export function Overlay() {
     const loop = () => {
       const root = ref.current;
       if (root) {
+        const W = root.clientWidth;
+        const H = root.clientHeight;
         root.querySelectorAll<HTMLElement>('[data-anchor]').forEach((el) => {
           const p = anchorPositions.get(el.dataset.anchor!);
-          if (p) {
+          if (!p) {
+            el.style.visibility = 'hidden';
+            return;
+          }
+          el.style.visibility = 'visible';
+          if (el.dataset.clamp === undefined) {
             el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
-            el.style.visibility = 'visible';
-          } else el.style.visibility = 'hidden';
+            return;
+          }
+          // Menus: open beside the anchor, flip to the other side if needed, never cut off.
+          const child = el.firstElementChild as HTMLElement | null;
+          const w = child?.offsetWidth ?? 0;
+          const h = child?.offsetHeight ?? 0;
+          const gap = 36;
+          const margin = 8;
+          let x = p.x + gap;
+          const flip = x + w > W - margin;
+          if (flip) x = p.x - gap - w;
+          x = Math.max(margin, Math.min(x, W - w - margin));
+          const y = Math.max(margin, Math.min(p.y - h / 2, H - h - margin));
+          el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+          if ((el.dataset.flip === '1') !== flip) el.dataset.flip = flip ? '1' : '0';
         });
       }
       raf = requestAnimationFrame(loop);
@@ -107,6 +127,7 @@ export function Overlay() {
         <div
           className="anchor top interactive"
           data-anchor={`unit:${phase.targetId}`}
+          data-clamp=""
           onContextMenu={(e) => {
             e.preventDefault();
             rightClick();
@@ -125,6 +146,7 @@ export function Overlay() {
         <div
           className="anchor top interactive"
           data-anchor="menu"
+          data-clamp=""
           onContextMenu={(e) => {
             e.preventDefault();
             rightClick();

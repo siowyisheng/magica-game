@@ -15,24 +15,23 @@ export interface Stats {
   mov: number;
 }
 
+/** Attack Ability: hits one enemy within `range` (no minimum range). */
 export interface AttackAbility {
-  minRange: number;
-  maxRange: number;
-  power: number;
+  range: number;
 }
 
-export type AbilityTargets = 'enemy' | 'ally' | 'any';
-
+/**
+ * Magic Ability. Damage hits enemies only; heals hit allies (caster
+ * included). Strength comes from the caster's MP — abilities have no power.
+ */
 export type MagicAbility =
   | {
       id: string;
       name: string;
       kind: 'damage' | 'heal';
-      minRange: number;
-      maxRange: number;
-      power: number;
-      targets: AbilityTargets;
-      /** 0 = single hex, 1 = target hex and its neighbours. */
+      /** Maximum distance to the aimed hex. */
+      range: number;
+      /** 0 = single hex, 1 = aimed hex and its neighbours. */
       radius: 0 | 1;
       manaCost: number;
     }

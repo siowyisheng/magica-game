@@ -116,7 +116,7 @@ describe('selection, quick actions and range toggles', () => {
   it('right-click toggles other units’ ranges (max 3, oldest dropped) and clears when the turn ends', () => {
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
-    const extra = [201, 202, 203].map((id, i) => ({ ...me, id, kind: 'ember-imp', side: 1 as const, pos: hex(i, 0), av: 500 }));
+    const extra = [201, 202, 203].map((id, i) => ({ ...me, id, kind: 'imp', side: 1 as const, pos: hex(i, 0), av: 500 }));
     useGame.setState({ match: { ...m, units: [...m.units, ...extra] } });
     const foe = m.units.find((x) => x.side !== me.side)!;
     for (const id of [foe.id, 201, 202, 203]) {

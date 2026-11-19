@@ -23,6 +23,7 @@ import {
   surfaceOf,
   unitAt,
   DIRS,
+  minAimDistance,
   validateTurn,
   type Command,
   unitReach,
@@ -346,10 +347,12 @@ function useOutlines(): OutlineLayer[] {
         layers.push({ key: 'src', region: toMap(src), style: { color: LINE_COLORS.source, width: 0.06 } });
       }
     } else if (phase.kind === 'target') {
-      const a = phase.command === 'attack' ? kind.attack : magicAbility(kind, phase.command.magic);
-      if ('minRange' in a) {
-        const hexes = hexesInRange(phase.to, a.maxRange).filter((h) => hexDistance(h, phase.to) >= a.minRange && mapHexAt(match.map, h));
-        const isAttack = phase.command === 'attack';
+      const isAttack = phase.command === 'attack';
+      const ab = isAttack ? null : magicAbility(kind, (phase.command as { magic: string }).magic);
+      if (isAttack || (ab && ab.kind !== 'water')) {
+        const range = isAttack ? kind.attack.range : (ab as { range: number }).range;
+        const min = isAttack ? 1 : minAimDistance(ab as Parameters<typeof minAimDistance>[0]);
+        const hexes = hexesInRange(phase.to, range).filter((h) => hexDistance(h, phase.to) >= min && mapHexAt(match.map, h));
         layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(isAttack ? LINE_COLORS.attack : LINE_COLORS.magic, 0) });
       }
     } else if (phase.kind === 'summonDir') {

@@ -81,15 +81,25 @@ button:disabled { opacity: 0.4; cursor: default; }
 .av-over { position: absolute; left: 0; top: 0; bottom: 0; background: #ff6b2b; }
 
 /* command menu */
-.command-menu { display: flex; flex-direction: column; gap: 2px; min-width: 120px; transform: translate(40px, -50%); }
+.command-menu { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
 .command-menu .cost { float: right; color: #a7c7ff; margin-left: 10px; }
 .command-menu .hint { font-size: 10px; color: var(--muted); margin-top: 2px; }
-.summon-grid { display: flex; gap: 4px; }
-.summon-col { display: flex; flex-direction: column; gap: 2px; width: 150px; }
-.summon-col .el-head { text-transform: capitalize; font-weight: bold; }
-.summon-col button { display: flex; align-items: center; gap: 4px; padding: 1px 4px; }
-.summon-col img { width: 16px; height: 20px; image-rendering: pixelated; }
-.summon-col .nm { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* summon picker: 4 element columns × 7, compact tiles, detail card beside it */
+.summon-panel { display: flex; gap: 6px; align-items: flex-start; }
+[data-flip='1'] .summon-panel { flex-direction: row-reverse; }
+[data-flip='1'] .command-menu:has(.summon-panel) { align-items: flex-end; }
+.summon-grid { display: flex; gap: 3px; }
+.summon-col { display: flex; flex-direction: column; gap: 3px; }
+.summon-tile {
+  position: relative; width: 50px; height: 76px; border: 1px solid; border-radius: 2px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 2px;
+}
+.summon-tile:hover:not(.disabled) { outline: 2px solid #fff8; }
+.summon-tile.disabled { opacity: 0.4; cursor: default; }
+.summon-tile img { width: 45px; height: 55px; image-rendering: pixelated; }
+.summon-tile .nm { font-size: 10px; line-height: 11px; }
+.summon-tile .cost { position: absolute; top: 1px; right: 3px; font-size: 10px; color: #cfe0ff; text-shadow: 0 1px 1px #000; }
+.summon-detail-slot { width: 250px; min-height: 1px; }
 
 /* damage preview */
 .dmg-tag {
@@ -130,17 +140,20 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 .tag-stack { display: flex; gap: 4px; align-items: flex-end; }
 .dmg-tag .lbl { font-size: 10px; color: #c8d2ff; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
-.quick-menu { transform: translate(30px, -30%); }
+
 .tl-entry.ghost { opacity: 0.45; }
 .tl-entry.ghost img { filter: grayscale(0.3) drop-shadow(0 0 3px #ffe066); }
 
 /* summon detail card */
-.summon-card { position: absolute; left: 10px; top: 110px; width: 270px; z-index: 35; pointer-events: none; }
+.summon-card { width: 250px; pointer-events: none; }
+.placing-card { position: absolute; left: 10px; top: 110px; z-index: 35; pointer-events: none; }
+.sc-tags { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
+.px-icon { vertical-align: -2px; image-rendering: pixelated; }
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 6px; margin: 6px 0; }
+.stat-grid .stat { display: flex; align-items: center; gap: 4px; }
 .summon-card .sc-head { display: flex; gap: 10px; align-items: center; }
 .summon-card .sc-sprite { width: 88px; height: 110px; image-rendering: pixelated; }
 .summon-card .sc-name { font-size: 18px; font-weight: bold; }
-.summon-card .sc-stats { display: grid; grid-template-columns: repeat(6, auto); gap: 2px 8px; margin: 8px 0; font-size: 14px; }
-.summon-card .sc-stats span { color: var(--muted); }
 .summon-card .sc-row { font-size: 12px; margin-top: 2px; }
 .ghost-badge {
   transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 3px; font-size: 11px; font-weight: bold;

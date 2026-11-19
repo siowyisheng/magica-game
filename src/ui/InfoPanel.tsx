@@ -15,7 +15,9 @@ import {
   type SideId,
 } from '../rules';
 import { useGame } from '../store';
-import { ELEMENT_COLORS, SIDE_COLORS, unitIconUrl } from '../render/sprites';
+import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
+import { AlignmentIcon, ElementIcon, Icon } from './icons';
+import { StatGrid, magicText } from './Stats';
 
 const SIDE_NAME = ['Green', 'Red'];
 
@@ -45,7 +47,7 @@ export function InfoPanel() {
       <div className="window">
         <div className="title">Battle</div>
         <div className="clock">
-          <span className={`tod ${tod}`}>{tod === 'day' ? '☀' : tod === 'night' ? '☾' : '◐'}</span> {formatClock(match.clock)}
+          <Icon name={tod} size={18} /> {formatClock(match.clock)}
           <span className="muted"> day {dayOf(match.clock)} · {tod}</span>
         </div>
         <div className="muted">Water Level {match.waterLevel} (range {match.minWaterLevel}–{match.maxWaterLevel})</div>
@@ -119,10 +121,13 @@ function UnitCard({ unitId }: { unitId: number }) {
   if (!u) return null;
   const k = kindOf(u.kind);
   const pct = alignmentPercent(k.alignment, match.clock);
-  const st = (v: number) => (pct === 100 ? v : <span className={pct > 100 ? 'good' : 'bad'}>{Math.round((v * pct) / 100)}</span>);
   return (
     <div className="window">
-      <div className="title" style={{ color: SIDE_COLORS[u.side] }}>{k.name}</div>
+      <div className="title" style={{ color: SIDE_COLORS[u.side] }}>
+        {k.element && <ElementIcon element={k.element} />} {k.name}{' '}
+        {k.alignment !== 'none' && <AlignmentIcon alignment={k.alignment} />}
+        {pct !== 100 && <span className={`small ${pct > 100 ? 'good' : 'bad'}`}> {pct > 100 ? '+' : ''}{pct - 100}%</span>}
+      </div>
       <div className="unit-card">
         <img src={unitIconUrl(u.kind, u.side)} alt="" />
         <div>
@@ -131,37 +136,18 @@ function UnitCard({ unitId }: { unitId: number }) {
               <span key={i} className={i < u.hp ? (u.side === 0 ? 'on green' : 'on red') : ''} />
             ))}
           </div>
-          {(k.element || k.alignment !== 'none') && (
-            <div>
-              {k.element && <span style={{ color: ELEMENT_COLORS[k.element] }}>{k.element}</span>}
-              {k.element && k.alignment !== 'none' && ' · '}
-              {k.alignment !== 'none' && `${k.alignment}-aligned`}
-              {pct !== 100 && <span className={pct > 100 ? 'good' : 'bad'}> ({pct > 100 ? '+' : ''}{pct - 100}%)</span>}
-            </div>
-          )}
-          <div className="muted">AV {u.av} · {k.moveTypes.join('+')}{u.stranded ? ' · STRANDED' : ''}</div>
+          <div className="muted">AV {u.av}{u.stranded ? ' · STRANDED' : ''}</div>
+          <div className="muted">Move Type: {k.moveTypes.join(' + ')}</div>
         </div>
       </div>
-      <div className="stats">
-        <span>ATK {st(k.stats.atk)}</span>
-        <span>DEF {st(k.stats.def)}</span>
-        <span>MP {st(k.stats.mp)}</span>
-        <span>MDF {st(k.stats.mdf)}</span>
-        <span>SPD {k.stats.spd}</span>
-        <span>MOV {k.stats.mov}</span>
-      </div>
-      <div className="muted small">
-        Attack: range {k.attack.minRange}–{k.attack.maxRange}, power {k.attack.power}
-      </div>
+      <StatGrid stats={k.stats} pct={pct} />
+      <div className="muted small">Attack: range {k.attack.range}</div>
       {k.magic.map((m) => (
         <div key={m.id} className="muted small">
-          {m.name} ({m.manaCost}◆):{' '}
-          {m.kind === 'water'
-            ? `${m.delta > 0 ? 'raise' : 'lower'} Water Level`
-            : `${m.kind} ${m.targets}, range ${m.minRange}–${m.maxRange}${m.radius ? ', area 1' : ''}, power ${m.power}`}
+          {m.name} ({m.manaCost}◆): {magicText(m)}
         </div>
       ))}
-      {!k.isSummoner && <div className="muted small">Cost {k.cost} · upkeep {k.cost / 8}/h</div>}
+      {!k.isSummoner && <div className="muted small">Cost {k.cost}◆ · Upkeep {k.cost / 8}</div>}
     </div>
   );
 }

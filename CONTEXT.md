@@ -81,7 +81,7 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: minimum and maximum range, valid targets and effects. Summons have one Magic Ability; Summoners have several.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. Summons have one Magic Ability; Summoners have several.
 _Avoid_: Skill, spell (as a code term)
 
 **Stranded**:
@@ -97,7 +97,7 @@ A damage multiplier based on the angle between a defender's Facing and the direc
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-Can be 0. Damage is never raised to a minimum.
+A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic), then multiplied by Element, Facing, cover and Alignment. Can be 0; never raised to a minimum.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed.
