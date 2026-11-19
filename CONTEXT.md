@@ -30,8 +30,15 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 **Move (MOV)**: The Move Points a Unit can spend in one turn.
 
 **Move Type**:
-A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex.
+A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex. Slow only ever comes paired with Swim: it marks swimmers that move with difficulty on land.
 _Avoid_: Movement class
+
+**Move Range**:
+The hexes a Unit can end its move on this turn.
+
+**Attack Reach** / **Magic Reach**:
+Every hex a Unit could hit with its Attack Ability (or targeted Magic Ability) from some hex in its Move Range. Magic Reach is shown whether or not the Mana is available.
+_Avoid_: Threat range, attack range (when meaning after moving)
 
 ## Elements
 
@@ -70,7 +77,7 @@ Whether a Summon is tied to Day, to Night, or to neither. It gets stat bonuses a
 ## Turn structure
 
 **Command**:
-What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic or Summon. Facing is chosen before the Command and cannot change after it. Summon is the exception: it turns the Summoner to face the direction it summoned in.
+What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic or Summon. The player chooses Facing only for Wait. Attack and Magic turn the Unit to face its target (the Unit attacked, or the hex the Magic was aimed at), and Summon turns the Summoner toward the summoned hex.
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
