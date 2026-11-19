@@ -28,8 +28,11 @@ npm run build
 
 ## Controls
 
-- **Left-click**: choose a destination (or click the unit itself to stay). While the command menu is open, left-click the map to turn the unit toward that hex, then pick a command. Wait ends the turn at once, and Facing can't change after Attack, Magic or Summon.
-- **Right-click**: go back a step (in the command menu this cancels the move).
+- On your turn the acting unit is **selected**. Its Move Range shows in blue, Attack Reach in red, Magic Reach in purple, and hexes both can hit in orange.
+- **Left-click** a blue hex to move there (or the unit itself to stay), which opens the command menu. While the menu is open, left-click the map to set Facing for Wait. Attack and Magic always face the target.
+- **Hover a unit in reach** to see the hex the unit would act from (best Facing Modifier, then farthest, then not moving), every hex it could act from, and both previews. **Left-click** it to move there and act. If both Attack and Magic are possible, you pick one.
+- **Right-click a unit** to toggle its ranges (up to 3; they clear when the turn ends). Right-click elsewhere, or left-click outside the ranges, to deselect. Then click anywhere to select the unit again.
+- **Right-click** in menus goes back a step (in the command menu it cancels the move; while placing a summon it returns to the summon list).
 - **Right-drag**: pan. **Mouse wheel**: zoom.
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.

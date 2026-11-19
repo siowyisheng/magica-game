@@ -21,6 +21,7 @@ import {
   type MatchState,
   type Unit,
   type HexTerrain,
+  hexDistance,
 } from './index';
 import { ELEMENTS } from './data/summons';
 
@@ -339,5 +340,43 @@ describe('match flow', () => {
       return JSON.stringify({ ...st, map: null });
     };
     expect(play()).toBe(play());
+  });
+});
+
+describe('facing toward target and reach', () => {
+  it('turns attackers toward their target; ties go to the preferred facing', async () => {
+    const { facingTowardTarget, planAttack, planMagic, unitReach } = await import('./index');
+    expect(facingTowardTarget(hex(0, 0), hex(3, 0), 4)).toBe(0);
+    // (1,-2) is exactly between NE (1) and NW (2)
+    expect(facingTowardTarget(hex(0, 0), hex(1, -2), 2)).toBe(2);
+    expect(facingTowardTarget(hex(0, 0), hex(1, -2), 0)).toBe(1);
+
+    const s = createMatch(testMap(8, 8));
+    const me = getUnit(s, s.activeUnitId!); // (0,7)
+    const foe = s.units.find((u) => u.side === 1)!;
+    foe.pos = hex(2, 6);
+    foe.facing = 0; // faces E: hitting from W (behind) is best
+    const r = applyTurn(s, { unitId: me.id, to: hex(1, 6), facing: 3, command: { type: 'attack', target: foe.pos } });
+    expect(getUnit(r.state, me.id).facing).toBe(0);
+
+    const plan = planAttack(s, me, foe)!;
+    expect(plan.dest).toEqual(hex(1, 6)); // directly behind the foe
+    expect(plan.sources.length).toBeGreaterThan(1);
+    const mplan = planMagic(s, me, foe)!; // Bolt 1–3
+    const fm = (h: { q: number; r: number }) => { const m = facingModifier(foe.pos, foe.facing, h); return m.num / m.den; };
+    const bestF = Math.max(...mplan.sources.map(fm));
+    expect(fm(mplan.dest)).toBe(bestF);
+    const farthest = Math.max(...mplan.sources.filter((h) => fm(h) === bestF).map((h) => hexDistance(h, foe.pos)));
+    expect(hexDistance(mplan.dest, foe.pos)).toBe(farthest);
+    const reach = unitReach(s, me);
+    expect(reach.move.has(hexKey(hex(1, 6)))).toBe(true);
+    expect(reach.magic.size).toBeGreaterThan(reach.attack.size);
+  });
+
+  it('never uses Slow without Swim; walkers have Move ≥ 4', () => {
+    for (const k of SUMMONS) {
+      if (k.moveTypes.includes('slow')) expect(k.moveTypes).toContain('swim');
+      if (k.moveTypes.includes('walk')) expect(k.stats.mov).toBeGreaterThanOrEqual(4);
+    }
   });
 });

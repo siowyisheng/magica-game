@@ -35,6 +35,7 @@ export function CommandMenu() {
   const phase = useGame((s) => s.phase);
   const choose = useGame((s) => s.choose);
   const setHoverCommand = useGame((s) => s.setHoverCommand);
+  const setHoverSummon = useGame((s) => s.setHoverSummon);
   const u = activeUnit(match);
   if (!u || phase.kind !== 'menu') return null;
   const kind = kindOf(u.kind);
@@ -79,8 +80,14 @@ export function CommandMenu() {
                       key={s.id}
                       disabled={!ok}
                       onClick={() => choose({ summon: s.id })}
-                      {...hover('summon')}
-                      title={`${s.name} — ${s.role}, ${s.alignment} · ATK ${s.stats.atk} DEF ${s.stats.def} MP ${s.stats.mp} MDF ${s.stats.mdf} SPD ${s.stats.spd} MOV ${s.stats.mov} · ${s.moveTypes.join('+')} · upkeep ${s.cost / 8}/h`}
+                      onMouseEnter={() => {
+                        setHoverCommand('summon');
+                        setHoverSummon(s.id);
+                      }}
+                      onMouseLeave={() => {
+                        setHoverCommand(null);
+                        setHoverSummon(null);
+                      }}
                     >
                       <img src={unitIconUrl(s.id, u.side)} alt="" />
                       <span className="nm">{s.name}</span>
@@ -97,7 +104,22 @@ export function CommandMenu() {
       <>
         <button onClick={() => choose('wait')} {...hover('wait')}>Wait</button>
         <button disabled={u.stranded || !canAttack} onClick={() => choose('attack')} {...hover('attack')}>Attack</button>
-        <button disabled={u.stranded} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
+        {kind.isSummoner ? (
+          <button disabled={u.stranded} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
+        ) : (
+          (() => {
+            const ab = kind.magic[0];
+            const usable =
+              !u.stranded &&
+              mana >= ab.manaCost &&
+              (ab.kind === 'water' ? canCastWater(match, ab.delta) : magicTargetHexes(match, u, ab, to).length > 0);
+            return (
+              <button disabled={!usable} onClick={() => choose({ magic: ab.id })} {...hover('magic')}>
+                {ab.name} <span className="cost">{ab.manaCost}◆</span>
+              </button>
+            );
+          })()
+        )}
         {kind.isSummoner && (
           <button disabled={u.stranded} onClick={() => choose({ sub: 'summon' })} {...hover('summon')}>Summon ▸</button>
         )}

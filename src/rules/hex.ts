@@ -97,3 +97,27 @@ export function axialToOffset(h: Hex): { col: number; row: number } {
   const col = h.q + (h.r - (h.r & 1)) / 2;
   return { col, row: h.r };
 }
+
+/**
+ * Facing toward `to`, for Attack and Magic. When `to` lies exactly between two
+ * directions, the one closer to `preferred` wins, then the lower index.
+ * Returns `preferred` when `to` equals `from`.
+ */
+export function facingTowardTarget(from: Hex, to: Hex, preferred: Dir): Dir {
+  const v = hexSub(to, from);
+  if (v.q === 0 && v.r === 0) return preferred;
+  const { p, d } = ringPosition(v);
+  const lo = Math.floor(p / d);
+  if (p % d === 0) return (lo % 6) as Dir;
+  // exact half-way between lo and lo+1 when 2(p - lo·d) == d
+  const twice = 2 * (p - lo * d);
+  if (twice < d) return (lo % 6) as Dir;
+  if (twice > d) return ((lo + 1) % 6) as Dir;
+  const a = (lo % 6) as Dir;
+  const b = ((lo + 1) % 6) as Dir;
+  const circ = (x: number) => Math.min((x - preferred + 6) % 6, (preferred - x + 6) % 6);
+  const ca = circ(a);
+  const cb = circ(b);
+  if (ca !== cb) return ca < cb ? a : b;
+  return a < b ? a : b;
+}

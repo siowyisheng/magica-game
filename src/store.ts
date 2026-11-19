@@ -6,6 +6,7 @@ import {
   type Hex,
   type MatchState,
   type TurnAction,
+  type Unit,
   activeUnit,
   applyTurn,
   attackTargets,
@@ -15,10 +16,15 @@ import {
   hexEq,
   hexKey,
   kindOf,
+  planAttack,
+  planMagic,
   reachable,
   SCAFFOLD_MAP,
   validateTurn,
   formatClock,
+  unitAt,
+  type TargetPlan,
+  type MagicPlan,
 } from './rules';
 import { chooseAction } from './ai/ai';
 import { planTurnAnim, type TurnAnim } from './anim';
@@ -26,12 +32,18 @@ import { planTurnAnim, type TurnAnim } from './anim';
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
 export type Phase =
   | { kind: 'idle' }
-  | { kind: 'move' }
+  /** Choosing what to do. `selected` = the acting unit's ranges are shown. */
+  | { kind: 'move'; selected: boolean }
   | { kind: 'menu'; to: Hex; facing: Dir; sub?: 'magic' | 'summon' }
   | { kind: 'target'; to: Hex; facing: Dir; command: 'attack' | { magic: string } }
-  | { kind: 'summonDir'; to: Hex; facing: Dir; summonKind: string };
+  | { kind: 'summonDir'; to: Hex; facing: Dir; summonKind: string }
+  /** Quick action on a unit where both Attack and Magic are possible. */
+  | { kind: 'quickChoice'; targetId: number; attack: TargetPlan; magic: MagicPlan };
 
 export type CommandHover = 'wait' | 'attack' | 'magic' | 'summon' | null;
+
+/** Maximum number of other units whose ranges can be shown at once. */
+export const MAX_INSPECTED = 3;
 
 interface Store {
   match: MatchState;
@@ -39,6 +51,10 @@ interface Store {
   hoverHex: Hex | null;
   hoverUnitId: number | null;
   hoverCommand: CommandHover;
+  /** Summon kind hovered in the Summon submenu. */
+  hoverSummon: string | null;
+  /** Other units whose ranges are toggled on (oldest first). Cleared when a turn ends. */
+  inspected: number[];
   showHpBars: boolean;
   pixelSize: number;
   log: string[];
@@ -54,9 +70,10 @@ interface Store {
   setHoverHex: (h: Hex | null) => void;
   setHoverUnit: (id: number | null) => void;
   setHoverCommand: (c: CommandHover) => void;
+  setHoverSummon: (k: string | null) => void;
   clickHex: (h: Hex) => void;
   rightClick: () => void;
-  choose: (c: 'wait' | 'attack' | { magic: string } | { summon: string } | { sub: 'magic' | 'summon' }) => void;
+  choose: (c: 'wait' | 'attack' | 'magic' | { magic: string } | { summon: string } | { sub: 'magic' | 'summon' }) => void;
   toggleHpBars: () => void;
   setPixelSize: (n: number) => void;
   setAi: (side: 0 | 1, ai: boolean) => void;
@@ -67,7 +84,7 @@ function phaseFor(match: MatchState): Phase {
   const u = activeUnit(match);
   if (!u || match.winner !== null || match.sides[u.side].ai) return { kind: 'idle' };
   if (u.stranded) return { kind: 'menu', to: u.pos, facing: u.facing };
-  return { kind: 'move' };
+  return { kind: 'move', selected: true };
 }
 
 function describe(match: MatchState, e: GameEvent): string | null {
@@ -100,7 +117,7 @@ function describe(match: MatchState, e: GameEvent): string | null {
 }
 
 export const useGame = create<Store>((set, get) => {
-  const commit = (action: TurnAction, byHuman = true) => {
+  const commit = (action: TurnAction, alreadyMoved = true) => {
     const { match } = get();
     const err = validateTurn(match, action);
     if (err) {
@@ -116,15 +133,31 @@ export const useGame = create<Store>((set, get) => {
         anim: null,
         phase: phaseFor(state),
         hoverCommand: null,
+        hoverSummon: null,
+        inspected: [],
         log: [...lines.reverse(), ...s.log].slice(0, 40),
         version: s.version + 1,
       }));
-    const anim = get().animate ? planTurnAnim(match, action, performance.now(), byHuman) : null;
+    const anim = get().animate ? planTurnAnim(match, action, performance.now(), alreadyMoved) : null;
     if (!anim || anim.duration <= 0) return finish();
-    set({ anim, phase: { kind: 'idle' }, hoverCommand: null });
+    set({ anim, phase: { kind: 'idle' }, hoverCommand: null, hoverSummon: null });
     setTimeout(() => {
       if (get().anim === anim) finish();
     }, anim.duration);
+  };
+
+  const toggleInspect = (id: number) =>
+    set((s) => {
+      if (s.inspected.includes(id)) return { inspected: s.inspected.filter((x) => x !== id) };
+      const next = [...s.inspected, id];
+      return { inspected: next.length > MAX_INSPECTED ? next.slice(next.length - MAX_INSPECTED) : next };
+    });
+
+  /** The unit under the cursor, other than the acting unit. */
+  const otherUnderCursor = (): Unit | undefined => {
+    const { match, hoverUnitId, hoverHex } = get();
+    const u = (hoverUnitId !== null ? match.units.find((x) => x.id === hoverUnitId) : undefined) ?? (hoverHex ? unitAt(match, hoverHex) : undefined);
+    return u && u.id !== match.activeUnitId ? u : undefined;
   };
 
   const initial = createMatch(SCAFFOLD_MAP, { ai: [false, true], seed: Date.now() & 0xffff });
@@ -135,6 +168,8 @@ export const useGame = create<Store>((set, get) => {
     hoverHex: null,
     hoverUnitId: null,
     hoverCommand: null,
+    hoverSummon: null,
+    inspected: [],
     showHpBars: true,
     pixelSize: 2,
     log: ['Match start — 06:00'],
@@ -146,7 +181,7 @@ export const useGame = create<Store>((set, get) => {
     newMatch: () => {
       const ai = get().match.sides.map((s) => s.ai) as [boolean, boolean];
       const m = createMatch(SCAFFOLD_MAP, { ai, seed: Date.now() & 0xffff });
-      set({ match: m, anim: null, phase: phaseFor(m), log: ['Match start — 06:00'], version: get().version + 1 });
+      set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: ['Match start — 06:00'], version: get().version + 1 });
     },
     setHoverHex: (h) => {
       const cur = get().hoverHex;
@@ -155,6 +190,7 @@ export const useGame = create<Store>((set, get) => {
     },
     setHoverUnit: (id) => get().hoverUnitId !== id && set({ hoverUnitId: id }),
     setHoverCommand: (c) => set({ hoverCommand: c }),
+    setHoverSummon: (k) => get().hoverSummon !== k && set({ hoverSummon: k }),
 
     clickHex: (h) => {
       const { match, phase } = get();
@@ -162,13 +198,29 @@ export const useGame = create<Store>((set, get) => {
       if (!u) return;
       switch (phase.kind) {
         case 'move': {
+          if (!phase.selected) return set({ phase: { kind: 'move', selected: true } });
+          const target = unitAt(match, h);
+          if (target && target.id !== u.id) {
+            const q = quickPlans(match, u, target);
+            const canAttack = !!q.attack;
+            const canMagic = !!q.magic && q.magic.affordable;
+            if (canAttack && canMagic) {
+              return set({ phase: { kind: 'quickChoice', targetId: target.id, attack: q.attack!, magic: q.magic! } });
+            }
+            if (canAttack) return commit({ unitId: u.id, to: q.attack!.dest, facing: u.facing, command: { type: 'attack', target: target.pos } });
+            if (canMagic) {
+              return commit({ unitId: u.id, to: q.magic!.dest, facing: u.facing, command: { type: 'magic', ability: q.magic!.ability.id, target: target.pos } });
+            }
+            if (q.magic) return; // in Magic Reach but not affordable: do nothing
+            return set({ phase: { kind: 'move', selected: false } });
+          }
           if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
           const n = reachable(match, u).get(hexKey(h));
-          if (n && n.canEnd) set({ phase: { kind: 'menu', to: h, facing: u.facing } });
-          return;
+          if (n && n.canEnd) return set({ phase: { kind: 'menu', to: h, facing: u.facing } });
+          return set({ phase: { kind: 'move', selected: false } }); // not in range: deselect
         }
         case 'menu': {
-          // Left-clicking the map while the command menu is open sets Facing.
+          // Left-clicking the map while the command menu is open sets Facing (used by Wait).
           if (hexEq(h, phase.to)) return;
           set({ phase: { ...phase, facing: closestFacing(phase.to, h) } });
           return;
@@ -184,10 +236,9 @@ export const useGame = create<Store>((set, get) => {
           return;
         }
         case 'summonDir': {
-          const dir = ([0, 1, 2, 3, 4, 5] as Dir[]).find((d) => {
-            const v = { q: h.q - phase.to.q, r: h.r - phase.to.r };
-            return hexEq(v, [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }][d]);
-          });
+          const v = { q: h.q - phase.to.q, r: h.r - phase.to.r };
+          const vecs = [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }];
+          const dir = ([0, 1, 2, 3, 4, 5] as Dir[]).find((d) => hexEq(v, vecs[d]));
           if (dir === undefined) return;
           commit({ unitId: u.id, to: phase.to, facing: dir, command: { type: 'summon', kind: phase.summonKind, dir } });
           return;
@@ -200,33 +251,49 @@ export const useGame = create<Store>((set, get) => {
     rightClick: () => {
       const { phase, match } = get();
       const u = activeUnit(match);
+      if (!u || phase.kind === 'idle') return;
+      const other = otherUnderCursor();
       switch (phase.kind) {
+        case 'move':
+          if (other) return toggleInspect(other.id);
+          return set({ phase: { kind: 'move', selected: !phase.selected } });
         case 'menu':
-          if (phase.sub) return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing } });
-          if (u?.stranded) return; // cannot move anyway
-          return set({ phase: { kind: 'move' }, hoverCommand: null }); // cancel move
+          if (other) return toggleInspect(other.id);
+          if (phase.sub) return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing }, hoverSummon: null });
+          if (u.stranded) return; // cannot move anyway
+          return set({ phase: { kind: 'move', selected: true }, hoverCommand: null }); // cancel move
         case 'target':
-        case 'summonDir':
+          if (other) return toggleInspect(other.id);
           return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing } });
-        default:
-          return;
+        case 'summonDir':
+          return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing, sub: 'summon' } });
+        case 'quickChoice':
+          return set({ phase: { kind: 'move', selected: true } });
       }
     },
 
     choose: (c) => {
       const { phase, match } = get();
       const u = activeUnit(match);
-      if (!u || phase.kind !== 'menu') return;
+      if (!u) return;
+      if (phase.kind === 'quickChoice') {
+        const target = getUnit(match, phase.targetId);
+        if (c === 'attack') return commit({ unitId: u.id, to: phase.attack.dest, facing: u.facing, command: { type: 'attack', target: target.pos } });
+        if (c === 'magic') {
+          return commit({ unitId: u.id, to: phase.magic.dest, facing: u.facing, command: { type: 'magic', ability: phase.magic.ability.id, target: target.pos } });
+        }
+        return;
+      }
+      if (phase.kind !== 'menu') return;
       const { to, facing } = phase;
       if (c === 'wait') return commit({ unitId: u.id, to, facing, command: { type: 'wait' } });
       if (c === 'attack') return set({ phase: { kind: 'target', to, facing, command: 'attack' } });
+      if (c === 'magic') return;
       if ('sub' in c) return set({ phase: { kind: 'menu', to, facing, sub: c.sub } });
       if ('summon' in c) return set({ phase: { kind: 'summonDir', to, facing, summonKind: c.summon } });
       const ab = kindOf(u.kind).magic.find((m) => m.id === c.magic);
       if (!ab) return;
-      if (ab.kind === 'water') {
-        return commit({ unitId: u.id, to, facing, command: { type: 'magic', ability: ab.id, target: to } });
-      }
+      if (ab.kind === 'water') return commit({ unitId: u.id, to, facing, command: { type: 'magic', ability: ab.id, target: to } });
       set({ phase: { kind: 'target', to, facing, command: { magic: ab.id } } });
     },
 
@@ -258,6 +325,34 @@ export const useGame = create<Store>((set, get) => {
 
 // ---------- derived helpers used by the UI ----------
 
+export interface QuickPlans {
+  attack: TargetPlan | null;
+  magic: MagicPlan | null;
+}
+
+export function quickPlans(match: MatchState, actor: Unit, target: Unit): QuickPlans {
+  return { attack: planAttack(match, actor, target), magic: planMagic(match, actor, target) };
+}
+
+/** The quick-action preview for the unit under the cursor, when the acting unit is Selected. */
+export function hoverQuick(
+  s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverUnitId'>,
+): { target: Unit; plans: QuickPlans } | null {
+  const u = activeUnit(s.match);
+  if (!u) return null;
+  if (s.phase.kind === 'quickChoice') {
+    const target = s.match.units.find((x) => x.id === (s.phase as { targetId: number }).targetId);
+    return target ? { target, plans: { attack: s.phase.attack, magic: s.phase.magic } } : null;
+  }
+  if (s.phase.kind !== 'move' || !s.phase.selected) return null;
+  const target =
+    (s.hoverUnitId !== null ? s.match.units.find((x) => x.id === s.hoverUnitId) : undefined) ??
+    (s.hoverHex ? unitAt(s.match, s.hoverHex) : undefined);
+  if (!target || target.id === u.id) return null;
+  const plans = quickPlans(s.match, u, target);
+  return plans.attack || plans.magic ? { target, plans } : null;
+}
+
 /** The hex direction whose on-screen angle is closest to the direction from `from` to `to`. */
 export function closestFacing(from: Hex, to: Hex): Dir {
   const toXY = (h: Hex) => [Math.sqrt(3) * (h.q + h.r / 2), 1.5 * h.r];
@@ -280,19 +375,29 @@ export function closestFacing(from: Hex, to: Hex): Dir {
 }
 
 /** Previewed Turn Delay for the active Unit based on what the player is hovering. */
-export function previewDelay(s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverCommand'>): number | undefined {
+export function previewDelay(
+  s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverCommand' | 'hoverUnitId'>,
+): number | undefined {
   const u = activeUnit(s.match);
   if (!u) return undefined;
   const d = (to: Hex, acted: boolean) =>
     delayForAction(s.match, { unitId: u.id, to, command: acted ? { type: 'attack', target: to } : { type: 'wait' } });
   const p = s.phase;
   switch (p.kind) {
-    case 'move':
-      if (s.hoverHex && !hexEq(s.hoverHex, u.pos)) {
+    case 'move': {
+      const q = hoverQuick(s);
+      if (q) {
+        const plan = q.plans.attack ?? q.plans.magic!;
+        return d(plan.dest, true);
+      }
+      if (p.selected && s.hoverHex && !hexEq(s.hoverHex, u.pos)) {
         const n = reachable(s.match, u).get(hexKey(s.hoverHex));
         if (n?.canEnd) return d(s.hoverHex, false);
       }
       return undefined;
+    }
+    case 'quickChoice':
+      return d(p.attack.dest, true);
     case 'menu':
       if (s.hoverCommand) return d(p.to, s.hoverCommand !== 'wait');
       return undefined;

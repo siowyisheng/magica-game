@@ -2,13 +2,20 @@ import type { Effect } from '../rules';
 
 const pct = (n: number) => `${n >= 0 ? '+' : ''}${n}%`;
 
-export function DamageTag({ effect }: { effect: Effect }) {
+export function DamageTag({ effect, label, note }: { effect: Effect; label?: string; note?: string }) {
   if (effect.kind === 'heal') {
-    return <div className="dmg-tag heal">+{effect.amount} HP</div>;
+    return (
+      <div className="dmg-tag heal">
+        {label && <div className="lbl">{label}</div>}+{effect.amount} HP
+        {note && <div className="row bad">{note}</div>}
+      </div>
+    );
   }
   const b = effect.breakdown!;
   return (
     <div className={`dmg-tag ${effect.lethal ? 'lethal' : ''}`}>
+      {label && <div className="lbl">{label}</div>}
+      {note && <div className="row bad">{note}</div>}
       <div className="big">
         {effect.amount === 0 ? '0' : `−${effect.amount}`}
         {effect.lethal && <span className="ko"> KO</span>}

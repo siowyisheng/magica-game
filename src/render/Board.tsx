@@ -1,13 +1,13 @@
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   type Hex,
   type MatchState,
   type SideId,
   type Unit,
   activeUnit,
-  affectedUnits,
   attackTargets,
   canStandOn,
   getUnit,
@@ -26,9 +26,12 @@ import {
   surfaceOf,
   unitAt,
   DIRS,
+  unitReach,
+  facingTowardTarget,
+  type Reach,
 } from '../rules';
-import { closestFacing, useGame } from '../store';
-import { SIDE_COLORS, projectileTexture, unitTexture } from './sprites';
+import { closestFacing, hoverQuick, useGame } from '../store';
+import { SIDE_COLORS, idleFrameAt, projectileTexture, spriteScale, unitFrameTexture, unitTexture } from './sprites';
 import { MS_PER_HEX, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
@@ -118,8 +121,9 @@ function columnGeo(height: number): THREE.CylinderGeometry {
   }
   return g;
 }
-const capGeo = new THREE.CircleGeometry(0.92, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6 * 0);
-const ringGeo = new THREE.RingGeometry(0.78, 0.95, 6).rotateX(-Math.PI / 2);
+// Flat hexagons aligned with the (pointy-top) tile columns.
+const capGeo = new THREE.CircleGeometry(0.92, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
+const ringGeo = new THREE.RingGeometry(0.74, 0.92, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
 
 function terrainColor(terrain: string, height: number): string {
   const c = new THREE.Color(terrain === 'rough' ? '#5d6b34' : terrain === 'stone' ? '#77806a' : '#8f9a52');
@@ -130,41 +134,54 @@ function terrainColor(terrain: string, height: number): string {
 const STONE_NEUTRAL = '#a8804a'; // light brown (glow brightens it)
 
 /** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
+/** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
 function StoneColumn({ height, owner }: { height: number; owner: SideId | null }) {
   const color = owner === null ? STONE_NEUTRAL : SIDE_COLORS[owner];
   const mat = useRef<THREE.MeshLambertMaterial>(null);
-  const halo = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(({ clock }) => {
     const t = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 2.2);
-    if (mat.current) mat.current.emissiveIntensity = 0.22 + 0.16 * t;
-    if (halo.current) halo.current.opacity = 0.1 + 0.12 * t;
+    if (mat.current) mat.current.emissiveIntensity = 0.24 + 0.18 * t;
   });
   return (
-    <>
-      <mesh geometry={columnGeo(height)}>
-        <meshLambertMaterial ref={mat} color={color} emissive={color} emissiveIntensity={0.3} flatShading />
-      </mesh>
-      <mesh geometry={capGeo} position={[0, height * STEP + 0.015, 0]} scale={[1.05, 1, 1.05]} raycast={() => null}>
-        <meshBasicMaterial ref={halo} color={color} transparent opacity={0.15} blending={THREE.AdditiveBlending} depthWrite={false} />
-      </mesh>
-    </>
+    <mesh geometry={columnGeo(height)}>
+      <meshLambertMaterial ref={mat} color={color} emissive={color} emissiveIntensity={0.3} flatShading />
+    </mesh>
   );
 }
 
-function Tile({ h, height, terrain, owner }: { h: Hex; height: number; terrain: string; owner?: SideId | null }) {
+function Tile({
+  h,
+  height,
+  terrain,
+  owner,
+  depth,
+}: {
+  h: Hex;
+  height: number;
+  terrain: string;
+  owner?: SideId | null;
+  /** Water depth over this tile (0 = dry). */
+  depth: number;
+}) {
   const [x, z] = hexToWorld(h);
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
-  const color = useMemo(() => terrainColor(terrain, height), [terrain, height]);
+  const color = useMemo(() => {
+    const c = new THREE.Color(terrainColor(terrain, height));
+    // seen through the water: shallow floors a little darker, deep floors much darker
+    if (depth === 1) c.lerp(new THREE.Color('#2f5a52'), 0.35);
+    else if (depth >= 2) c.lerp(new THREE.Color('#0a1622'), 0.7);
+    return `#${c.getHexString()}`;
+  }, [terrain, height, depth]);
   const bushes = useMemo(() => {
-    if (terrain !== 'rough') return [];
+    if (terrain !== 'rough' || depth > 0) return [];
     const seed = (h.q * 73856093) ^ (h.r * 19349663);
     return [0, 1, 2].map((i) => {
       const a = ((seed >>> (i * 5)) & 31) / 31 * Math.PI * 2;
       const r = 0.25 + (((seed >>> (i * 3)) & 7) / 7) * 0.4;
       return [Math.cos(a) * r, Math.sin(a) * r] as [number, number];
     });
-  }, [terrain, h.q, h.r]);
+  }, [terrain, h.q, h.r, depth]);
   const onMove = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     setHoverHex(h);
@@ -193,36 +210,84 @@ function Tile({ h, height, terrain, owner }: { h: Hex; height: number; terrain: 
   );
 }
 
+/** Pixel ripple texture for the water surface (tiles seamlessly). */
+const rippleTex = (() => {
+  const n = 32;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const ctx = cv.getContext('2d')!;
+  ctx.fillStyle = '#d0d0d0';
+  ctx.fillRect(0, 0, n, n);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const w = Math.sin((x / n) * Math.PI * 4 + Math.sin((y / n) * Math.PI * 2) * 2) + Math.sin((y / n) * Math.PI * 6);
+      if (w > 1.3) ctx.fillStyle = '#ffffff';
+      else if (w < -1.4) ctx.fillStyle = '#a8a8a8';
+      else continue;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+
+/** Axial hex containing world point (x, z). */
+function worldToHex(x: number, z: number): Hex {
+  const qf = (SQRT3 / 3) * x - z / 3;
+  const rf = (2 / 3) * z;
+  const sf = -qf - rf;
+  let q = Math.round(qf);
+  let r = Math.round(rf);
+  const sRound = Math.round(sf);
+  const dq = Math.abs(q - qf);
+  const dr = Math.abs(r - rf);
+  const ds = Math.abs(sRound - sf);
+  if (dq > dr && dq > ds) q = -r - sRound;
+  else if (dr > ds) r = -q - sRound;
+  return { q, r };
+}
+
+/** One continuous water surface over every water hex, in a single look. */
 function Water({ match }: { match: MatchState }) {
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
-  const water = match.map.hexes.filter((mh) => surfaceOf(mh, match.waterLevel) !== 'land');
+  const geo = useMemo(() => {
+    const parts: THREE.BufferGeometry[] = [];
+    for (const mh of match.map.hexes) {
+      if (surfaceOf(mh, match.waterLevel) === 'land') continue;
+      const [x, z] = hexToWorld(mh.hex);
+      const g = new THREE.CircleGeometry(1, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6).translate(x, 0, z);
+      const pos = g.getAttribute('position');
+      const uv = g.getAttribute('uv');
+      for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / 3, pos.getZ(i) / 3); // world-space UVs: seamless
+      parts.push(g);
+    }
+    return parts.length ? mergeGeometries(parts) : null;
+  }, [match.map, match.waterLevel]);
+  useFrame((_, dt) => {
+    rippleTex.offset.x += dt * 0.03;
+    rippleTex.offset.y += dt * 0.012;
+  });
+  if (!geo) return null;
+  const hexAt = (e: ThreeEvent<PointerEvent | MouseEvent>) => worldToHex(e.point.x, e.point.z);
   return (
-    <>
-      {water.map((mh) => {
-        const [x, z] = hexToWorld(mh.hex);
-        const deep = surfaceOf(mh, match.waterLevel) === 'deep';
-        return (
-          <mesh
-            key={hexKey(mh.hex)}
-            geometry={capGeo}
-            position={[x, match.waterLevel * STEP - 0.06, z]}
-            scale={[1.06, 1, 1.06]}
-            onPointerMove={(e) => {
-              e.stopPropagation();
-              setHoverHex(mh.hex);
-            }}
-            onClick={(e) => {
-              if (e.button !== 0) return;
-              e.stopPropagation();
-              clickHex(mh.hex);
-            }}
-          >
-            <meshLambertMaterial color={deep ? '#1f4d8f' : '#3f86c4'} transparent opacity={deep ? 0.88 : 0.7} />
-          </mesh>
-        );
-      })}
-    </>
+    <mesh
+      geometry={geo}
+      position={[0, match.waterLevel * STEP - 0.06, 0]}
+      onPointerMove={(e) => {
+        e.stopPropagation();
+        setHoverHex(hexAt(e));
+      }}
+      onClick={(e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        clickHex(hexAt(e));
+      }}
+    >
+      <meshLambertMaterial color="#4a9aa2" map={rippleTex} transparent opacity={0.62} depthWrite={false} />
+    </mesh>
   );
 }
 
@@ -232,42 +297,91 @@ interface Mark {
   h: Hex;
   color: string;
   opacity: number;
+  /** Draw as an outline ring instead of a fill. */
+  ring?: boolean;
+}
+
+export const RANGE_COLORS = {
+  move: '#4f8dff',
+  attack: '#ff4a3a',
+  magic: '#b05cff',
+  both: '#ff9a2a',
+} as const;
+
+/** Classify hexes of one or more Reaches: move, attack-only, magic-only, or both. */
+function reachMarks(reaches: Reach[], opacity: number): Mark[] {
+  const all = new Map<string, { h: Hex; move: boolean; attack: boolean; magic: boolean }>();
+  const get = (k: string, h: Hex) => {
+    let e = all.get(k);
+    if (!e) all.set(k, (e = { h, move: false, attack: false, magic: false }));
+    return e;
+  };
+  for (const r of reaches) {
+    for (const [k, h] of r.move) get(k, h).move = true;
+    for (const [k, h] of r.attack) get(k, h).attack = true;
+    for (const [k, h] of r.magic) get(k, h).magic = true;
+  }
+  const out: Mark[] = [];
+  for (const e of all.values()) {
+    const color = e.move
+      ? RANGE_COLORS.move
+      : e.attack && e.magic
+        ? RANGE_COLORS.both
+        : e.attack
+          ? RANGE_COLORS.attack
+          : RANGE_COLORS.magic;
+    out.push({ h: e.h, color, opacity: e.move ? opacity : opacity * 0.85 });
+  }
+  return out;
 }
 
 function useMarks(): Mark[] {
   const match = useGame((s) => s.match);
   const phase = useGame((s) => s.phase);
   const hoverHex = useGame((s) => s.hoverHex);
+  const hoverUnitId = useGame((s) => s.hoverUnitId);
+  const inspected = useGame((s) => s.inspected);
   return useMemo(() => {
     const u = activeUnit(match);
     const marks: Mark[] = [];
     if (!u) return marks;
     const kind = kindOf(u.kind);
-    if (phase.kind === 'move') {
-      const nodes = reachable(match, u);
-      for (const n of nodes.values()) if (n.canEnd) marks.push({ h: n.hex, color: '#fff6c8', opacity: 0.38 });
-      if (hoverHex) {
-        const n = nodes.get(hexKey(hoverHex));
-        if (n?.canEnd) for (const p of pathTo(nodes, hoverHex)) marks.push({ h: p, color: '#ffd23f', opacity: 0.5 });
+
+    // Ranges of toggled-on other units (dimmer).
+    const others = inspected.map((id) => match.units.find((x) => x.id === id)).filter((x): x is Unit => !!x);
+    if (others.length && phase.kind !== 'idle') marks.push(...reachMarks(others.map((o) => unitReach(match, o)), 0.3));
+
+    if (phase.kind === 'move' && phase.selected) {
+      marks.push(...reachMarks([unitReach(match, u)], 0.5));
+      const q = hoverQuick({ match, phase, hoverHex, hoverUnitId });
+      if (q) {
+        const seen = new Set<string>();
+        for (const h of [...(q.plans.attack?.sources ?? []), ...(q.plans.magic?.sources ?? [])]) {
+          const k = hexKey(h);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          marks.push({ h, color: '#ffe066', opacity: 0.9, ring: true });
+        }
       }
+    } else if (phase.kind === 'quickChoice') {
+      for (const h of [phase.attack.dest, phase.magic.dest]) marks.push({ h, color: '#ffe066', opacity: 0.9, ring: true });
     } else if (phase.kind === 'target') {
       const view = { ...match, units: match.units.map((x) => (x.id === u.id ? { ...x, pos: phase.to } : x)) };
       const caster = getUnit(view, u.id);
       if (phase.command === 'attack') {
         const a = kind.attack;
         for (const h of hexesInRange(phase.to, a.maxRange))
-          if (hexDistance(h, phase.to) >= a.minRange && mapHexAt(match.map, h)) marks.push({ h, color: '#ff6a4f', opacity: 0.22 });
+          if (hexDistance(h, phase.to) >= a.minRange && mapHexAt(match.map, h)) marks.push({ h, color: RANGE_COLORS.attack, opacity: 0.22 });
         for (const t of attackTargets(view, caster, phase.to)) marks.push({ h: t.pos, color: '#ff3b1f', opacity: 0.55 });
       } else {
         const ab = magicAbility(kind, phase.command.magic);
         if (ab.kind !== 'water') {
           for (const h of hexesInRange(phase.to, ab.maxRange))
-            if (hexDistance(h, phase.to) >= ab.minRange && mapHexAt(match.map, h)) marks.push({ h, color: '#b46cff', opacity: 0.2 });
+            if (hexDistance(h, phase.to) >= ab.minRange && mapHexAt(match.map, h)) marks.push({ h, color: RANGE_COLORS.magic, opacity: 0.2 });
           const valid = magicTargetHexes(match, u, ab, phase.to);
           for (const h of valid) marks.push({ h, color: '#c98bff', opacity: 0.45 });
           if (hoverHex && valid.some((v) => hexEq(v, hoverHex))) {
             for (const h of hexesInRange(hoverHex, ab.radius)) marks.push({ h, color: '#ffe066', opacity: 0.45 });
-            void affectedUnits;
           }
         }
       }
@@ -281,15 +395,15 @@ function useMarks(): Mark[] {
           marks.push({ h, color: '#ffd23f', opacity: 0.5 });
       }
     } else if (phase.kind === 'menu') {
-      // faint ring: left-click anywhere on the map sets Facing
+      // faint ring: left-click anywhere on the map sets Facing (for Wait)
       for (const d of DIRS) {
         const h = neighbor(phase.to, d);
         if (mapHexAt(match.map, h)) marks.push({ h, color: '#ffffff', opacity: 0.12 });
       }
     }
-    if (hoverHex && mapHexAt(match.map, hoverHex)) marks.push({ h: hoverHex, color: '#ffe066', opacity: 0.25 });
+    if (hoverHex && mapHexAt(match.map, hoverHex)) marks.push({ h: hoverHex, color: '#ffe066', opacity: 0.6, ring: true });
     return marks;
-  }, [match, phase, hoverHex]);
+  }, [match, phase, hoverHex, hoverUnitId, inspected]);
 }
 
 function Highlights() {
@@ -300,7 +414,7 @@ function Highlights() {
       {marks.map((m, i) => {
         const [x, z] = hexToWorld(m.h);
         return (
-          <mesh key={i} geometry={capGeo} position={[x, topY(match, m.h) + 0.02 + i * 0.0005, z]} raycast={() => null}>
+          <mesh key={i} geometry={m.ring ? ringGeo : capGeo} position={[x, topY(match, m.h) + 0.02 + i * 0.0005, z]} raycast={() => null}>
             <meshBasicMaterial color={m.color} transparent opacity={m.opacity} depthWrite={false} />
           </mesh>
         );
@@ -362,12 +476,18 @@ function UnitView({
   facing,
   isActive,
   previewPath,
+  inspected = false,
+  ghost = false,
 }: {
   unit: Unit;
   displayPos: Hex;
   facing: number;
   isActive: boolean;
   previewPath?: Hex[];
+  /** Its ranges are toggled on. */
+  inspected?: boolean;
+  /** A translucent stand-in (e.g. the alternate quick-action hex); not interactive. */
+  ghost?: boolean;
 }) {
   const match = useGame((s) => s.match);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
@@ -382,7 +502,8 @@ function UnitView({
   const ty = topY(match, displayPos);
   const tex = useMemo(() => unitTexture(unit.kind, unit.side), [unit.kind, unit.side]);
   const k = kindOf(unit.kind);
-  const scale = k.isSummoner ? 1.35 : k.role === 'dragon' || k.role === 'tank' ? 1.3 : 1.1;
+  const scale = spriteScale(unit.kind);
+  void k;
   const hovered = hoverUnitId === unit.id;
   const baseColor = hovered ? '#ffffcc' : '#ffffff';
 
@@ -392,6 +513,7 @@ function UnitView({
   if (preview.current.key !== previewKey) preview.current = { key: previewKey, start: performance.now() };
 
   useEffect(() => {
+    if (ghost) return;
     const v = new THREE.Vector3();
     const mk = (dy: number) => () => (group.current ? group.current.getWorldPosition(v).add(new THREE.Vector3(0, dy, 0)) : null);
     anchorSources.set(`unit:${unit.id}`, mk(scale + 0.3));
@@ -400,7 +522,7 @@ function UnitView({
       anchorSources.delete(`unit:${unit.id}`);
       anchorSources.delete(`tag:${unit.id}`);
     };
-  }, [unit.id, scale]);
+  }, [unit.id, scale, ghost]);
 
   useFrame((_, dt) => {
     const g = group.current;
@@ -451,7 +573,11 @@ function UnitView({
     }
     if (body.current) body.current.position.set(offset.x, scale / 2 + 0.05 + offset.y, offset.z);
     if (arrow.current) arrow.current.rotation.y = heading ?? dirAngle(facing);
-    if (bodyMat.current) bodyMat.current.color.set(baseColor).lerp(new THREE.Color('#ff4040'), flash * 0.8);
+    if (bodyMat.current) {
+      bodyMat.current.color.set(baseColor).lerp(new THREE.Color('#ff4040'), flash * 0.8);
+      const tex = unitFrameTexture(unit.kind, unit.side, idleFrameAt(now, (unit.id * 1.37) % 4));
+      if (bodyMat.current.map !== tex) bodyMat.current.map = tex;
+    }
   });
 
   return (
@@ -459,15 +585,16 @@ function UnitView({
       <mesh ref={arrow} geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
         <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
       </mesh>
-      {(hovered || isActive) && (
+      {!ghost && (hovered || isActive || inspected) && (
         <mesh geometry={ringGeo} position={[0, 0.04, 0]} raycast={() => null}>
-          <meshBasicMaterial color={hovered ? '#ffe066' : '#ffffff'} transparent opacity={0.9} />
+          <meshBasicMaterial color={hovered ? '#ffe066' : inspected ? '#9fd0ff' : '#ffffff'} transparent opacity={0.9} />
         </mesh>
       )}
       <sprite
         ref={body}
         scale={[scale * (18 / 22), scale, 1]}
         position={[0, scale / 2 + 0.05, 0]}
+        raycast={ghost ? () => null : undefined}
         onPointerOver={(e) => {
           e.stopPropagation();
           setHoverUnit(unit.id);
@@ -483,7 +610,7 @@ function UnitView({
           clickHex(displayPos);
         }}
       >
-        <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={0.5} color={baseColor} />
+        <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={0.5} color={baseColor} opacity={ghost ? 0.45 : 1} />
       </sprite>
     </group>
   );
@@ -493,12 +620,26 @@ function Units() {
   const match = useGame((s) => s.match);
   const phase = useGame((s) => s.phase);
   const hoverHex = useGame((s) => s.hoverHex);
+  const hoverUnitId = useGame((s) => s.hoverUnitId);
+  const inspected = useGame((s) => s.inspected);
   const anim = useGame((s) => s.anim);
   const active = activeUnit(match);
+  const quick = useMemo(() => hoverQuick({ match, phase, hoverHex, hoverUnitId }), [match, phase, hoverHex, hoverUnitId]);
+  // Where the acting unit is shown: its menu destination, or the quick-action hex.
+  const shownAt = useMemo((): { to: Hex; facing: number; alt?: Hex } | null => {
+    if (!active) return null;
+    if (quick) {
+      const main = quick.plans.attack ?? quick.plans.magic!;
+      const alt = quick.plans.attack && quick.plans.magic && !hexEq(quick.plans.attack.dest, quick.plans.magic.dest) ? quick.plans.magic.dest : undefined;
+      return { to: main.dest, facing: facingTowardTarget(main.dest, quick.target.pos, active.facing), alt };
+    }
+    if ('to' in phase) return { to: phase.to, facing: phase.facing };
+    return null;
+  }, [active, quick, phase]);
   const previewPath = useMemo(() => {
-    if (!active || !('to' in phase) || hexEq(active.pos, phase.to)) return undefined;
-    return pathTo(reachable(match, active), phase.to);
-  }, [match, phase, active]);
+    if (!active || !shownAt || hexEq(active.pos, shownAt.to)) return undefined;
+    return pathTo(reachable(match, active), shownAt.to);
+  }, [match, active, shownAt]);
   return (
     <>
       {match.units.map((u) => {
@@ -508,14 +649,34 @@ function Units() {
         if (anim && u.id === anim.actorId) {
           pos = anim.to;
           facing = anim.facing;
-        } else if (active && u.id === active.id && 'to' in phase) {
-          pos = phase.to;
-          facing = phase.facing;
+        } else if (active && u.id === active.id && shownAt) {
+          pos = shownAt.to;
+          facing = shownAt.facing;
           path = previewPath;
           if (phase.kind === 'summonDir' && hoverHex && hexDistance(hoverHex, phase.to) === 1) facing = closestFacing(phase.to, hoverHex);
         }
-        return <UnitView key={u.id} unit={u} displayPos={pos} facing={facing} isActive={active?.id === u.id} previewPath={path} />;
+        return (
+          <UnitView
+            key={u.id}
+            unit={u}
+            displayPos={pos}
+            facing={facing}
+            isActive={active?.id === u.id}
+            previewPath={path}
+            inspected={inspected.includes(u.id)}
+          />
+        );
       })}
+      {active && shownAt?.alt && quick && (
+        <UnitView
+          key={`ghost${active.id}`}
+          unit={active}
+          displayPos={shownAt.alt}
+          facing={facingTowardTarget(shownAt.alt, quick.target.pos, active.facing)}
+          isActive={false}
+          ghost
+        />
+      )}
     </>
   );
 }
@@ -612,7 +773,8 @@ function Scene() {
   }, [match.map]);
   const { camera } = useThree();
   useEffect(() => {
-    camera.position.set(center[0] + 14, 22, center[1] + 22);
+    // straight-on: rows run across the screen, flat hex sides vertical
+    camera.position.set(center[0], 24, center[1] + 26);
     camera.lookAt(center[0], 0, center[1]);
     camera.updateProjectionMatrix();
   }, [camera, center]);
@@ -631,6 +793,7 @@ function Scene() {
             height={mh.height}
             terrain={mh.terrain}
             owner={mh.terrain === 'stone' ? (match.stones.find((s) => hexEq(s.hex, mh.hex))?.owner ?? null) : undefined}
+            depth={Math.max(0, match.waterLevel - mh.height)}
           />
         ))}
       </group>
