@@ -1,0 +1,126 @@
+:root {
+  --bg: #12151f;
+  --win: #1d2233;
+  --win-edge: #4c5a86;
+  --win-edge-hi: #8ea0d6;
+  --text: #e7e9f3;
+  --muted: #8c93ad;
+  --green: #3fbf4f;
+  --red: #d23a3a;
+  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; overflow: hidden; }
+button {
+  font: inherit; color: var(--text); background: #2b3350; border: 1px solid var(--win-edge);
+  padding: 3px 10px; cursor: pointer; text-align: left;
+}
+button:hover:not(:disabled) { background: #3d4874; border-color: var(--win-edge-hi); }
+button:disabled { opacity: 0.4; cursor: default; }
+.muted { color: var(--muted); }
+.small { font-size: 11px; }
+.good { color: #7fe08a; }
+.bad { color: #ff8a7a; }
+
+/* framed "window" look */
+.window {
+  background: linear-gradient(180deg, #232a40, var(--win));
+  border: 2px solid var(--win-edge);
+  box-shadow: inset 0 0 0 1px #0b0d14, 0 2px 0 #0008;
+  padding: 6px 8px;
+}
+.window .title { font-weight: bold; letter-spacing: 0.04em; margin-bottom: 4px; color: #c8d2ff; }
+
+.app { display: flex; flex-direction: column; height: 100%; }
+.main { flex: 1; display: flex; min-height: 0; }
+.board { flex: 1; position: relative; min-width: 0; }
+.board canvas { display: block; }
+.info { width: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+.info label { display: block; margin: 2px 0; }
+
+/* timeline */
+.timeline { height: 108px; position: relative; padding: 0; overflow: hidden; }
+.tl-axis { position: absolute; inset: 0; }
+.band { position: absolute; top: 0; bottom: 0; }
+.band.day { background: #3b3a2455; }
+.band.night { background: #10183a99; }
+.band.neutral { background: #2a223844; }
+.hour { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #ffffff18; }
+.hour span { position: absolute; bottom: 2px; left: 2px; font-size: 9px; color: #ffffff40; }
+.now { position: absolute; top: 0; bottom: 0; border-left: 2px solid #ffe06699; }
+.now span { position: absolute; bottom: 2px; left: 4px; font-size: 10px; color: #ffe066; }
+.tl-entry {
+  position: absolute; width: 34px; height: 34px; border: 2px solid; background: #0d1020;
+  display: flex; align-items: center; justify-content: center; cursor: default;
+  transition: left 0.2s, top 0.2s;
+}
+.tl-entry img { width: 26px; height: 30px; image-rendering: pixelated; }
+.tl-entry .t { position: absolute; top: 34px; font-size: 9px; color: var(--muted); white-space: nowrap; }
+.tl-entry.side0 { border-color: var(--green); }
+.tl-entry.side1 { border-color: var(--red); }
+.tl-entry.projected { opacity: 0.55; border-style: dotted; }
+.tl-entry.preview { box-shadow: 0 0 0 2px #ffe066, 0 0 10px #ffe066; opacity: 1; border-style: solid; }
+.tl-entry.hovered { box-shadow: 0 0 0 2px #fff, 0 0 12px #fff; opacity: 1; z-index: 5; }
+.tl-entry.now-entry { background: #2b2a10; }
+
+/* floating bars */
+.unit-bars { display: flex; flex-direction: column; gap: 1px; width: 44px; }
+.hp-bar { display: flex; gap: 1px; }
+.hp-bar span { flex: 1; height: 4px; background: #00000099; outline: 1px solid #000; }
+.hp-bar span.on.green { background: var(--green); }
+.hp-bar span.on.red { background: var(--red); }
+.hp-bar.big span { height: 7px; width: 10px; flex: none; }
+.av-bar { position: relative; height: 3px; background: #00000099; outline: 1px solid #000; }
+.av-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #e0c040; }
+.av-over { position: absolute; left: 0; top: 0; bottom: 0; background: #ff6b2b; }
+
+/* command menu */
+.command-menu { display: flex; flex-direction: column; gap: 2px; min-width: 120px; transform: translate(40px, -50%); }
+.command-menu .cost { float: right; color: #a7c7ff; margin-left: 10px; }
+.command-menu .hint { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.summon-grid { display: flex; gap: 4px; }
+.summon-col { display: flex; flex-direction: column; gap: 2px; width: 150px; }
+.summon-col .el-head { text-transform: capitalize; font-weight: bold; }
+.summon-col button { display: flex; align-items: center; gap: 4px; padding: 1px 4px; }
+.summon-col img { width: 16px; height: 20px; image-rendering: pixelated; }
+.summon-col .nm { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* damage preview */
+.dmg-tag {
+  background: #0d1020ee; border: 2px solid #ff7a4a; padding: 3px 6px; font-size: 10px; white-space: nowrap;
+}
+.dmg-tag .big { font-size: 16px; font-weight: bold; color: #ffb07a; }
+.dmg-tag .after { font-size: 11px; color: var(--muted); font-weight: normal; }
+.dmg-tag.lethal { border-color: #ff3030; }
+.dmg-tag .ko { color: #ff4040; }
+.dmg-tag.heal { border-color: #5fe07a; color: #9ff0ad; font-size: 15px; font-weight: bold; }
+
+.clock { font-size: 18px; }
+.tod.day { color: #ffd34d; }
+.tod.night { color: #9fb4ff; }
+.side-row { margin-top: 6px; }
+.side-name { font-weight: bold; }
+.mana { display: flex; align-items: center; gap: 6px; }
+.mana-bar { flex: 1; height: 8px; background: #000; border: 1px solid var(--win-edge); }
+.mana-bar div { height: 100%; background: linear-gradient(90deg, #3b6cff, #9ad0ff); }
+.unit-card { display: flex; gap: 8px; align-items: center; }
+.unit-card img { width: 44px; height: 54px; image-rendering: pixelated; background: #0d1020; border: 1px solid var(--win-edge); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 4px 0; }
+.log div { font-size: 11px; }
+
+.phase-hint {
+  position: absolute; left: 8px; bottom: 8px; background: #0d1020cc; border: 1px solid var(--win-edge);
+  padding: 4px 8px; pointer-events: none;
+}
+.game-over { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #0008; }
+.game-over .window { padding: 16px 28px; text-align: center; }
+
+/* DOM overlay over the canvas */
+.overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.anchor { position: absolute; left: 0; top: 0; visibility: hidden; }
+.anchor.top { z-index: 20; }
+.anchor.interactive { pointer-events: auto; z-index: 30; }
+.center-bottom { transform: translate(-50%, -100%); }
