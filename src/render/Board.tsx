@@ -29,10 +29,10 @@ import {
   unitReach,
   facingTowardTarget,
 } from '../rules';
-import { closestFacing, hoverQuick, quickPlans, useGame } from '../store';
+import { hoverQuick, quickPlans, summonDirToward, useGame } from '../store';
 import { regionSegments, ribbonGeometry, type LineStyle } from './outlines';
 import { SIDE_COLORS, idleFrameAt, projectileTexture, spriteScale, unitFrameTexture, unitOutlineTexture, unitTexture } from './sprites';
-import { MS_PER_HEX, type AnimStep } from '../anim';
+import { MS_PER_HEX, SUMMON_PHASES, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
 
@@ -393,8 +393,16 @@ function OutlineMesh({ layer }: { layer: OutlineLayer }) {
 
 function Highlights() {
   const match = useGame((s) => s.match);
-  const hoverHex = useGame((s) => s.hoverHex);
+  const rawHover = useGame((s) => s.hoverHex);
+  const phase = useGame((s) => s.phase);
   const layers = useOutlines();
+  // While choosing a summon hex, ring the hex the cursor direction selects.
+  const active = activeUnit(match);
+  let hoverHex = rawHover;
+  if (phase.kind === 'summonDir' && active) {
+    const d = summonDirToward(match, active.id, phase.to, phase.summonKind, rawHover);
+    hoverHex = d === null ? null : neighbor(phase.to, d);
+  }
   return (
     <>
       {layers.map((l) => (
@@ -502,6 +510,7 @@ function UnitView({
   inspected = false,
   ghost = false,
   mark,
+  clickThrough = false,
 }: {
   unit: Unit;
   displayPos: Hex;
@@ -514,6 +523,8 @@ function UnitView({
   ghost?: boolean;
   /** Valid quick-action / command target: draws a coloured sprite outline. */
   mark?: TargetMark;
+  /** Let clicks pass through to the tiles (e.g. while choosing a summon hex). */
+  clickThrough?: boolean;
 }) {
   const outline = useRef<THREE.Sprite>(null);
   const outlineMat = useRef<THREE.SpriteMaterial>(null);
@@ -561,6 +572,7 @@ function UnitView({
     let heading: number | null = null;
     const offset = new THREE.Vector3();
     let flash = 0;
+    let glow = 0;
 
     if (anim) {
       const t = now - anim.start;
@@ -580,6 +592,16 @@ function UnitView({
           else d = 0.65 * (1 - easeInOut((p - 0.6) / 0.4));
           offset.addScaledVector(dir, d);
           offset.y += p < 0.45 ? 0.12 * (p / 0.45) : p < 0.6 ? 0.12 : 0.12 * (1 - (p - 0.6) / 0.4);
+        } else if (st.kind === 'summon' && st.unitId === unit.id && t >= st.t0 && t <= st.t1) {
+          const p = (t - st.t0) / (st.t1 - st.t0);
+          const { approachEnd, backStart } = SUMMON_PHASES;
+          const a = worldAt(match, st.from);
+          const dir = worldAt(match, st.target).sub(a).setY(0).normalize();
+          const reach = 0.38;
+          const d =
+            p < approachEnd ? reach * easeInOut(p / approachEnd) : p < backStart ? reach : reach * (1 - easeInOut((p - backStart) / (1 - backStart)));
+          offset.addScaledVector(dir, d);
+          glow = p < approachEnd ? p / approachEnd : p < backStart ? 1 : 1 - (p - backStart) / (1 - backStart);
         } else if (st.kind === 'hit' && st.unitIds.includes(unit.id) && t >= st.t0 && t <= st.t1) {
           const p = (t - st.t0) / (st.t1 - st.t0);
           offset.x += Math.sin(p * Math.PI * 8) * 0.07 * (1 - p);
@@ -603,6 +625,7 @@ function UnitView({
     if (arrow.current) arrow.current.rotation.y = heading ?? dirAngle(facing);
     if (bodyMat.current) {
       bodyMat.current.color.set(baseColor).lerp(new THREE.Color('#ff4040'), flash * 0.8);
+      if (glow > 0) bodyMat.current.color.lerp(new THREE.Color('#fff3b0'), 0.5 * glow).multiplyScalar(1 + 0.9 * glow);
       const frame = idleFrameAt(now, (unit.id * 1.37) % 4);
       const tex = unitFrameTexture(unit.kind, unit.side, frame);
       if (bodyMat.current.map !== tex) bodyMat.current.map = tex;
@@ -640,7 +663,7 @@ function UnitView({
         renderOrder={10}
         scale={[scale * (18 / 22), scale, 1]}
         position={[0, scale / 2 + 0.05, 0]}
-        raycast={ghost ? () => null : undefined}
+        raycast={ghost || clickThrough ? () => null : undefined}
         onPointerOver={(e) => {
           e.stopPropagation();
           setHoverUnit(unit.id);
@@ -671,6 +694,8 @@ function Units() {
   const anim = useGame((s) => s.anim);
   const active = activeUnit(match);
   const marks = useTargetMarks();
+  const summonDir =
+    active && phase.kind === 'summonDir' ? summonDirToward(match, active.id, phase.to, phase.summonKind, hoverHex) : null;
   const quick = useMemo(() => hoverQuick({ match, phase, hoverHex, hoverUnitId }), [match, phase, hoverHex, hoverUnitId]);
   // Quick-action destinations: shown as instant ghosts; the acting unit stays put.
   const ghosts = useMemo(() => {
@@ -708,7 +733,7 @@ function Units() {
           pos = shownAt.to;
           facing = shownAt.facing;
           path = previewPath;
-          if (phase.kind === 'summonDir' && hoverHex && hexDistance(hoverHex, phase.to) === 1) facing = closestFacing(phase.to, hoverHex);
+          if (phase.kind === 'summonDir' && summonDir !== null) facing = summonDir;
         }
         return (
           <UnitView
@@ -720,9 +745,20 @@ function Units() {
             previewPath={path}
             inspected={inspected.includes(u.id)}
             mark={marks.get(u.id)}
+            clickThrough={phase.kind === 'summonDir'}
           />
         );
       })}
+      {active && phase.kind === 'summonDir' && summonDir !== null && (
+        <UnitView
+          key={`summonGhost${summonDir}`}
+          unit={{ id: -1, kind: phase.summonKind, side: active.side, pos: neighbor(phase.to, summonDir), facing: summonDir, hp: 10, av: 0, stranded: false }}
+          displayPos={neighbor(phase.to, summonDir)}
+          facing={summonDir}
+          isActive={false}
+          ghost
+        />
+      )}
       {active &&
         quick &&
         ghosts.map((g) => (
@@ -782,12 +818,75 @@ function Projectile({ step }: { step: Extract<AnimStep, { kind: 'projectile' }> 
   );
 }
 
+const lightTex = (() => {
+  const n = 64;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const ctx = cv.getContext('2d')!;
+  const g = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  g.addColorStop(0, 'rgba(255,255,240,1)');
+  g.addColorStop(0.35, 'rgba(255,240,170,0.75)');
+  g.addColorStop(1, 'rgba(255,220,120,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, n, n);
+  return new THREE.CanvasTexture(cv);
+})();
+
+/** The bright light on the summoned hex and the summon fading in inside it. */
+function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
+  const match = useGame((s) => s.match);
+  const light = useRef<THREE.Sprite>(null);
+  const lightMat = useRef<THREE.SpriteMaterial>(null);
+  const body = useRef<THREE.SpriteMaterial>(null);
+  const bodySprite = useRef<THREE.Sprite>(null);
+  const base = useMemo(() => worldAt(match, step.target), [match, step.target]);
+  const scale = spriteScale(step.summonKind);
+  useFrame(() => {
+    const anim = useGame.getState().anim;
+    if (!anim) return;
+    const t = performance.now() - anim.start;
+    const p = (t - step.t0) / (step.t1 - step.t0);
+    const { lightStart, fadeStart, fadeEnd } = SUMMON_PHASES;
+    // light: bloom in, hold, fade out as the summon solidifies
+    const lp = p < lightStart ? 0 : p < fadeStart ? (p - lightStart) / (fadeStart - lightStart) : p < fadeEnd ? 1 : Math.max(0, 1 - (p - fadeEnd) / 0.2);
+    if (light.current && lightMat.current) {
+      const s = 0.4 + 2.4 * lp;
+      light.current.scale.set(s, s * 1.3, 1);
+      lightMat.current.opacity = lp;
+    }
+    const fp = p < fadeStart ? 0 : p < fadeEnd ? (p - fadeStart) / (fadeEnd - fadeStart) : 1;
+    if (body.current && bodySprite.current) {
+      body.current.opacity = fp;
+      body.current.color.setScalar(1 + (1 - fp) * 1.5); // starts bright inside the light
+      bodySprite.current.visible = fp > 0;
+      const tex = unitFrameTexture(step.summonKind, step.side, idleFrameAt(performance.now(), 0));
+      if (body.current.map !== tex) body.current.map = tex;
+    }
+  });
+  return (
+    <group position={base}>
+      <sprite ref={bodySprite} scale={[scale * (18 / 22), scale, 1]} position={[0, scale / 2 + 0.05, 0]} raycast={() => null} renderOrder={11}>
+        <spriteMaterial ref={body} map={unitTexture(step.summonKind, step.side)} transparent opacity={0} alphaTest={0.05} depthWrite={false} />
+      </sprite>
+      <sprite ref={light} position={[0, 0.9, 0]} raycast={() => null} renderOrder={12}>
+        <spriteMaterial ref={lightMat} map={lightTex} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </sprite>
+    </group>
+  );
+}
+
 function Projectiles() {
   const anim = useGame((s) => s.anim);
   if (!anim) return null;
   return (
     <>
-      {anim.steps.map((st, i) => (st.kind === 'projectile' ? <Projectile key={`${anim.start}:${i}`} step={st} /> : null))}
+      {anim.steps.map((st, i) =>
+        st.kind === 'projectile' ? (
+          <Projectile key={`${anim.start}:${i}`} step={st} />
+        ) : st.kind === 'summon' ? (
+          <SummonFx key={`${anim.start}:${i}`} step={st} />
+        ) : null,
+      )}
     </>
   );
 }

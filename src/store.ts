@@ -23,6 +23,9 @@ import {
   validateTurn,
   formatClock,
   unitAt,
+  neighbor,
+  mapHexAt,
+  canStandOn,
   type TargetPlan,
   type MagicPlan,
 } from './rules';
@@ -235,10 +238,9 @@ export const useGame = create<Store>((set, get) => {
           return;
         }
         case 'summonDir': {
-          const v = { q: h.q - phase.to.q, r: h.r - phase.to.r };
-          const vecs = [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }];
-          const dir = ([0, 1, 2, 3, 4, 5] as Dir[]).find((d) => hexEq(v, vecs[d]));
-          if (dir === undefined) return;
+          // pick by direction: the valid adjacent hex closest in angle to the click
+          const dir = summonDirToward(match, u.id, phase.to, phase.summonKind, h);
+          if (dir === null) return;
           commit({ unitId: u.id, to: phase.to, facing: dir, command: { type: 'summon', kind: phase.summonKind, dir } });
           return;
         }
@@ -349,6 +351,43 @@ export function hoverQuick(
   if (!target || target.id === u.id) return null;
   const plans = quickPlans(s.match, u, target);
   return plans.attack || plans.magic ? { target, plans } : null;
+}
+
+/** Directions around `to` where `kind` could be summoned (hex on map, free, standable). */
+export function validSummonDirs(match: MatchState, summonerId: number, to: Hex, kind: string): Dir[] {
+  const sk = kindOf(kind);
+  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => {
+    const h = neighbor(to, d);
+    const mh = mapHexAt(match.map, h);
+    const occ = unitAt(match, h);
+    return !!mh && canStandOn(sk, mh, match.waterLevel) && (!occ || occ.id === summonerId);
+  });
+}
+
+/**
+ * The valid summon direction closest in angle to `toward` (the hex under the
+ * cursor), so any point roughly in that direction selects the hex. Null when
+ * the cursor is on the Summoner's own hex or no direction is valid.
+ */
+export function summonDirToward(match: MatchState, summonerId: number, to: Hex, kind: string, toward: Hex | null): Dir | null {
+  if (!toward || hexEq(toward, to)) return null;
+  const valid = validSummonDirs(match, summonerId, to, kind);
+  if (!valid.length) return null;
+  const toXY = (h: Hex) => [Math.sqrt(3) * (h.q + h.r / 2), 1.5 * h.r];
+  const [fx, fy] = toXY(to);
+  const [tx, ty] = toXY(toward);
+  const a = Math.atan2(ty - fy, tx - fx);
+  let best: Dir | null = null;
+  let bestDiff = Infinity;
+  for (const d of valid) {
+    let diff = Math.abs(a - (-Math.PI / 3) * d) % (2 * Math.PI);
+    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+    if (diff < bestDiff - 1e-9) {
+      bestDiff = diff;
+      best = d;
+    }
+  }
+  return best;
 }
 
 /** The hex direction whose on-screen angle is closest to the direction from `from` to `to`. */

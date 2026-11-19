@@ -6,6 +6,9 @@ import {
   type Hex,
   type MatchState,
   type TurnAction,
+  type Dir,
+  type SideId,
+  neighbor,
   affectedUnits,
   getUnit,
   hexDistance,
@@ -29,7 +32,9 @@ export type AnimStep =
       t0: number;
       t1: number;
     }
-  | { kind: 'hit'; unitIds: number[]; t0: number; t1: number };
+  | { kind: 'hit'; unitIds: number[]; t0: number; t1: number }
+  /** Summoner glows and approaches, a light blooms on the hex, the summon fades in, the Summoner backs off. */
+  | { kind: 'summon'; unitId: number; from: Hex; target: Hex; summonKind: string; side: SideId; facing: Dir; t0: number; t1: number };
 
 export interface TurnAnim {
   /** performance.now() at which the animation started. */
@@ -47,6 +52,9 @@ export const MS_PER_HEX = 130;
 const MELEE_MS = 520;
 const MELEE_IMPACT = 0.55; // fraction of the melee step when the bonk lands
 const HIT_MS = 220;
+export const SUMMON_MS = 1250;
+/** Phases of the summon step as fractions of its duration. */
+export const SUMMON_PHASES = { approachEnd: 0.24, lightStart: 0.18, fadeStart: 0.36, fadeEnd: 0.74, backStart: 0.8 } as const;
 
 /**
  * @param skipMove true when the move was already shown (the player's own
@@ -104,6 +112,21 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       if (ab.kind === 'damage' && hitIds.length) steps.push({ kind: 'hit', unitIds: hitIds, t0: t, t1: t + HIT_MS });
       t += HIT_MS;
     }
+  }
+
+  if (cmd.type === 'summon') {
+    steps.push({
+      kind: 'summon',
+      unitId: unit.id,
+      from: action.to,
+      target: neighbor(action.to, cmd.dir),
+      summonKind: cmd.kind,
+      side: unit.side,
+      facing: cmd.dir,
+      t0: t,
+      t1: t + SUMMON_MS,
+    });
+    t += SUMMON_MS;
   }
 
   const facing = cmd.type === 'summon' ? cmd.dir : action.facing;

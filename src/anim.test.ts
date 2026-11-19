@@ -31,3 +31,15 @@ describe('turn animation plan', () => {
     expect(p.kind === 'projectile' && p.style).toBe('orb');
   });
 });
+
+describe('summon animation', () => {
+  it('plays a summon step at the target hex', () => {
+    const s = createMatch(flatMap(6, 6));
+    const me = getUnit(s, s.activeUnitId!);
+    const a = planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 1, command: { type: 'summon', kind: 'imp', dir: 1 } }, 0, true);
+    expect(a.steps.map((x) => x.kind)).toEqual(['summon']);
+    const st = a.steps[0];
+    expect(st.kind === 'summon' && st.target).toEqual(hex(me.pos.q + 1, me.pos.r - 1));
+    expect(a.duration).toBeGreaterThan(1000);
+  });
+});
