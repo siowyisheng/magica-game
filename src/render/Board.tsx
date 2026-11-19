@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {
   type Hex,
   type MatchState,
+  type SideId,
   type Unit,
   activeUnit,
   affectedUnits,
@@ -125,7 +126,31 @@ function terrainColor(terrain: string, height: number): string {
   return `#${c.getHexString()}`;
 }
 
-function Tile({ h, height, terrain }: { h: Hex; height: number; terrain: string }) {
+const STONE_NEUTRAL = '#a8804a'; // light brown (glow brightens it)
+
+/** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
+function StoneColumn({ height, owner }: { height: number; owner: SideId | null }) {
+  const color = owner === null ? STONE_NEUTRAL : SIDE_COLORS[owner];
+  const mat = useRef<THREE.MeshLambertMaterial>(null);
+  const halo = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(({ clock }) => {
+    const t = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 2.2);
+    if (mat.current) mat.current.emissiveIntensity = 0.22 + 0.16 * t;
+    if (halo.current) halo.current.opacity = 0.1 + 0.12 * t;
+  });
+  return (
+    <>
+      <mesh geometry={columnGeo(height)}>
+        <meshLambertMaterial ref={mat} color={color} emissive={color} emissiveIntensity={0.3} flatShading />
+      </mesh>
+      <mesh geometry={capGeo} position={[0, height * STEP + 0.015, 0]} scale={[1.05, 1, 1.05]} raycast={() => null}>
+        <meshBasicMaterial ref={halo} color={color} transparent opacity={0.15} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </>
+  );
+}
+
+function Tile({ h, height, terrain, owner }: { h: Hex; height: number; terrain: string; owner?: SideId | null }) {
   const [x, z] = hexToWorld(h);
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
@@ -150,9 +175,13 @@ function Tile({ h, height, terrain }: { h: Hex; height: number; terrain: string 
   };
   return (
     <group position={[x, 0, z]} onPointerMove={onMove} onClick={onClick}>
-      <mesh geometry={columnGeo(height)}>
-        <meshLambertMaterial color={color} flatShading />
-      </mesh>
+      {terrain === 'stone' ? (
+        <StoneColumn height={height} owner={owner ?? null} />
+      ) : (
+        <mesh geometry={columnGeo(height)}>
+          <meshLambertMaterial color={color} flatShading />
+        </mesh>
+      )}
       {bushes.map(([bx, bz], i) => (
         <mesh key={i} position={[bx, height * STEP + 0.18, bz]}>
           <coneGeometry args={[0.16, 0.38, 5]} />
@@ -193,28 +222,6 @@ function Water({ match }: { match: MatchState }) {
         );
       })}
     </>
-  );
-}
-
-function Stones({ match }: { match: MatchState }) {
-  const ref = useRef<THREE.Group>(null);
-  useFrame((_, dt) => {
-    ref.current?.children.forEach((c) => (c.rotation.y += dt * 0.8));
-  });
-  return (
-    <group ref={ref}>
-      {match.stones.map((s) => {
-        const [x, z] = hexToWorld(s.hex);
-        const mh = mapHexAt(match.map, s.hex)!;
-        const color = s.owner === null ? '#e8e8ff' : SIDE_COLORS[s.owner];
-        return (
-          <mesh key={hexKey(s.hex)} position={[x + 0.45, mh.height * STEP + 0.3, z - 0.25]}>
-            <octahedronGeometry args={[0.22]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} flatShading />
-          </mesh>
-        );
-      })}
-    </group>
   );
 }
 
@@ -467,11 +474,16 @@ function Scene() {
       <CameraControls />
       <group onPointerLeave={() => setHoverHex(null)}>
         {match.map.hexes.map((mh) => (
-          <Tile key={hexKey(mh.hex)} h={mh.hex} height={mh.height} terrain={mh.terrain} />
+          <Tile
+            key={hexKey(mh.hex)}
+            h={mh.hex}
+            height={mh.height}
+            terrain={mh.terrain}
+            owner={mh.terrain === 'stone' ? (match.stones.find((s) => hexEq(s.hex, mh.hex))?.owner ?? null) : undefined}
+          />
         ))}
       </group>
       <Water match={match} />
-      <Stones match={match} />
       <Highlights />
       <Units />
       <Projector />
