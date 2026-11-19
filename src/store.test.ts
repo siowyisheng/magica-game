@@ -14,7 +14,10 @@ describe('closestFacing', () => {
 });
 
 describe('facing is set while the command menu is open', () => {
-  beforeEach(() => useGame.getState().newMatch());
+  beforeEach(() => {
+    useGame.setState({ animate: false });
+    useGame.getState().newMatch();
+  });
 
   it('left-click on the map sets facing; Wait commits immediately with it', () => {
     const s = useGame.getState();

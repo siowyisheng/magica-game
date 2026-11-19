@@ -111,6 +111,13 @@ describe('roster', () => {
       expect(s.filter((x) => x.alignment === 'night')).toHaveLength(2);
     }
   });
+
+  it('gives Summoners walk+wade, most Earth summons wade, and no Fire summon wade', () => {
+    expect(kindOf('summoner').moveTypes).toEqual(['walk', 'wade']);
+    const earth = SUMMONS.filter((x) => x.element === 'earth');
+    expect(earth.filter((x) => x.moveTypes.includes('wade')).length).toBeGreaterThan(earth.length / 2);
+    for (const f of SUMMONS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
+  });
 });
 
 // ---------- damage ----------
@@ -278,8 +285,9 @@ describe('match flow', () => {
   });
 
   it('strands units after Rise, dealing 1 damage and forcing Wait', () => {
-    // water level 2; hexes at h2 flood to shallow on Rise
-    const s = createMatch(testMap(6, 6, (q) => (q === 5 ? { height: 1 } : { height: 2 }), 2));
+    // water level 2 over height-1 ground: everything is Shallow (Summoners wade);
+    // Rise makes it Deep, which strands them.
+    const s = createMatch(testMap(6, 6, () => ({ height: 1 }), 2));
     const me = getUnit(s, s.activeUnitId!);
     const r = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'magic', ability: 'rise', target: me.pos } });
     expect(r.state.waterLevel).toBe(3);
