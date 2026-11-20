@@ -125,43 +125,59 @@ FIRE.newt = {
   },
 };
 
-// Golem: a hulking stone brute with Side-coloured carved pauldrons.
-// Wild: a molten heart blazing through its chest, and rocks orbiting its head.
+// Golem: a hunched stone brute with a heavy brow, long arms with knuckles
+// near the ground, and Side-coloured carved pauldrons and loincloth.
+// Wild: a molten heart blazing through cracks in its chest and arms, and
+// boulders orbiting its body.
 FIRE.golem = {
   palette: { glow: '#ffb040' },
   build(m, p) {
     const { swell, lift } = breathe(p);
-    // legs
+    // short, wide legs
     both((s) => {
       const g = m.group();
-      m.tube([[s * 0.1, 0.22, 0], [s * 0.12, 0.08, 0.02]], [0.075, 0.07], 'rock', g);
-      m.ell([s * 0.12, 0.04, 0.04], [0.08, 0.045, 0.1], 'stone');
+      m.tube([[s * 0.11, 0.2, -0.04], [s * 0.13, 0.08, -0.02]], [0.075, 0.07], 'rock', g);
+      m.ell([s * 0.13, 0.035, 0.0], [0.08, 0.04, 0.1], 'stone');
     });
+    m.ell([0, 0.2, 0.02], [0.13, 0.07, 0.1], 'side', [0.1, 0, 0]); // loincloth
+    // hunched torso, leaning forward
     const body = m.group();
-    m.ell([0, 0.4 + lift * 0.5, 0], [0.22 * swell, 0.18, 0.15 * swell], 'stone', [0, 0, 0], body);
-    m.ell([0, 0.26, 0], [0.15, 0.08, 0.11], 'rock', [0, 0, 0], body);
+    m.ell([0, 0.27, -0.03], [0.15, 0.09, 0.12], 'rock', [0, 0, 0], body);
+    m.ell([0, 0.42 + lift * 0.5, 0.02], [0.23 * swell, 0.17, 0.16 * swell], 'stone', [0.35, 0, 0], body);
     // molten heart and cracks
-    const hp = 0.03 * p.breath;
-    m.ball([0, 0.42 + lift * 0.5, 0.12 * swell], 0.07 + hp * 0.3, 'lava*');
-    for (const [x, y] of [[0.08, 0.5], [-0.09, 0.47], [0.05, 0.33], [-0.06, 0.34]]) m.spike([0, 0.42, 0.12], [x, y + lift * 0.5, 0.13], 0.018, 'lava*');
-    // pauldrons
-    both((s) => m.ell([s * 0.2, 0.52 + lift, 0], [0.1, 0.07, 0.1], 'side', [0, 0, s * -0.3]));
-    both((s) => m.ell([s * 0.2, 0.57 + lift, 0], [0.05, 0.02, 0.05], 'gold', [0, 0, s * -0.3]));
-    // arms and huge fists
+    const heart: V3 = [0, 0.43 + lift * 0.5, 0.15 * swell];
+    m.ball(heart, 0.06 + 0.012 * p.breath, 'lava*');
+    for (const q of [[0.1, 0.52], [-0.11, 0.5], [0.07, 0.32], [-0.06, 0.33], [0.15, 0.42]] as [number, number][]) {
+      m.tube([heart, [q[0], q[1] + lift * 0.5, 0.15 - Math.abs(q[0]) * 0.3]], [0.014, 0.008], 'lava*');
+    }
+    // carved pauldrons
+    both((s) => {
+      m.ell([s * 0.21, 0.54 + lift, 0.0], [0.11, 0.075, 0.11], 'side', [0.2, 0, s * -0.35]);
+      m.ell([s * 0.22, 0.6 + lift, 0.0], [0.05, 0.018, 0.05], 'gold', [0.2, 0, s * -0.35]);
+    });
+    // long arms, knuckles near the ground, with a crack of magma
     both((s) => {
       const g = m.group();
-      m.tube([[s * 0.24, 0.48 + lift, 0], [s * 0.3, 0.32 + lift, 0.04], [s * 0.29, 0.2 + lift, 0.08]], [0.065, 0.06, 0.055], 'rock', g);
-      m.ell([s * 0.29, 0.14 + lift, 0.1], [0.09, 0.08, 0.08], 'stone');
+      const sh: V3 = [s * 0.25, 0.5 + lift, 0.02];
+      const el: V3 = [s * 0.31, 0.32 + lift, 0.08];
+      const fist: V3 = [s * 0.29, 0.13 + lift * 0.5, 0.14];
+      m.tube([sh, el, fist], [0.07, 0.06, 0.06], 'rock', g);
+      m.ell(fist, [0.095, 0.08, 0.085], 'stone');
+      m.tube([add(el, [0, 0.03, 0.055]), add(el, [s * 0.01, -0.06, 0.06])], [0.01, 0.006], 'lava*');
     });
-    // small head sunk between the shoulders
-    const hc: V3 = [0, 0.6 + lift, 0.05];
-    m.ell(hc, [0.085, 0.075, 0.08], 'stone');
-    m.eye(add(hc, [0.035, 0.0, 0.075]), [0.3, 0, 1], 'glow', 'glow');
-    m.eye(add(hc, [-0.035, 0.0, 0.075]), [-0.3, 0, 1], 'glow', 'glow');
-    // wild: orbiting rocks
-    for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * Math.PI * 2 + p.frame * 0.3;
-      m.ell(add(hc, [Math.cos(a) * 0.2, 0.14 + Math.sin(a * 2) * 0.02, Math.sin(a) * 0.12]), [0.035, 0.03, 0.03], 'rock', [a, a, 0]);
+    // head set low and forward under a heavy brow
+    const hc: V3 = [0, 0.56 + lift, 0.15];
+    m.ell(hc, [0.1, 0.09, 0.09], 'stone');
+    m.ell(add(hc, [0, 0.04, 0.04]), [0.105, 0.03, 0.06], 'rock'); // brow
+    m.ell(add(hc, [0, -0.05, 0.03]), [0.08, 0.035, 0.07], 'rock'); // jaw
+    m.eye(add(hc, [0.04, 0.0, 0.088]), [0.35, 0, 1], 'glow', 'glow');
+    m.eye(add(hc, [-0.04, 0.0, 0.088]), [-0.35, 0, 1], 'glow', 'glow');
+    // wild: boulders orbiting the body
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + p.frame * 0.3;
+      const c: V3 = [Math.cos(a) * 0.38, 0.42 + Math.sin(a * 2) * 0.04 + lift, Math.sin(a) * 0.24];
+      m.ell(c, [0.05, 0.04, 0.04], 'rock', [a, a * 0.7, 0]);
+      m.ball(add(c, [0, 0, 0.03]), 0.014, 'lava*');
     }
   },
 };

@@ -35,9 +35,10 @@ const DEFAULTS: Record<string, string> = {
   spark: '#ffe46a',
   coral: '#ff7f6a',
   glow: '#b98cff',
+  pearl: '#f4eef8',
 };
 
-const GLOSSY = new Set(['metal', 'gold', 'crystal', 'ice', 'water', 'shell', 'gem', 'sideGloss']);
+const GLOSSY = new Set(['pearl', 'metal', 'gold', 'crystal', 'ice', 'water', 'shell', 'gem', 'sideGloss']);
 
 function hashStr(s: string): number {
   let h = 2166136261;
