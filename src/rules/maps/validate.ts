@@ -11,12 +11,14 @@ export const MAX_FLOOD_SHARE = 0.4;
  */
 export function validateMapWater(map: MapDef): string[] {
   const problems: string[] = [];
-  const hasWater = map.hexes.some((h) => h.height < map.waterLevel);
+  // Pits never hold water and are left out of both rules.
+  const ground = map.hexes.filter((h) => h.terrain !== 'pit');
+  const hasWater = ground.some((h) => h.height < map.waterLevel);
   if (!hasWater) return problems;
   const low = map.waterLevel - 1;
-  if (!map.hexes.some((h) => low - h.height >= 2)) problems.push(`no Deep Water remains at Water Level ${low}`);
+  if (!ground.some((h) => low - h.height >= 2)) problems.push(`no Deep Water remains at Water Level ${low}`);
   const high = map.waterLevel + 1;
-  const flooded = map.hexes.filter((h) => h.height < high).length / map.hexes.length;
+  const flooded = ground.filter((h) => h.height < high).length / ground.length;
   if (flooded > MAX_FLOOD_SHARE) problems.push(`Rise floods ${(flooded * 100).toFixed(0)}% of the map (max ${MAX_FLOOD_SHARE * 100}%)`);
   return problems;
 }

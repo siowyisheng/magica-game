@@ -12,7 +12,7 @@ export const SUMMONER: UnitKind = {
   moveTypes: ['walk', 'wade'],
   attack: { range: 1 },
   magic: [
-    { id: 'bolt', name: 'Bolt', kind: 'damage', range: 3, radius: 0, manaCost: 24 },
+    { id: 'bolt', name: 'Bolt', kind: 'damage', range: 3, radius: 0, manaCost: 24, trajectory: 'direct' },
     { id: 'rise', name: 'Rise', kind: 'water', delta: 1, manaCost: 32 },
     { id: 'ebb', name: 'Ebb', kind: 'water', delta: -1, manaCost: 32 },
   ],

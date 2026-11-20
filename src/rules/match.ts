@@ -9,9 +9,9 @@ import {
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { kindOf } from './kinds';
-import { affectedUnits, attackTargets, computeDamage, computeHeal, minAimDistance, type Effect } from './combat';
-import { canStandOn, isStranded, mapHexAt, reachable, surfaceOf, unitAt } from './terrain';
-import type { GameEvent, MagicAbility, MapDef, MatchState, SideId, TurnAction, Unit, UnitKind } from './types';
+import { affectedUnits, attackTargets, computeDamage, computeHeal, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
+import { canPlace, isStranded, mapHexAt, reachable, surfaceOf, targetAt } from './terrain';
+import { isObstacle, type GameEvent, type MagicAbility, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
 
 // ---------- delays ----------
 
@@ -94,9 +94,11 @@ export interface MatchOptions {
 }
 
 export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
-  const heights = map.hexes.map((h) => h.height);
+  // Pits never hold water: they don't count for the Water Level rules.
+  const ground = map.hexes.filter((h) => h.terrain !== 'pit');
+  const heights = ground.map((h) => h.height);
   const minHeight = Math.min(...heights);
-  const hasWater = map.hexes.some((h) => h.height < map.waterLevel);
+  const hasWater = ground.some((h) => h.height < map.waterLevel);
   const state: MatchState = {
     map,
     waterLevel: map.waterLevel,
@@ -106,6 +108,7 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
     hasWater,
     clock: map.startClock,
     units: [],
+    obstacles: [],
     stones: map.hexes.filter((h) => h.terrain === 'stone').map((h) => ({ hex: h.hex, owner: null })),
     sides: [
       { mana: MANA_START, ai: opts.ai?.[0] ?? false },
@@ -130,6 +133,9 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
       stranded: false,
     });
   }
+  for (const o of map.obstacles ?? []) {
+    state.obstacles.push({ id: state.nextUnitId++, pos: o.hex, def: o.def, hp: MAX_HP });
+  }
   advance(state, []);
   return state;
 }
@@ -153,7 +159,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
     case 'wait':
       return null;
     case 'attack': {
-      const t = unitAt(view, cmd.target);
+      const t = targetAt(view, cmd.target);
       if (!t) return 'no target';
       const movedUnit = getUnit(view, unit.id);
       if (!attackTargets(view, movedUnit, action.to).some((x) => x.id === t.id)) return 'target out of range';
@@ -167,6 +173,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
       const d = hexDistance(action.to, cmd.target);
       if (d < minAimDistance(ab) || d > ab.range) return 'target out of range';
       if (!mapHexAt(state.map, cmd.target)) return 'target off map';
+      if (!shotAllowed(view, unit.id, trajectoryOf(ab), action.to, cmd.target)) return 'no clear angle';
       if (affectedUnits(view, getUnit(view, unit.id), ab, cmd.target).length === 0) return 'no valid target';
       return null;
     }
@@ -177,10 +184,8 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
       if (state.sides[unit.side].mana < sk.cost) return 'not enough mana';
       if (summonCount(state, unit.side) >= MAX_SUMMONS) return 'summon limit reached';
       const h = neighbor(action.to, cmd.dir);
-      const mh = mapHexAt(state.map, h);
-      if (!mh) return 'off map';
-      if (unitAt(view, h)) return 'hex occupied';
-      if (!canStandOn(sk, mh, state.waterLevel)) return 'summon cannot stand there';
+      if (!mapHexAt(state.map, h)) return 'off map';
+      if (!canPlace(view, sk, h, unit.id)) return 'summon cannot be placed there';
       return null;
     }
   }
@@ -200,7 +205,7 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
   const caster = getUnit(view, unit.id);
   const cmd = action.command;
   if (cmd.type === 'attack') {
-    const t = unitAt(view, cmd.target);
+    const t = targetAt(view, cmd.target);
     if (!t) return [];
     return [computeDamage(view, caster, action.to, t, 'physical')];
   }
@@ -208,7 +213,7 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
     const ab = kind.magic.find((m) => m.id === cmd.ability);
     if (!ab || ab.kind === 'water') return [];
     return affectedUnits(view, caster, ab, cmd.target).map((t) =>
-      ab.kind === 'heal' ? computeHeal(view, caster, t) : computeDamage(view, caster, action.to, t, 'magic'),
+      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : computeDamage(view, caster, action.to, t, 'magic'),
     );
   }
   return [];
@@ -243,6 +248,7 @@ function clone(state: MatchState): MatchState {
   return {
     ...state,
     units: state.units.map((u) => ({ ...u, pos: { ...u.pos } })),
+    obstacles: state.obstacles.map((o) => ({ ...o, pos: { ...o.pos } })),
     stones: state.stones.map((s) => ({ ...s })),
     sides: [{ ...state.sides[0] }, { ...state.sides[1] }],
   };
@@ -280,6 +286,12 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
       }
     }
     for (const e of effects) {
+      if (e.obstacle) {
+        const o = state.obstacles.find((x) => x.id === e.unitId)!;
+        o.hp -= e.amount;
+        events.push({ type: 'damage', unitId: o.id, amount: e.amount, source: unit.id });
+        continue;
+      }
       const t = getUnit(state, e.unitId);
       if (e.kind === 'damage') {
         t.hp -= e.amount;
@@ -323,6 +335,9 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
 }
 
 function resolveDeaths(state: MatchState, events: GameEvent[]): void {
+  const broken = state.obstacles.filter((o) => o.hp <= 0);
+  for (const o of broken) events.push({ type: 'death', unitId: o.id });
+  if (broken.length) state.obstacles = state.obstacles.filter((o) => o.hp > 0);
   const dead = state.units.filter((u) => u.hp <= 0);
   for (const d of dead) {
     events.push({ type: 'death', unitId: d.id });

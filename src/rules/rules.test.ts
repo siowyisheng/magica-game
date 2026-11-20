@@ -117,7 +117,8 @@ describe('roster', () => {
   it('uses short names, max-only ranges, and Summon Magic costs of 4–16', () => {
     for (const k of SUMMONS) {
       expect(k.name.length).toBeLessThanOrEqual(6);
-      expect(k.attack).toEqual({ range: k.attack.range });
+      expect(k.attack).toEqual(k.attack.range > 1 ? { range: k.attack.range, trajectory: k.attack.trajectory } : { range: k.attack.range });
+      if (k.attack.range > 1) expect(['high', 'direct']).toContain(k.attack.trajectory);
       const m = k.magic[0];
       expect(m.manaCost).toBeGreaterThanOrEqual(4);
       expect(m.manaCost).toBeLessThanOrEqual(16);
@@ -408,7 +409,7 @@ describe('targeting without minimum range', () => {
     const s = createMatch(testMap(6, 6));
     const archer = place(s, 'archer', 0, 2, 2);
     place(s, 'imp', 1, 3, 2);
-    expect(attackTargets(s, archer, archer.pos).map((u) => u.kind)).toContain('imp');
+    expect(attackTargets(s, archer, archer.pos).map((u) => ('kind' in u ? u.kind : 'obstacle'))).toContain('imp');
     // Newt's Steam Burst is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
     const newt = place(s, 'newt', 0, 2, 4);
     place(s, 'imp', 1, 3, 4);
@@ -477,3 +478,115 @@ describe('alignment never changes Speed or Move', () => {
     expect(at(12 * 60)).toEqual(at(22 * 60)); // day vs night
   });
 });
+
+// ---------- Pits, Obstacles, Trajectory and Clear Angle ----------
+
+describe('pits', () => {
+  it('cannot be entered or stood on by ground units; Fly crosses but cannot stop', () => {
+    const map = testMap(6, 3, (q) => (q === 2 ? { terrain: 'pit' } : {}));
+    const s = createMatch(map);
+    s.units = [];
+    const imp = place(s, 'imp', 0, 1, 1);
+    const sprite = place(s, 'sprite', 0, 1, 0);
+    const walk = reachable(s, imp);
+    expect([...walk.values()].some((n) => n.hex.q >= 2)).toBe(false);
+    const fly = reachable(s, sprite);
+    expect(fly.get(hexKey(hex(2, 0)))?.canEnd).toBe(false);
+    expect(fly.get(hexKey(hex(3, 0)))?.canEnd).toBe(true);
+  });
+
+  it('never fill with water and are left out of the water rules', async () => {
+    const { validateMapWater } = await import('./index');
+    // pit at height -5 would otherwise be Deep Water
+    const map = testMap(6, 6, (q, r) => (q === 0 && r === 0 ? { terrain: 'pit', height: -5 } : {}), 0);
+    const s = createMatch(map);
+    expect(s.hasWater).toBe(false);
+    expect(validateMapWater(map)).toEqual([]);
+  });
+});
+
+describe('obstacles', () => {
+  const withObstacle = (def: 5 | 10 | 15 = 10) => {
+    const map = { ...testMap(7, 3), obstacles: [{ hex: hex(3, 1), def }] };
+    const s = createMatch(map);
+    s.units = [];
+    return s;
+  };
+
+  it('block movement for ground units, can be flown over, and take damage with DEF = MDF', async () => {
+    const { computeDamage: dmg } = await import('./index');
+    const s = withObstacle(10);
+    const golem = place(s, 'golem', 0, 2, 1);
+    expect(reachable(s, golem).has(hexKey(hex(3, 1)))).toBe(false);
+    const hawk = place(s, 'hawk', 0, 2, 0);
+    expect(reachable(s, hawk).get(hexKey(hex(3, 1)))?.canEnd).toBe(false);
+    const o = s.obstacles[0];
+    // no Facing, no Element: hit from any side for the same damage
+    const a = dmg(s, golem, hex(2, 1), o, 'physical').amount;
+    const b = dmg(s, golem, hex(4, 1), o, 'physical').amount;
+    expect(a).toBe(b);
+    // ATK 16 vs DEF 10 → round(3 × 16 / 10) = 5
+    expect(a).toBe(5);
+  });
+
+  it('are destroyed at 0 HP, freeing the hex', () => {
+    const s = withObstacle(5);
+    const golem = place(s, 'golem', 0, 2, 1, 0, 0);
+    s.obstacles[0].hp = 2;
+    activate(s, golem);
+    const { state } = applyTurn(s, { unitId: golem.id, to: golem.pos, facing: 0, command: { type: 'attack', target: hex(3, 1) } });
+    expect(state.obstacles).toHaveLength(0);
+    const g2 = getUnit(state, golem.id);
+    expect(reachable(state, g2).has(hexKey(hex(3, 1)))).toBe(true);
+  });
+});
+
+describe('trajectory and clear angle', () => {
+  it('Direct shots are blocked by a unit or obstacle in between; High shots are not', async () => {
+    const { attackTargets, clearShot } = await import('./index');
+    const s = withLine();
+    const sling = place(s, 'sling', 0, 0, 1); // Direct, range 3
+    const archer = place(s, 'archer', 0, 0, 0); // High, range 3
+    const foe = place(s, 'imp', 1, 3, 1);
+    // nothing in between
+    expect(clearShot(s, sling.id, sling.pos, foe.pos)).toBe(true);
+    // an Obstacle straight in the line of fire
+    s.obstacles.push({ id: 900, pos: hex(1, 1), def: 10, hp: 10 });
+    expect(attackTargets(s, sling, sling.pos).some((t) => t.id === foe.id)).toBe(false);
+    // High arcs over it (archer at (0,0) to (3,0)... aim at foe through the obstacle row)
+    const foe2 = place(s, 'imp', 1, 2, 1);
+    expect(attackTargets(s, archer, archer.pos).some((t) => t.id === foe2.id)).toBe(true);
+    // allies block Direct shots too
+    s.obstacles = [];
+    place(s, 'clod', 0, 1, 1);
+    expect(attackTargets(s, sling, sling.pos).some((t) => t.id === foe.id)).toBe(false);
+  });
+
+  it('a body beside the line does not block when there is room to shoot past it', async () => {
+    const { clearShot } = await import('./index');
+    const s = withLine();
+    const sling = place(s, 'sling', 0, 0, 1);
+    // target 2 hexes away diagonally; a unit next to the line, not on it
+    place(s, 'imp', 1, 1, 2);
+    expect(clearShot(s, sling.id, sling.pos, hex(2, 0))).toBe(true);
+  });
+
+  it('Direct Magic also needs a Clear Angle', async () => {
+    const { magicTargetHexes } = await import('./index');
+    const s = withLine();
+    const siren = place(s, 'siren', 0, 0, 1); // Water Jet: Direct, range 4
+    place(s, 'imp', 1, 3, 1);
+    const ab = kindOf('siren').magic[0];
+    if (ab.kind === 'water') throw new Error('unexpected');
+    expect(ab.trajectory).toBe('direct');
+    expect(magicTargetHexes(s, siren, ab, siren.pos).some((h) => h.q === 3 && h.r === 1)).toBe(true);
+    place(s, 'clod', 1, 2, 1);
+    expect(magicTargetHexes(s, siren, ab, siren.pos).some((h) => h.q === 3 && h.r === 1)).toBe(false);
+  });
+});
+
+function withLine(): MatchState {
+  const s = createMatch(testMap(7, 3));
+  s.units = [];
+  return s;
+}
