@@ -112,10 +112,11 @@ function withUnitAt(state: MatchState, id: number, pos: Hex): MatchState {
   return { ...state, units: state.units.map((u) => (u.id === id ? { ...u, pos } : u)) };
 }
 
-export function planAttack(state: MatchState, unit: Unit, target: Target): TargetPlan | null {
+/** `ignoreClearAngle` plans as if nothing blocked Direct shots (to tell "out of reach" from "no clear shot"). */
+export function planAttack(state: MatchState, unit: Unit, target: Target, ignoreClearAngle = false): TargetPlan | null {
   if (target.id === unit.id || (!isObstacle(target) && target.side === unit.side)) return null;
   const a = kindOf(unit.kind).attack;
-  const traj = trajectoryOf(a);
+  const traj = ignoreClearAngle ? null : trajectoryOf(a);
   const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
     return d >= 1 && d <= a.range && shotAllowed(withUnitAt(state, unit.id, h), unit.id, traj, h, target.pos);
@@ -130,10 +131,10 @@ export interface MagicPlan extends TargetPlan {
 }
 
 /** Plan a quick Magic aimed at the target's hex. */
-export function planMagic(state: MatchState, unit: Unit, target: Target): MagicPlan | null {
+export function planMagic(state: MatchState, unit: Unit, target: Target, ignoreClearAngle = false): MagicPlan | null {
   const ab = primaryMagic(unit);
   if (!ab || target.id === unit.id) return null;
-  const traj = trajectoryOf(ab);
+  const traj = ignoreClearAngle ? null : trajectoryOf(ab);
   const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
     if (d < minAimDistance(ab) || d > ab.range) return false;

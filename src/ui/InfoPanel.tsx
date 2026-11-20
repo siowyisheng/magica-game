@@ -43,6 +43,9 @@ export function InfoPanel() {
     activeUnit(match) ??
     undefined;
   const mh = hoverHex ? mapHexAt(match.map, hoverHex) : undefined;
+  const obstacle =
+    match.obstacles.find((o) => o.id === hoverUnitId) ??
+    (hoverHex ? match.obstacles.find((o) => o.pos.q === hoverHex.q && o.pos.r === hoverHex.r) : undefined);
 
   return (
     <div className="info">
@@ -66,14 +69,30 @@ export function InfoPanel() {
         })}
       </div>
 
-      {shown && <UnitCard unitId={shown.id} />}
+      {obstacle ? (
+        <div className="window">
+          <div className="title">Obstacle</div>
+          <div className="hp-bar big">
+            {Array.from({ length: 10 }, (_, i) => (
+              <span key={i} className={i < obstacle.hp ? 'on grey' : ''} />
+            ))}
+          </div>
+          <div>
+            <Icon name="def" /> {obstacle.def} · <Icon name="mdf" /> {obstacle.def}
+          </div>
+          <div className="muted small">Blocks movement and Direct shots; Fly passes over; High shots arc over. Takes ×1 damage from every side.</div>
+        </div>
+      ) : (
+        shown && <UnitCard unitId={shown.id} />
+      )}
 
       {mh && (
         <div className="window">
           <div className="title">Terrain</div>
           <div>
-            {mh.terrain === 'stone' ? 'Magic Stone' : mh.terrain === 'rough' ? 'Rough' : 'Plain'} · height {mh.height} ·{' '}
-            {surfaceOf(mh, match.waterLevel)}
+            {mh.terrain === 'pit'
+              ? 'Pit (only Fly crosses)'
+              : `${mh.terrain === 'stone' ? 'Magic Stone' : mh.terrain === 'rough' ? 'Rough' : 'Plain'} · height ${mh.height} · ${surfaceOf(mh, match.waterLevel)}`}
           </div>
           <div className="muted">Defense bonus {coverPercent(match, mh.hex)}%</div>
         </div>

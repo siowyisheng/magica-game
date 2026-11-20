@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { activeUnit, type Command, type Unit, previewEffects } from '../rules';
-import { hoverQuick, useGame } from '../store';
+import { activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, isObstacle, hexDistance, kindOf, trajectoryOf, primaryMagic } from '../rules';
+import { blockedShot, hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
 import { DamageTag } from './DamageTag';
@@ -77,7 +77,7 @@ export function Overlay() {
   }, []);
 
   const u = activeUnit(match);
-  type Tag = { unit: Unit; effect: ReturnType<typeof previewEffects>[number]; label?: string; note?: string };
+  type Tag = { unit: Target; effect?: ReturnType<typeof previewEffects>[number]; label?: string; note?: string };
   const tags: Tag[] = [];
   const quick = hoverQuick({ match, phase, hoverHex, hoverUnitId });
   if (u && quick) {
@@ -95,7 +95,7 @@ export function Overlay() {
       });
       for (const ef of e)
         tags.push({
-          unit: match.units.find((x) => x.id === ef.unitId)!,
+          unit: targetById(match, ef.unitId)!,
           effect: ef,
           label: magic.ability.name,
           note: magic.affordable ? undefined : `needs ${magic.ability.manaCost}◆`,
@@ -107,9 +107,26 @@ export function Overlay() {
       phase.command === 'attack'
         ? { type: 'attack', target: hoverHex }
         : { type: 'magic', ability: phase.command.magic, target: hoverHex };
-    for (const e of previewEffects(match, { unitId: u.id, to: phase.to, facing: phase.facing, command })) {
-      const t = match.units.find((x) => x.id === e.unitId);
+    const effects = previewEffects(match, { unitId: u.id, to: phase.to, facing: phase.facing, command });
+    for (const e of effects) {
+      const t = targetById(match, e.unitId);
       if (t) tags.push({ unit: t, effect: e });
+    }
+    // in range but blocked: say so
+    const t = targetAt(match, hoverHex);
+    if (!effects.length && t && t.id !== u.id) {
+      const k = kindOf(u.kind);
+      const ab = phase.command === 'attack' ? k.attack : k.magic.find((m) => m.id === (phase.command as { magic: string }).magic);
+      if (ab && 'range' in ab && trajectoryOf(ab) === 'direct' && hexDistance(phase.to, hoverHex) <= ab.range) {
+        tags.push({ unit: t, note: 'No clear shot' });
+      }
+    }
+  }
+  // quick-action hover on a target that only a blocked Direct shot could reach
+  if (u && !quick && phase.kind === 'move' && phase.selected) {
+    const t = (hoverUnitId !== null ? targetById(match, hoverUnitId) : undefined) ?? (hoverHex ? targetAt(match, hoverHex) : undefined);
+    if (t && t.id !== u.id && (isObstacle(t) || t.side !== u.side || primaryMagic(u)?.kind === 'heal') && blockedShot(match, u, t)) {
+      tags.push({ unit: t, note: 'No clear shot' });
     }
   }
 
@@ -123,13 +140,27 @@ export function Overlay() {
             </div>
           </div>
         ))}
+      {showHpBars &&
+        match.obstacles.map((o) => (
+          <div key={o.id} className="anchor" data-anchor={`unit:${o.id}`}>
+            <div className="center-bottom">
+              <div className="unit-bars">
+                <div className="hp-bar obstacle">
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <span key={i} className={i < o.hp ? 'on grey' : ''} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       {[...new Set(tags.map((t) => t.unit.id))].map((id) => (
         <div key={`tag${id}`} className="anchor top" data-anchor={`tag:${id}`}>
           <div className="center-bottom tag-stack">
             {tags
               .filter((t) => t.unit.id === id)
               .map((t, i) => (
-                <DamageTag key={i} effect={t.effect} label={t.label} note={t.note} />
+                t.effect ? <DamageTag key={i} effect={t.effect} label={t.label} note={t.note} /> : <div key={i} className="dmg-tag blocked">{t.note}</div>
               ))}
           </div>
         </div>

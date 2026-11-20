@@ -16,7 +16,8 @@ import {
   kindOf,
   pathTo,
   reachable,
-  unitAt,
+  targetAt,
+  trajectoryOf,
 } from './rules';
 
 export type AnimStep =
@@ -29,6 +30,8 @@ export type AnimStep =
       style: 'arrow' | 'orb';
       element: Element | null;
       heal: boolean;
+      /** High Trajectory: drawn on a tall arc; Direct: a straight line. */
+      high: boolean;
       t0: number;
       t1: number;
     }
@@ -78,7 +81,7 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
 
   const cmd = action.command;
   if (cmd.type === 'attack') {
-    const target = unitAt(before, cmd.target);
+    const target = targetAt(before, cmd.target);
     const d = hexDistance(action.to, cmd.target);
     if (d <= 1) {
       steps.push({ kind: 'melee', unitId: unit.id, from: action.to, target: cmd.target, t0: t, t1: t + MELEE_MS });
@@ -87,7 +90,10 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       t += MELEE_MS;
     } else {
       const fly = 180 + 90 * d;
-      steps.push({ kind: 'projectile', from: action.to, to: cmd.target, style: 'arrow', element: kind.element, heal: false, t0: t, t1: t + fly });
+      const high = trajectoryOf(kind.attack) === 'high';
+      const flyMs = high ? fly + 140 : fly;
+      steps.push({ kind: 'projectile', from: action.to, to: cmd.target, style: 'arrow', element: kind.element, heal: false, high, t0: t, t1: t + flyMs });
+      t += flyMs - fly;
       t += fly;
       if (target) steps.push({ kind: 'hit', unitIds: [target.id], t0: t, t1: t + HIT_MS });
       t += HIT_MS;
@@ -99,7 +105,8 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       const hitIds = affectedUnits(view, getUnit(view, unit.id), ab, cmd.target).map((u) => u.id);
       const d = hexDistance(action.to, cmd.target);
       if (d > 0) {
-        const fly = 200 + 80 * d;
+        const high = trajectoryOf(ab) === 'high';
+        const fly = 200 + 80 * d + (high ? 140 : 0);
         steps.push({
           kind: 'projectile',
           from: action.to,
@@ -107,6 +114,7 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
           style: 'orb',
           element: kind.element,
           heal: ab.kind === 'heal',
+          high,
           t0: t,
           t1: t + fly,
         });

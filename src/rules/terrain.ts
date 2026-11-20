@@ -102,6 +102,10 @@ export function obstacleAt(state: MatchState, h: Hex): Obstacle | undefined {
   return state.obstacles.find((o) => o.hp > 0 && hexEq(o.pos, h));
 }
 
+export function targetById(state: MatchState, id: number): Target | undefined {
+  return state.units.find((u) => u.id === id) ?? state.obstacles.find((o) => o.id === id);
+}
+
 /** The Unit or Obstacle on a hex. */
 export function targetAt(state: MatchState, h: Hex): Target | undefined {
   return unitAt(state, h) ?? obstacleAt(state, h);

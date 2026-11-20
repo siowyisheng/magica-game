@@ -24,10 +24,12 @@ import {
   formatClock,
   unitAt,
   neighbor,
-  mapHexAt,
-  canStandOn,
   type TargetPlan,
   type MagicPlan,
+  type Target,
+  targetAt,
+  targetById,
+  canPlace,
 } from './rules';
 import { chooseAction } from './ai/ai';
 import { planTurnAnim, type TurnAnim } from './anim';
@@ -105,7 +107,9 @@ function phaseFor(match: MatchState): Phase {
 function describe(match: MatchState, e: GameEvent): string | null {
   const name = (id: number) => {
     const u = match.units.find((x) => x.id === id);
-    return u ? `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}` : `#${id}`;
+    if (u) return `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}`;
+    const o = match.obstacles.find((x) => x.id === id);
+    return o ? `Obstacle (DEF ${o.def})` : `#${id}`;
   };
   switch (e.type) {
     case 'damage':
@@ -121,7 +125,7 @@ function describe(match: MatchState, e: GameEvent): string | null {
     case 'stranded':
       return `${name(e.unitId)} is Stranded`;
     case 'death':
-      return `${name(e.unitId)} fell`;
+      return match.obstacles.some((o) => o.id === e.unitId) ? `${name(e.unitId)} broke` : `${name(e.unitId)} fell`;
     case 'win':
       return `${e.side === 0 ? 'Green' : 'Red'} wins!`;
     case 'mana':
@@ -142,7 +146,7 @@ export const useGame = create<Store>((set, get) => {
     }
     // describe with the pre-state for names of units that die
     const { state, events } = applyTurn(match, action);
-    const lines = events.map((e) => describe({ ...state, units: [...match.units, ...state.units] }, e)).filter(Boolean) as string[];
+    const lines = events.map((e) => describe({ ...state, units: [...match.units, ...state.units], obstacles: [...match.obstacles, ...state.obstacles] }, e)).filter(Boolean) as string[];
     const finish = () =>
       set((s) => ({
         match: state,
@@ -217,7 +221,7 @@ export const useGame = create<Store>((set, get) => {
       switch (phase.kind) {
         case 'move': {
           if (!phase.selected) return set({ phase: { kind: 'move', selected: true } });
-          const target = unitAt(match, h);
+          const target = targetAt(match, h);
           if (target && target.id !== u.id) {
             const q = quickPlans(match, u, target);
             const canAttack = !!q.attack;
@@ -229,7 +233,7 @@ export const useGame = create<Store>((set, get) => {
             if (canMagic) {
               return commit({ unitId: u.id, to: q.magic!.dest, facing: u.facing, command: { type: 'magic', ability: q.magic!.ability.id, target: target.pos }  }, false); // quick action: slide from the unit's hex
             }
-            if (q.magic) return signal({ type: 'deny' }); // in Magic Reach but not affordable: do nothing
+            if (q.magic || blockedShot(match, u, target)) return signal({ type: 'deny' }); // unaffordable, or no clear shot
             return set({ phase: { kind: 'move', selected: false } });
           }
           if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
@@ -346,24 +350,24 @@ export interface QuickPlans {
   magic: MagicPlan | null;
 }
 
-export function quickPlans(match: MatchState, actor: Unit, target: Unit): QuickPlans {
+export function quickPlans(match: MatchState, actor: Unit, target: Target): QuickPlans {
   return { attack: planAttack(match, actor, target), magic: planMagic(match, actor, target) };
 }
 
 /** The quick-action preview for the unit under the cursor, when the acting unit is Selected. */
 export function hoverQuick(
   s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverUnitId'>,
-): { target: Unit; plans: QuickPlans } | null {
+): { target: Target; plans: QuickPlans } | null {
   const u = activeUnit(s.match);
   if (!u) return null;
   if (s.phase.kind === 'quickChoice') {
-    const target = s.match.units.find((x) => x.id === (s.phase as { targetId: number }).targetId);
+    const target = targetById(s.match, (s.phase as { targetId: number }).targetId);
     return target ? { target, plans: { attack: s.phase.attack, magic: s.phase.magic } } : null;
   }
   if (s.phase.kind !== 'move' || !s.phase.selected) return null;
   const target =
-    (s.hoverUnitId !== null ? s.match.units.find((x) => x.id === s.hoverUnitId) : undefined) ??
-    (s.hoverHex ? unitAt(s.match, s.hoverHex) : undefined);
+    (s.hoverUnitId !== null ? targetById(s.match, s.hoverUnitId) : undefined) ??
+    (s.hoverHex ? targetAt(s.match, s.hoverHex) : undefined);
   if (!target || target.id === u.id) return null;
   const plans = quickPlans(s.match, u, target);
   return plans.attack || plans.magic ? { target, plans } : null;
@@ -372,12 +376,16 @@ export function hoverQuick(
 /** Directions around `to` where `kind` could be summoned (hex on map, free, standable). */
 export function validSummonDirs(match: MatchState, summonerId: number, to: Hex, kind: string): Dir[] {
   const sk = kindOf(kind);
-  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => {
-    const h = neighbor(to, d);
-    const mh = mapHexAt(match.map, h);
-    const occ = unitAt(match, h);
-    return !!mh && canStandOn(sk, mh, match.waterLevel) && (!occ || occ.id === summonerId);
-  });
+  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => canPlace(match, sk, neighbor(to, d), summonerId));
+}
+
+/**
+ * True when `actor` could hit `target` from its Move Range but for a Clear
+ * Angle (a Direct shot blocked by Units or Obstacles).
+ */
+export function blockedShot(match: MatchState, actor: Unit, target: Target): boolean {
+  if (planAttack(match, actor, target) || planMagic(match, actor, target)) return false;
+  return !!(planAttack(match, actor, target, true) || planMagic(match, actor, target, true));
 }
 
 /**

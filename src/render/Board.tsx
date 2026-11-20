@@ -902,8 +902,9 @@ function Projectile({ step }: { step: Extract<AnimStep, { kind: 'projectile' }> 
     const p = (t - step.t0) / (step.t1 - step.t0);
     sp.visible = p >= 0 && p <= 1;
     if (!sp.visible) return;
-    const arc = step.style === 'arrow' ? 1.1 : 0.35;
-    const at = (q: number) => tmp.copy(a).lerp(b, q).setY(a.y + (b.y - a.y) * q + Math.sin(q * Math.PI) * arc * Math.min(1, a.distanceTo(b) / 3));
+    // High: a tall lob that grows with distance. Direct: a straight line.
+    const arc = step.high ? 1.2 + 0.35 * a.distanceTo(b) : 0;
+    const at = (q: number) => tmp.copy(a).lerp(b, q).setY(a.y + (b.y - a.y) * q + 4 * q * (1 - q) * arc);
     const cur = at(p).clone();
     sp.position.copy(cur);
     if (mat.current) {
