@@ -50,6 +50,7 @@ function build(): MapDef {
   });
   return {
     name: 'Scaffold Ford',
+    theme: 'meadow',
     hexes,
     waterLevel: 2,
     startClock: 6 * 60,

@@ -187,7 +187,7 @@ function obstacleTop(theme: Theme, def: 5 | 10 | 15): number {
   return top * OBSTACLE_SCALE;
 }
 
-export function ObstacleView({ o, theme, match }: { o: Obstacle; theme: Theme; match: MatchState }) {
+export function ObstacleView({ o, theme, match, interactive = true }: { o: Obstacle; theme: Theme; match: MatchState; interactive?: boolean }) {
   const setHoverUnit = useGame((s) => s.setHoverUnit);
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
@@ -225,17 +225,20 @@ export function ObstacleView({ o, theme, match }: { o: Obstacle; theme: Theme; m
     <group
       ref={group}
       position={[x, y, z]}
+      raycast={interactive ? undefined : () => null}
       onPointerOver={(e) => {
+        if (!interactive) return;
         e.stopPropagation();
         setHoverUnit(o.id);
       }}
       onPointerOut={() => setHoverUnit(null)}
       onPointerMove={(e) => {
+        if (!interactive) return;
         e.stopPropagation();
         setHoverHex(o.pos);
       }}
       onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.button !== 0) return;
+        if (!interactive || e.button !== 0) return;
         e.stopPropagation();
         clickHex(o.pos);
       }}
@@ -246,7 +249,7 @@ export function ObstacleView({ o, theme, match }: { o: Obstacle; theme: Theme; m
         ))}
       </group>
       {/* invisible pick volume so the whole obstacle is easy to point at */}
-      <mesh position={[0, top / 2, 0]}>
+      <mesh position={[0, top / 2, 0]} raycast={interactive ? undefined : () => null}>
         <cylinderGeometry args={[0.6, 0.6, top, 6]} />
         <meshBasicMaterial visible={false} />
       </mesh>
@@ -363,7 +366,7 @@ function edgeRibbons(match: MatchState, hexes: MapHex[], edgeOf: (mh: MapHex, n:
  * darker blue; white foam lines where water meets dry land, and a pale line
  * where Shallow meets Deep.
  */
-export function Water({ match }: { match: MatchState }) {
+export function Water({ match, interactive = true }: { match: MatchState; interactive?: boolean }) {
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
   const { shallow, deep, foam, shelf } = useMemo(() => {
@@ -387,7 +390,7 @@ export function Water({ match }: { match: MatchState }) {
     if (foamMat.current) foamMat.current.opacity = 0.62 + 0.18 * Math.sin(clock.elapsedTime * 1.6);
   });
   const hexAt = (e: ThreeEvent<PointerEvent | MouseEvent>) => worldToHex(e.point.x, e.point.z);
-  const handlers = {
+  const handlers = !interactive ? { raycast: () => null } : {
     onPointerMove: (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation();
       setHoverHex(hexAt(e));

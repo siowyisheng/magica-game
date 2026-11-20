@@ -5,6 +5,7 @@ import { InfoPanel } from './ui/InfoPanel';
 import { SummonCard } from './ui/SummonCard';
 import { useGame } from './store';
 import { activeUnit, kindOf } from './rules';
+import { MapEditor } from './editor/MapEditor';
 
 function PhaseHint() {
   const phase = useGame((s) => s.phase);
@@ -47,9 +48,11 @@ export function App() {
   const version = useGame((s) => s.version);
   const tickAi = useGame((s) => s.tickAi);
   const match = useGame((s) => s.match);
+  const screen = useGame((s) => s.screen);
   useEffect(() => {
-    tickAi();
-  }, [version, match, tickAi]);
+    if (screen === 'game') tickAi();
+  }, [version, match, tickAi, screen]);
+  if (screen === 'editor') return <MapEditor />;
   return (
     <div className="app">
       <div className="main">

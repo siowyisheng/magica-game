@@ -22,7 +22,9 @@ npm run build
 | `src/rules/maps/scaffold.ts` | The fixed 15×13 map with 7 Magic Stones and a river (Water Level 2). |
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
 | `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
-| `src/render/` | three.js scene: isometric orthographic camera, hex columns, water, stones, highlights, procedural billboard sprites, and a pixelation pass (low-DPR canvas upscaled with nearest-neighbour). |
+| `src/render/` | three.js scene: orthographic camera, themed hex columns (`themes.ts`, `Terrain.tsx`), Pits, Obstacles, water, stones, highlights, and the unit sprites, rendered from small 3D part models into cel-shaded pixel art (`spritegen/`). |
+| `src/editor/` | The map editor screen and its state (draft, tools, mirroring, undo / redo). |
+| `src/maps/` | Map library: built-in maps plus your own, saved in the browser, with JSON import / export. |
 | `src/anim.ts` | Pure turn-animation plan (slide along path, melee wind-up and bonk, projectiles, hit shake). The board samples it, and the store applies the new state when it ends. |
 | `src/audio/` | Procedural music and sound effects (Web Audio; no audio files): five composed tracks with a smart shuffle, a synthesized effect for every action, and the hooks that time them to the turn animations. |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
@@ -38,7 +40,19 @@ npm run build
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.
 - While hovering a destination or command, the acting unit's icon jumps to its previewed slot on the timeline.
-- Options panel: toggle the HP/AV bars, change pixel size, switch Red to hotseat, or make Green an AI. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, pick the map for New match, or open the Map Editor. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+
+## Maps
+
+- **Terrain:** Plain, Rough, Magic Stone and **Pit** (only Fly crosses; nobody stands on it; never fills with water), plus water by depth.
+- **Obstacles:** neutral objects with 10 HP and DEF = MDF of 5, 10 or 15. They block ground movement and Direct shots; Fly passes over and High shots arc over. Either side can break them.
+- **Trajectory:** every ranged Attack or Magic is **High** (arcs over everything) or **Direct** (needs a Clear Angle past every other Unit and Obstacle, allies included). A blocked Direct shot shows "No clear shot".
+- **Themes:** Meadow, Desert, Ruins, Tundra and Volcanic. Each has two looks for Plain and Rough, a Pit and three Obstacles. Plain is always flat, Rough always has raised clutter, a Pit is always a hole, and bigger Obstacles have more Defense.
+- **Map Editor** (Options → Map Editor):
+  - Tools (keys 1–9): Plain, Rough, Pit, Magic Stone, Height (click raises, right-click lowers), Obstacle (pick 5 / 10 / 15), Look (auto / A / B), and the two spawns (click a spawn again to turn it). Drag to paint; right-click does the opposite of the tool.
+  - Settings: name, Theme, size (7–21 × 7–21), starting Water Level and start time. Mirror copies every edit top ↔ bottom.
+  - Undo / Redo (Ctrl+Z / Ctrl+Y), live problem list, Save / Save as new / Delete, Export / Import JSON, and Play this map.
+  - Your maps are kept in this browser. Built-in maps can't be overwritten: saving one makes your own copy.
 
 ## Sound
 

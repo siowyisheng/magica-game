@@ -1,0 +1,93 @@
+// Map library: built-in maps from the repo plus the player's own maps, kept
+// in this browser (localStorage) and exportable / importable as JSON files.
+
+import { SCAFFOLD_MAP, type MapDef, validateMap } from '../rules';
+
+export interface StoredMap {
+  /** 'builtin:<name>' for built-in maps, otherwise a generated id. */
+  id: string;
+  builtin: boolean;
+  map: MapDef;
+}
+
+const KEY = 'magica.maps';
+
+export const BUILTIN_MAPS: StoredMap[] = [{ id: 'builtin:scaffold-ford', builtin: true, map: SCAFFOLD_MAP }];
+
+function readUser(): StoredMap[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? '[]') as { id: string; map: MapDef }[];
+    return raw.filter((m) => m && typeof m.id === 'string' && isMapDef(m.map)).map((m) => ({ id: m.id, builtin: false, map: m.map }));
+  } catch {
+    return [];
+  }
+}
+
+function writeUser(maps: StoredMap[]) {
+  localStorage.setItem(KEY, JSON.stringify(maps.filter((m) => !m.builtin).map(({ id, map }) => ({ id, map }))));
+}
+
+export function listMaps(): StoredMap[] {
+  return [...BUILTIN_MAPS, ...readUser()];
+}
+
+export function getMap(id: string): StoredMap | undefined {
+  return listMaps().find((m) => m.id === id);
+}
+
+/** Save (insert or replace) one of the player's maps. Built-in maps can't be overwritten. */
+export function saveMap(id: string | null, map: MapDef): StoredMap {
+  if (id?.startsWith('builtin:')) id = null;
+  const user = readUser();
+  const entry: StoredMap = { id: id ?? `map-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, builtin: false, map };
+  const i = user.findIndex((m) => m.id === entry.id);
+  if (i >= 0) user[i] = entry;
+  else user.push(entry);
+  writeUser(user);
+  return entry;
+}
+
+export function deleteMap(id: string) {
+  writeUser(readUser().filter((m) => m.id !== id));
+}
+
+/** Loose structural check of untrusted JSON before it is used as a map. */
+export function isMapDef(x: unknown): x is MapDef {
+  const m = x as MapDef;
+  const isHex = (h: unknown) => !!h && typeof (h as { q: unknown }).q === 'number' && typeof (h as { r: unknown }).r === 'number';
+  return (
+    !!m &&
+    typeof m.name === 'string' &&
+    Array.isArray(m.hexes) &&
+    m.hexes.length > 0 &&
+    m.hexes.every((h) => isHex(h?.hex) && typeof h.height === 'number' && ['plain', 'rough', 'stone', 'pit'].includes(h.terrain)) &&
+    typeof m.waterLevel === 'number' &&
+    typeof m.startClock === 'number' &&
+    Array.isArray(m.spawns) &&
+    m.spawns.length === 2 &&
+    m.spawns.every(isHex) &&
+    Array.isArray(m.spawnFacing) &&
+    (m.obstacles === undefined || (Array.isArray(m.obstacles) && m.obstacles.every((o) => isHex(o?.hex) && [5, 10, 15].includes(o.def))))
+  );
+}
+
+export function exportMapJson(map: MapDef): string {
+  return JSON.stringify({ format: 'magica-map', version: 1, map }, null, 1);
+}
+
+/** Parse an exported map file. Throws with a readable message when it isn't one. */
+export function parseMapJson(text: string): MapDef {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('not a JSON file');
+  }
+  const map = (data as { map?: unknown })?.map ?? data;
+  if (!isMapDef(map)) throw new Error('not a Magica map file');
+  return map;
+}
+
+export function isPlayable(map: MapDef): boolean {
+  return validateMap(map).length === 0;
+}

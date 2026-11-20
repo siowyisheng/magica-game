@@ -58,9 +58,10 @@ function topY(match: MatchState, h: Hex): number {
 
 // ---------- camera controls: wheel zoom, right-drag pan, right-click cancel ----------
 
-function CameraControls() {
+export function CameraControls({ onRightClick }: { onRightClick?: () => void } = {}) {
   const { camera, gl } = useThree();
-  const rightClick = useGame((s) => s.rightClick);
+  const gameRightClick = useGame((s) => s.rightClick);
+  const rightClick = onRightClick ?? gameRightClick;
   useEffect(() => {
     const el = gl.domElement;
     const cam = camera as THREE.OrthographicCamera;
@@ -136,7 +137,7 @@ const lightTex = (() => {
 })();
 
 /** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
-function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: number; owner: SideId | null }) {
+export function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: number; owner: SideId | null }) {
   const mat = useRef<THREE.MeshLambertMaterial>(null);
   const light = useRef<THREE.Sprite>(null);
   const lightMat = useRef<THREE.SpriteMaterial>(null);

@@ -20,6 +20,8 @@ import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { AlignmentIcon, ElementIcon, Icon } from './icons';
 import { StatGrid, magicText } from './Stats';
 import { useAudio } from '../audio';
+import { listMaps } from '../maps/library';
+import { fromMapDef, useEditor } from '../editor/editorStore';
 
 const SIDE_NAME = ['Green', 'Red'];
 
@@ -106,7 +108,11 @@ export function InfoPanel() {
           <input type="checkbox" checked={match.sides[0].ai} onChange={(e) => setAi(0, e.target.checked)} /> Green is AI
         </label>
         <SoundOptions />
-        <button onClick={newMatch}>New match</button>
+        <MapPicker />
+        <div className="btn-row">
+          <button onClick={newMatch}>New match</button>
+          <button onClick={openEditor}>Map Editor</button>
+        </div>
         <div className="muted small">Wheel: zoom · Right-drag: pan · Right-click: back / cancel move</div>
       </div>
 
@@ -200,6 +206,33 @@ function ManaBars({ side }: { side: SideId }) {
       </div>
     </div>
   );
+}
+
+function MapPicker() {
+  const mapId = useGame((s) => s.mapId);
+  const setMapId = useGame((s) => s.setMapId);
+  const maps = listMaps();
+  return (
+    <label className="slider">
+      <span>Map</span>
+      <select value={mapId} onChange={(e) => setMapId(e.target.value)}>
+        {maps.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.map.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Open the editor on the map the current match is played on. */
+function openEditor() {
+  const g = useGame.getState();
+  const m = listMaps().find((x) => x.id === g.mapId);
+  const ed = useEditor.getState();
+  if (!ed.dirty) ed.load(m ? fromMapDef(m.map, m.id, m.builtin) : fromMapDef(g.match.map, null, false));
+  g.setScreen('editor');
 }
 
 function SoundOptions() {

@@ -4,6 +4,7 @@ import {
   type Dir,
   type GameEvent,
   type Hex,
+  type MapDef,
   type MatchState,
   type TurnAction,
   type Unit,
@@ -32,6 +33,7 @@ import {
   canPlace,
 } from './rules';
 import { chooseAction } from './ai/ai';
+import { getMap } from './maps/library';
 import { planTurnAnim, type TurnAnim } from './anim';
 
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
@@ -65,6 +67,10 @@ export const MAX_INSPECTED = 3;
 
 interface Store {
   match: MatchState;
+  /** Library id of the map new matches use. */
+  mapId: string;
+  /** Which screen is shown. */
+  screen: 'game' | 'editor';
   phase: Phase;
   hoverHex: Hex | null;
   hoverUnitId: number | null;
@@ -84,6 +90,10 @@ interface Store {
   version: number;
 
   newMatch: () => void;
+  /** Start a match on a map (e.g. from the editor). */
+  startMatch: (map: MapDef, mapId?: string) => void;
+  setMapId: (id: string) => void;
+  setScreen: (s: 'game' | 'editor') => void;
   setHoverHex: (h: Hex | null) => void;
   setHoverUnit: (id: number | null) => void;
   setHoverCommand: (c: CommandHover) => void;
@@ -183,6 +193,8 @@ export const useGame = create<Store>((set, get) => {
 
   return {
     match: initial,
+    mapId: 'builtin:scaffold-ford',
+    screen: 'game',
     phase: phaseFor(initial),
     hoverHex: null,
     hoverUnitId: null,
@@ -197,9 +209,14 @@ export const useGame = create<Store>((set, get) => {
     version: 0,
 
     newMatch: () => {
+      const map = getMap(get().mapId)?.map ?? get().match.map;
+      get().startMatch(map);
+    },
+    startMatch: (map, mapId) => {
       const ai = get().match.sides.map((s) => s.ai) as [boolean, boolean];
-      const m = createMatch(SCAFFOLD_MAP, { ai, seed: Date.now() & 0xffff });
-      set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: ['Match start — 06:00'], version: get().version + 1 });
+      const m = createMatch(map, { ai, seed: Date.now() & 0xffff });
+      if (mapId) set({ mapId });
+      set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
       signal({ type: 'newMatch' });
     },
     setHoverHex: (h) => {
@@ -314,6 +331,8 @@ export const useGame = create<Store>((set, get) => {
       set({ phase: { kind: 'target', to, facing, command: { magic: ab.id } } });
     },
 
+    setMapId: (mapId) => set({ mapId }),
+    setScreen: (screen) => set({ screen, hoverHex: null, hoverUnitId: null }),
     toggleHpBars: () => set((s) => ({ showHpBars: !s.showHpBars })),
     setAi: (side, ai) => {
       const m = get().match;
