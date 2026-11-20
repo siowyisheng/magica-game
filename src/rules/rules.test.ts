@@ -459,3 +459,21 @@ describe('stranded movement', () => {
     expect(isStranded(water, crab2)).toBe(false);
   });
 });
+
+describe('alignment never changes Speed or Move', () => {
+  it('keeps Turn Delay and Move Range identical at day and night', async () => {
+    const { delayForAction, reachable } = await import('./index');
+    const at = (clock: number) => {
+      const s = createMatch(testMap(8, 8));
+      s.clock = clock;
+      s.units = s.units.filter((u) => u.side === 0);
+      const sprite = place(s, 'sprite', 0, 3, 3, 0, 0); // day-aligned
+      activate(s, sprite);
+      return {
+        delay: delayForAction(s, { unitId: sprite.id, to: hex(4, 3), command: { type: 'wait' } }),
+        range: [...reachable(s, sprite).keys()].sort().join(' '),
+      };
+    };
+    expect(at(12 * 60)).toEqual(at(22 * 60)); // day vs night
+  });
+});

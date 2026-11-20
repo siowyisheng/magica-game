@@ -43,6 +43,19 @@ export type Phase =
   /** Quick action on a unit where both Attack and Magic are possible. */
   | { kind: 'quickChoice'; targetId: number; attack: TargetPlan; magic: MagicPlan };
 
+/** Things outside the store (sound) may want to react to. */
+export type GameSignal =
+  | { type: 'turn'; before: MatchState; action: TurnAction; anim: TurnAnim | null; events: GameEvent[] }
+  | { type: 'deny' }
+  | { type: 'newMatch' };
+
+const signalListeners = new Set<(s: GameSignal) => void>();
+export function onGameSignal(fn: (s: GameSignal) => void): () => void {
+  signalListeners.add(fn);
+  return () => signalListeners.delete(fn);
+}
+const signal = (s: GameSignal) => signalListeners.forEach((fn) => fn(s));
+
 export type CommandHover = 'wait' | 'attack' | 'magic' | 'summon' | null;
 
 /** Maximum number of other units whose ranges can be shown at once. */
@@ -124,6 +137,7 @@ export const useGame = create<Store>((set, get) => {
     const err = validateTurn(match, action);
     if (err) {
       set((s) => ({ log: [`Illegal: ${err}`, ...s.log].slice(0, 40) }));
+      signal({ type: 'deny' });
       return;
     }
     // describe with the pre-state for names of units that die
@@ -141,6 +155,7 @@ export const useGame = create<Store>((set, get) => {
         version: s.version + 1,
       }));
     const anim = get().animate ? planTurnAnim(match, action, performance.now(), alreadyMoved) : null;
+    signal({ type: 'turn', before: match, action, anim: anim && anim.duration > 0 ? anim : null, events });
     if (!anim || anim.duration <= 0) return finish();
     set({ anim, phase: { kind: 'idle' }, hoverCommand: null, hoverSummon: null });
     setTimeout(() => {
@@ -184,6 +199,7 @@ export const useGame = create<Store>((set, get) => {
       const ai = get().match.sides.map((s) => s.ai) as [boolean, boolean];
       const m = createMatch(SCAFFOLD_MAP, { ai, seed: Date.now() & 0xffff });
       set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: ['Match start — 06:00'], version: get().version + 1 });
+      signal({ type: 'newMatch' });
     },
     setHoverHex: (h) => {
       const cur = get().hoverHex;
@@ -213,7 +229,7 @@ export const useGame = create<Store>((set, get) => {
             if (canMagic) {
               return commit({ unitId: u.id, to: q.magic!.dest, facing: u.facing, command: { type: 'magic', ability: q.magic!.ability.id, target: target.pos }  }, false); // quick action: slide from the unit's hex
             }
-            if (q.magic) return; // in Magic Reach but not affordable: do nothing
+            if (q.magic) return signal({ type: 'deny' }); // in Magic Reach but not affordable: do nothing
             return set({ phase: { kind: 'move', selected: false } });
           }
           if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
@@ -233,14 +249,14 @@ export const useGame = create<Store>((set, get) => {
               ? { type: 'attack', target: h }
               : { type: 'magic', ability: phase.command.magic, target: h };
           const action = { unitId: u.id, to: phase.to, facing: phase.facing, command };
-          if (validateTurn(match, action)) return;
+          if (validateTurn(match, action)) return signal({ type: 'deny' });
           commit(action);
           return;
         }
         case 'summonDir': {
           // pick by direction: the valid adjacent hex closest in angle to the click
           const dir = summonDirToward(match, u.id, phase.to, phase.summonKind, h);
-          if (dir === null) return;
+          if (dir === null) return signal({ type: 'deny' });
           commit({ unitId: u.id, to: phase.to, facing: dir, command: { type: 'summon', kind: phase.summonKind, dir } });
           return;
         }

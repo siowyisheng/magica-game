@@ -24,6 +24,7 @@ npm run build
 | `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
 | `src/render/` | three.js scene: isometric orthographic camera, hex columns, water, stones, highlights, procedural billboard sprites, and a pixelation pass (low-DPR canvas upscaled with nearest-neighbour). |
 | `src/anim.ts` | Pure turn-animation plan (slide along path, melee wind-up and bonk, projectiles, hit shake). The board samples it, and the store applies the new state when it ends. |
+| `src/audio/` | Procedural music and sound effects (Web Audio; no audio files): five composed tracks with a smart shuffle, a synthesized effect for every action, and the hooks that time them to the turn animations. |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
 
 ## Controls
@@ -37,7 +38,14 @@ npm run build
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.
 - While hovering a destination or command, the acting unit's icon jumps to its previewed slot on the timeline.
-- Options panel: toggle the HP/AV bars, change pixel size, switch Red to hotseat, or make Green an AI.
+- Options panel: toggle the HP/AV bars, change pixel size, switch Red to hotseat, or make Green an AI. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+
+## Sound
+
+Audio starts with your first click or key press, because browsers block it before that.
+
+- **Music**: five tracks: *Dawn March* (day), *Highland Wind* (day), *Moonlit Tide* (night, calm), *Stone Vigil* (night, tense) and *Ember Skirmish* (any time, intense). Each plays for about 2½ minutes, then the shuffle picks the next. It never repeats either of the last two tracks, and it favours tracks that suit the Time of Day and how tense the battle is (units close to enemies, a hurt Summoner). If the mood clearly changes (dusk falls during a day track, a fight breaks out during a calm one), it crossfades early at a bar line.
+- **Effects**: clicks and hovers on every control; select / back / deny / facing ticks on the map; footsteps that depend on how the unit moves (walk, wade, swim, fly) and its weight; melee swings and impacts scaled by damage, a clink for 0 damage, arrows, a cast sound per element, heals, deaths; the summoning charge and appearance; the capture bell (major when you capture, minor when the enemy does); Rise / Ebb; the hourly Mana chime; your turn starting; Stranded; dawn and dusk; victory and defeat (the music ducks under them). Effects are timed to the turn animations.
 
 ## Scaffold simplifications
 

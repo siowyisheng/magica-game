@@ -19,6 +19,7 @@ import { useGame } from '../store';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { AlignmentIcon, ElementIcon, Icon } from './icons';
 import { StatGrid, magicText } from './Stats';
+import { useAudio } from '../audio';
 
 const SIDE_NAME = ['Green', 'Red'];
 
@@ -95,6 +96,7 @@ export function InfoPanel() {
             ))}
           </select>
         </label>
+        <SoundOptions />
         <button onClick={newMatch}>New match</button>
         <div className="muted small">Wheel: zoom · Right-drag: pan · Right-click: back / cancel move</div>
       </div>
@@ -186,6 +188,27 @@ function ManaBars({ side }: { side: SideId }) {
       <div className="mana-tip">
         Income +{gross} (base {base} + {stones} stone{stones === 1 ? '' : 's'} × {mp}) · Upkeep −{up} · Net {net >= 0 ? '+' : ''}
         {net}/h
+      </div>
+    </div>
+  );
+}
+
+function SoundOptions() {
+  const { music, sfx, muted, track, setMusic, setSfx, toggleMute, skipTrack } = useAudio();
+  return (
+    <div className="sound-options">
+      <label className="slider">
+        <span>Music</span>
+        <input type="range" min={0} max={1} step={0.05} value={music} onChange={(e) => setMusic(Number(e.target.value))} />
+      </label>
+      <label className="slider">
+        <span>Sound</span>
+        <input type="range" min={0} max={1} step={0.05} value={sfx} onChange={(e) => setSfx(Number(e.target.value))} />
+      </label>
+      <div className="now-playing">
+        <label><input type="checkbox" checked={muted} onChange={toggleMute} /> Mute</label>
+        <span className="muted small track-name" title="Now playing">{track && !muted && music > 0 ? `♪ ${track}` : ''}</span>
+        <button className="small-btn" onClick={skipTrack} disabled={!track || muted || music === 0} title="Next track">⏭</button>
       </div>
     </div>
   );
