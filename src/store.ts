@@ -74,7 +74,6 @@ interface Store {
   /** Other units whose ranges are toggled on (oldest first). Cleared when a turn ends. */
   inspected: number[];
   showHpBars: boolean;
-  pixelSize: number;
   log: string[];
   aiThinking: boolean;
   /** The turn animation currently playing; `match` updates when it ends. */
@@ -93,7 +92,6 @@ interface Store {
   rightClick: () => void;
   choose: (c: 'wait' | 'attack' | 'magic' | { magic: string } | { summon: string } | { sub: 'magic' | 'summon' }) => void;
   toggleHpBars: () => void;
-  setPixelSize: (n: number) => void;
   setAi: (side: 0 | 1, ai: boolean) => void;
   tickAi: () => void;
 }
@@ -192,7 +190,6 @@ export const useGame = create<Store>((set, get) => {
     hoverSummon: null,
     inspected: [],
     showHpBars: true,
-    pixelSize: 2,
     log: ['Match start — 06:00'],
     aiThinking: false,
     anim: null,
@@ -318,7 +315,6 @@ export const useGame = create<Store>((set, get) => {
     },
 
     toggleHpBars: () => set((s) => ({ showHpBars: !s.showHpBars })),
-    setPixelSize: (n) => set({ pixelSize: n }),
     setAi: (side, ai) => {
       const m = get().match;
       const sides = [...m.sides] as MatchState['sides'];

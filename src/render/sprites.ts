@@ -71,11 +71,8 @@ export function facingForHeading(heading: number): number {
   return best;
 }
 
-let pixelSize = 2;
-/** Sprites are drawn so one texel is one rendered pixel at the default zoom. */
-export function setSpritePixelSize(n: number) {
-  pixelSize = n;
-}
+/** The board renders at pixel size 1: one sprite texel per screen pixel at the default zoom. */
+const pixelSize = 1;
 const DEFAULT_ZOOM = 38;
 
 /** World size (square) of a kind's sprite. */

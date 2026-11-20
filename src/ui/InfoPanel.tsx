@@ -29,8 +29,6 @@ export function InfoPanel() {
   const hoverHex = useGame((s) => s.hoverHex);
   const showHpBars = useGame((s) => s.showHpBars);
   const toggleHpBars = useGame((s) => s.toggleHpBars);
-  const pixelSize = useGame((s) => s.pixelSize);
-  const setPixelSize = useGame((s) => s.setPixelSize);
   const setAi = useGame((s) => s.setAi);
   const newMatch = useGame((s) => s.newMatch);
   const log = useGame((s) => s.log);
@@ -106,14 +104,6 @@ export function InfoPanel() {
         </label>
         <label>
           <input type="checkbox" checked={match.sides[0].ai} onChange={(e) => setAi(0, e.target.checked)} /> Green is AI
-        </label>
-        <label>
-          Pixel size{' '}
-          <select value={pixelSize} onChange={(e) => setPixelSize(Number(e.target.value))}>
-            {[1, 2, 3, 4].map((n) => (
-              <option key={n} value={n}>{n}×</option>
-            ))}
-          </select>
         </label>
         <SoundOptions />
         <button onClick={newMatch}>New match</button>
