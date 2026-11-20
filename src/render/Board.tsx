@@ -31,7 +31,19 @@ import {
 } from '../rules';
 import { hoverQuick, quickPlans, summonDirToward, useGame } from '../store';
 import { FENCE_HEIGHT, fenceGeometry, regionSegments, ribbonGeometry, type LineStyle } from './outlines';
-import { SIDE_COLORS, idleFrameAt, projectileTexture, spriteScale, unitFrameTexture, unitOutlineTexture, unitTexture } from './sprites';
+import {
+  SIDE_COLORS,
+  facingForHeading,
+  idleFrameAt,
+  projectileTexture,
+  setSpritePixelSize,
+  spriteFeetOffset,
+  spriteTopHeight,
+  spriteWorldSize,
+  unitFrameTexture,
+  unitOutlineTexture,
+  unitTexture,
+} from './sprites';
 import { MS_PER_HEX, SUMMON_PHASES, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
@@ -567,6 +579,34 @@ function samplePath(match: MatchState, path: Hex[], p: number): { pos: THREE.Vec
 
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
+/** Sprite raycast that ignores transparent texels, so empty sprite corners don't steal clicks. */
+function alphaRaycast(this: THREE.Sprite, raycaster: THREE.Raycaster, intersects: THREE.Intersection[]) {
+  const hits: THREE.Intersection[] = [];
+  THREE.Sprite.prototype.raycast.call(this, raycaster, hits);
+  const map = (this.material as THREE.SpriteMaterial).map;
+  const img = map?.image as HTMLCanvasElement | undefined;
+  for (const h of hits) {
+    if (!img || !h.uv) {
+      intersects.push(h);
+      continue;
+    }
+    const x = Math.floor(h.uv.x * img.width);
+    const y = Math.floor((1 - h.uv.y) * img.height);
+    let data = alphaData.get(img);
+    if (!data) alphaData.set(img, (data = img.getContext('2d')!.getImageData(0, 0, img.width, img.height).data));
+    // a 1-texel margin makes thin parts easier to hit
+    let solid = false;
+    for (let dy = -1; dy <= 1 && !solid; dy++)
+      for (let dx = -1; dx <= 1 && !solid; dx++) {
+        const xx = x + dx;
+        const yy = y + dy;
+        if (xx >= 0 && yy >= 0 && xx < img.width && yy < img.height && data[(yy * img.width + xx) * 4 + 3] > 0) solid = true;
+      }
+    if (solid) intersects.push(h);
+  }
+}
+const alphaData = new WeakMap<HTMLCanvasElement, Uint8ClampedArray>();
+
 function UnitView({
   unit,
   displayPos,
@@ -606,9 +646,9 @@ function UnitView({
   const [tx, tz] = hexToWorld(displayPos);
   const ty = topY(match, displayPos);
   const tex = useMemo(() => unitTexture(unit.kind, unit.side), [unit.kind, unit.side]);
-  const k = kindOf(unit.kind);
-  const scale = spriteScale(unit.kind);
-  void k;
+  const size = spriteWorldSize(unit.kind);
+  const lift = size / 2 - spriteFeetOffset(unit.kind) + 0.05;
+  const scale = spriteTopHeight(unit.kind) - 0.2; // top of the figure, for anchors above it
   const hovered = hoverUnitId === unit.id;
   const baseColor = hovered ? '#ffffcc' : '#ffffff';
 
@@ -687,16 +727,19 @@ function UnitView({
       g.position.y += (ty - g.position.y) * s;
       g.position.z += (tz - g.position.z) * s;
     }
-    if (body.current) body.current.position.set(offset.x, scale / 2 + 0.05 + offset.y, offset.z);
+    if (body.current) body.current.position.set(offset.x, lift + offset.y, offset.z);
     if (arrow.current) arrow.current.rotation.y = heading ?? dirAngle(facing);
     if (bodyMat.current) {
       bodyMat.current.color.set(baseColor).lerp(new THREE.Color('#ff4040'), flash * 0.8);
       if (glow > 0) bodyMat.current.color.lerp(new THREE.Color('#fff3b0'), 0.5 * glow).multiplyScalar(1 + 0.9 * glow);
       const frame = idleFrameAt(now, (unit.id * 1.37) % 4);
-      const tex = unitFrameTexture(unit.kind, unit.side, frame);
+      let shown = facing;
+      if (heading !== null) shown = facingForHeading(heading);
+      else if (anim && anim.actorId === unit.id) shown = anim.facing;
+      const tex = unitFrameTexture(unit.kind, unit.side, frame, shown);
       if (bodyMat.current.map !== tex) bodyMat.current.map = tex;
       if (outlineMat.current && mark) {
-        const ot = unitOutlineTexture(unit.kind, unit.side, frame);
+        const ot = unitOutlineTexture(unit.kind, unit.side, frame, shown);
         if (outlineMat.current.map !== ot) {
           outlineMat.current.map = ot;
           outlineMat.current.needsUpdate = true;
@@ -720,16 +763,16 @@ function UnitView({
         </mesh>
       )}
       {mark && !ghost && (
-        <sprite ref={outline} scale={[scale * (18 / 22), scale, 1]} position={[0, scale / 2 + 0.05, 0]} raycast={() => null} renderOrder={9}>
+        <sprite ref={outline} scale={[size, size, 1]} position={[0, lift, 0]} raycast={() => null} renderOrder={9}>
           <spriteMaterial ref={outlineMat} transparent alphaTest={0.3} depthTest={false} />
         </sprite>
       )}
       <sprite
         ref={body}
         renderOrder={10}
-        scale={[scale * (18 / 22), scale, 1]}
-        position={[0, scale / 2 + 0.05, 0]}
-        raycast={ghost || clickThrough ? () => null : undefined}
+        scale={[size, size, 1]}
+        position={[0, lift, 0]}
+        raycast={ghost || clickThrough ? () => null : alphaRaycast}
         onPointerOver={(e) => {
           e.stopPropagation();
           setHoverUnit(unit.id);
@@ -893,7 +936,8 @@ function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
   const body = useRef<THREE.SpriteMaterial>(null);
   const bodySprite = useRef<THREE.Sprite>(null);
   const base = useMemo(() => worldAt(match, step.target), [match, step.target]);
-  const scale = spriteScale(step.summonKind);
+  const size = spriteWorldSize(step.summonKind);
+  const lift = size / 2 - spriteFeetOffset(step.summonKind) + 0.05;
   useFrame(() => {
     const anim = useGame.getState().anim;
     if (!anim) return;
@@ -912,13 +956,13 @@ function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
       body.current.opacity = fp;
       body.current.color.setScalar(1 + (1 - fp) * 1.5); // starts bright inside the light
       bodySprite.current.visible = fp > 0;
-      const tex = unitFrameTexture(step.summonKind, step.side, idleFrameAt(performance.now(), 0));
+      const tex = unitFrameTexture(step.summonKind, step.side, idleFrameAt(performance.now(), 0), step.facing);
       if (body.current.map !== tex) body.current.map = tex;
     }
   });
   return (
     <group position={base}>
-      <sprite ref={bodySprite} scale={[scale * (18 / 22), scale, 1]} position={[0, scale / 2 + 0.05, 0]} raycast={() => null} renderOrder={11}>
+      <sprite ref={bodySprite} scale={[size, size, 1]} position={[0, lift, 0]} raycast={() => null} renderOrder={11}>
         <spriteMaterial ref={body} map={unitTexture(step.summonKind, step.side)} transparent opacity={0} alphaTest={0.05} depthWrite={false} />
       </sprite>
       <sprite ref={light} position={[0, 0.9, 0]} raycast={() => null} renderOrder={12}>
@@ -1018,6 +1062,7 @@ function Scene() {
 
 export function Board() {
   const pixelSize = useGame((s) => s.pixelSize);
+  setSpritePixelSize(pixelSize);
   return (
     <>
     <Canvas

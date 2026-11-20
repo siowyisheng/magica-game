@@ -98,7 +98,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 .summon-tile:hover:not(.disabled) { outline: 2px solid #fff8; }
 .summon-tile.disabled { opacity: 0.4; cursor: default; }
-.summon-tile img { width: 45px; height: 55px; image-rendering: pixelated; }
+.summon-tile img { width: 44px; height: 55px; image-rendering: pixelated; }
 .summon-tile .nm { font-size: 10px; line-height: 11px; }
 .summon-tile .cost { position: absolute; top: 1px; right: 3px; font-size: 10px; color: #cfe0ff; text-shadow: 0 1px 1px #000; }
 
@@ -121,7 +121,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .mana-bar { flex: 1; height: 8px; background: #000; border: 1px solid var(--win-edge); }
 .mana-bar div { height: 100%; background: linear-gradient(90deg, #3b6cff, #9ad0ff); }
 .unit-card { display: flex; gap: 8px; align-items: center; }
-.unit-card img { width: 44px; height: 54px; image-rendering: pixelated; background: #0d1020; border: 1px solid var(--win-edge); }
+.unit-card img { width: 44px; height: 55px; image-rendering: pixelated; background: #0d1020; border: 1px solid var(--win-edge); }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 4px 0; }
 .log div { font-size: 11px; }
 

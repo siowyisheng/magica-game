@@ -1,9 +1,10 @@
-// Procedural placeholder unit sprites (no external assets).
-// Primary colour = Side Colour, secondary = a shade of the Element colour,
-// tertiary = an accent unique to the Unit kind.
+// Unit sprites and projectile textures, all generated at runtime (no assets).
+// Unit sprites are cel-shaded renders of small 3D part models (spritegen/),
+// drawn from three angles and mirrored for the other three facings.
 
 import * as THREE from 'three';
 import { kindOf, type Element, type SideId } from '../rules';
+import { renderSprite, WINDOW_SIZE, FEET_FRACTION, type FrameIndex, type ViewIndex } from './spritegen';
 
 export const SIDE_COLORS: Record<SideId, string> = { 0: '#3fbf4f', 1: '#d23a3a' };
 export const ELEMENT_COLORS: Record<Element, string> = {
@@ -12,23 +13,6 @@ export const ELEMENT_COLORS: Record<Element, string> = {
   earth: '#b48a3a',
   water: '#3a78d8',
 };
-const NEUTRAL_SECONDARY = '#c9b8f0';
-
-function hash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  return h >>> 0;
-}
-
-function rng(seed: number) {
-  let a = seed;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(a ^ (a >>> 15), a | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function shade(hex: string, f: number): string {
   const c = new THREE.Color(hex);
@@ -38,160 +22,126 @@ function shade(hex: string, f: number): string {
   return `#${c.getHexString()}`;
 }
 
-export const W = 16;
-export const H = 20;
+// ---------- unit sprites (rendered from 3D part models; see spritegen/) ----------
 
-/** Cell codes: 0 empty, 1 primary, 2 secondary, 3 tertiary, 4 eye. */
-interface Pattern {
-  cells: number[][];
-  wing: boolean[][];
-}
-
-function pattern(kindId: string): Pattern {
-  const k = kindOf(kindId);
-  const r = rng(hash(kindId));
-  const cells: number[][] = Array.from({ length: H }, () => Array(W).fill(0));
-  const wing: boolean[][] = Array.from({ length: H }, () => Array(W).fill(false));
-  const half = W / 2;
-  const flies = k.moveTypes.includes('fly');
-  const swims = k.moveTypes.includes('swim') && !k.moveTypes.includes('walk');
-  const big = k.role === 'dragon' || k.role === 'tank';
-  const bodyW = big ? 5.5 : k.role === 'scout' ? 3.2 : 4.3;
-  // a couple of horizontal trim bands in the accent colour
-  const bandA = 6 + Math.floor(r() * 5);
-  const bandB = bandA + 3 + Math.floor(r() * 4);
-
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < half; x++) {
-      const dx = half - 0.5 - x;
-      let p = 0;
-      let isWing = false;
-      if (k.isSummoner) {
-        if (y < 4) p = dx < 1.5 + y * 0.6 ? 0.95 : 0;
-        else if (y < 7) p = dx < 2.2 ? 0.95 : 0;
-        else p = dx < 2 + (y - 7) * 0.35 ? 0.97 : 0;
-      } else {
-        const cy = swims ? 12 : 10;
-        const ry = swims ? 5 : 7.5;
-        const e = (dx / bodyW) ** 2 + ((y - cy) / ry) ** 2;
-        p = e < 1 ? 0.92 - e * 0.35 : 0;
-        if (flies && y >= 5 && y <= 11 && dx > 3 && dx < 8) {
-          const wp = 0.75 - Math.abs(y - 7) * 0.12;
-          if (wp > p) {
-            p = wp;
-            isWing = true;
-          }
-        }
-        if (!flies && !swims && y >= 16 && dx > 1 && dx < 3.2) p = 0.85; // legs
-        if (swims && y >= 15) p = dx < 6 - (y - 15) ? 0.7 : 0; // tail fin / wake
-      }
-      if (r() < p) {
-        const t = r();
-        let c = 1;
-        if (t < 0.22) c = 2;
-        else if (t < 0.36 || y === bandA || (y === bandB && dx < 2.5)) c = 3;
-        if (isWing && t < 0.5) c = 2;
-        cells[y][x] = c;
-        cells[y][W - 1 - x] = c;
-        wing[y][x] = wing[y][W - 1 - x] = isWing;
-      }
-    }
-  }
-  const eyeY = k.isSummoner ? 5 : swims ? 10 : 7;
-  for (const ex of [half - 2, half + 1]) if (cells[eyeY][ex]) cells[eyeY][ex] = 4;
-  if (k.isSummoner) {
-    cells[1][half - 1] = 3;
-    cells[1][half] = 3;
-  }
-  return { cells, wing };
-}
-
-/** Idle keyframes: 0 base, 1 breath (body dips / wings lift), 2 blink + accent flicker. */
-export type IdleFrame = 0 | 1 | 2;
-const IDLE_CYCLE: IdleFrame[] = [0, 1, 0, 2];
-const IDLE_FPS = 3;
+/** Idle frames: four breathing poses (0–3) and a blink (4). */
+export type IdleFrame = FrameIndex;
+/** Breathe in, hold, breathe out, rest; blink every third breath. */
+const BREATH: IdleFrame[] = [0, 0, 1, 2, 3, 3, 3, 2, 1, 0];
+const IDLE_CYCLE: IdleFrame[] = [...BREATH.map((f, i) => (i === 1 ? 4 : f)), ...BREATH, ...BREATH];
+const IDLE_FPS = 5;
 
 export function idleFrameAt(nowMs: number, phase: number): IdleFrame {
-  const i = Math.floor((nowMs / 1000) * IDLE_FPS + phase) % IDLE_CYCLE.length;
+  const i = Math.floor((nowMs / 1000) * IDLE_FPS + phase * 7) % IDLE_CYCLE.length;
   return IDLE_CYCLE[(i + IDLE_CYCLE.length) % IDLE_CYCLE.length];
 }
 
-function frameCells(pat: Pattern, frame: IdleFrame, flies: boolean): number[][] {
-  const { cells, wing } = pat;
-  if (frame === 0 || frame === 2) return cells;
-  const out: number[][] = Array.from({ length: H }, () => Array(W).fill(0));
-  const legsFrom = H - 4;
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const c = cells[y][x];
-      if (!c) continue;
-      if (flies && wing[y][x]) {
-        if (y - 2 >= 0) out[y - 2][x] = c; // wings lift
-      } else if (y < legsFrom && y + 1 < H) {
-        if (!out[y + 1][x]) out[y + 1][x] = c; // body dips a pixel
-      } else out[y][x] = c;
-    }
-  return out;
+/** Which drawn view a facing uses, and whether it is mirrored. */
+export function viewForFacing(facing: number): { view: ViewIndex; mirror: boolean } {
+  switch (((facing % 6) + 6) % 6) {
+    case 5:
+      return { view: 0, mirror: false }; // SE: front three-quarter
+    case 0:
+      return { view: 1, mirror: false }; // E: profile
+    case 1:
+      return { view: 2, mirror: false }; // NE: back three-quarter
+    case 4:
+      return { view: 0, mirror: true }; // SW
+    case 3:
+      return { view: 1, mirror: true }; // W
+    default:
+      return { view: 2, mirror: true }; // NW
+  }
 }
 
-/** HSL tone ramp around the Side hue: varied, muted tones rather than a flat colour. */
-function primaryRamp(side: SideId, kindId: string): string[] {
-  const baseHue = side === 0 ? 125 : 2;
-  const hue = baseHue + ((hash(kindId + 'hue') % 31) - 15);
-  const c = new THREE.Color();
-  const tones: [number, number, number][] = [
-    [hue - 8, 0.38, 0.2],
-    [hue - 3, 0.42, 0.33],
-    [hue + 2, 0.45, 0.46],
-    [hue + 7, 0.4, 0.62],
-  ];
-  return tones.map(([h, s, l]) => `#${c.setHSL((((h % 360) + 360) % 360) / 360, s, l).getHexString()}`);
+/** The facing closest to a world heading (radians, atan2(x, z)). */
+export function facingForHeading(heading: number): number {
+  // facing d points at world angle atan2(x, z) of its hex vector
+  const angles = [Math.PI / 2, (5 * Math.PI) / 6, -(5 * Math.PI) / 6, -Math.PI / 2, -Math.PI / 6, Math.PI / 6];
+  let best = 0;
+  let bestDiff = Infinity;
+  angles.forEach((a, d) => {
+    let diff = Math.abs(heading - a) % (2 * Math.PI);
+    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = d;
+    }
+  });
+  return best;
+}
+
+let pixelSize = 2;
+/** Sprites are drawn so one texel is one rendered pixel at the default zoom. */
+export function setSpritePixelSize(n: number) {
+  pixelSize = n;
+}
+const DEFAULT_ZOOM = 38;
+
+/** World size (square) of a kind's sprite. */
+export function spriteWorldSize(kindId: string): number {
+  return spriteScale(kindId) * 0.95 * WINDOW_SIZE;
+}
+/** World height of the feet above the sprite's bottom edge. */
+export function spriteFeetOffset(kindId: string): number {
+  return spriteWorldSize(kindId) * FEET_FRACTION;
+}
+
+const topCache = new Map<string, number>();
+/** World height of the top of a kind's figure above its feet (front view, at rest). */
+export function spriteTopHeight(kindId: string): number {
+  let h = topCache.get(kindId);
+  if (h !== undefined) return h;
+  const cv = baseCanvas(kindId, 0, 0, 0, 2);
+  const data = cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data;
+  let top = cv.height;
+  for (let y = 0; y < cv.height && top === cv.height; y++)
+    for (let x = 0; x < cv.width; x++)
+      if (data[(y * cv.width + x) * 4 + 3] > 0) {
+        top = y;
+        break;
+      }
+  h = (1 - top / cv.height) * spriteWorldSize(kindId) - spriteFeetOffset(kindId);
+  topCache.set(kindId, h);
+  return h;
+}
+
+function texelSize(kindId: string, ps: number): number {
+  return Math.max(16, Math.round((spriteWorldSize(kindId) * DEFAULT_ZOOM) / ps));
+}
+
+const baseCache = new Map<string, HTMLCanvasElement>();
+function baseCanvas(kindId: string, side: SideId, view: ViewIndex, frame: IdleFrame, ps: number): HTMLCanvasElement {
+  const key = `${kindId}|${side}|${view}|${frame}|${ps}`;
+  let cv = baseCache.get(key);
+  if (cv) return cv;
+  const k = kindOf(kindId);
+  const px = renderSprite(k.isSummoner ? 'summoner' : kindId, side, k.element, view, frame, texelSize(kindId, ps));
+  cv = document.createElement('canvas');
+  cv.width = px.w;
+  cv.height = px.h;
+  const img = new ImageData(px.w, px.h);
+  img.data.set(px.data);
+  cv.getContext('2d')!.putImageData(img, 0, 0);
+  baseCache.set(key, cv);
+  return cv;
 }
 
 const cache = new Map<string, HTMLCanvasElement>();
-
-export function unitFrameCanvas(kindId: string, side: SideId, frame: IdleFrame): HTMLCanvasElement {
-  const key = `${kindId}|${side}|${frame}`;
-  const hit = cache.get(key);
-  if (hit) return hit;
-  const k = kindOf(kindId);
-  const pat = pattern(kindId);
-  const g = frameCells(pat, frame, k.moveTypes.includes('fly'));
-  const ramp = primaryRamp(side, kindId);
-  const secondary = k.element ? shade(ELEMENT_COLORS[k.element], 0.7 + (hash(kindId) % 50) / 100) : NEUTRAL_SECONDARY;
-  const accentHue = hash(kindId + 'accent') % 360;
-  const tertiary = `hsl(${accentHue}, 85%, ${frame === 2 ? 74 : 60}%)`;
-  const tertiaryDark = `hsl(${accentHue}, 70%, 40%)`;
-  const eye = frame === 2 ? ramp[0] : '#fff8d0';
-
-  const pad = 1;
-  const cv = document.createElement('canvas');
-  cv.width = W + pad * 2;
-  cv.height = H + pad * 2;
+export function unitFrameCanvas(kindId: string, side: SideId, frame: IdleFrame, facing = 5, ps = pixelSize): HTMLCanvasElement {
+  const { view, mirror } = viewForFacing(facing);
+  if (!mirror) return baseCanvas(kindId, side, view, frame, ps);
+  const key = `${kindId}|${side}|${view}|${frame}|${ps}|m`;
+  let cv = cache.get(key);
+  if (cv) return cv;
+  const src = baseCanvas(kindId, side, view, frame, ps);
+  cv = document.createElement('canvas');
+  cv.width = src.width;
+  cv.height = src.height;
   const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = '#10121a';
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++)
-      if (g[y][x])
-        for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) ctx.fillRect(x + pad + ox, y + pad + oy, 1, 1);
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const c = g[y][x];
-      if (!c) continue;
-      let color: string;
-      if (c === 1) {
-        // light from top-left; dither between neighbouring tones
-        const light = 2.7 - (y / H) * 2.6 - (x / W) * 0.6;
-        const lo = Math.max(0, Math.min(3, Math.floor(light)));
-        const frac = light - lo;
-        const dither = (x + y) % 2 === 0 ? 0.25 : 0.75;
-        color = ramp[Math.min(3, frac > dither ? lo + 1 : lo)];
-      } else if (c === 2) color = (x + y) % 3 === 0 ? shade(secondary, 0.8) : secondary;
-      else if (c === 3) color = y > H * 0.6 ? tertiaryDark : tertiary;
-      else color = eye;
-      ctx.fillStyle = color;
-      ctx.fillRect(x + pad, y + pad, 1, 1);
-    }
+  ctx.translate(src.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(src, 0, 0);
   cache.set(key, cv);
   return cv;
 }
@@ -200,38 +150,101 @@ export function unitCanvas(kindId: string, side: SideId): HTMLCanvasElement {
   return unitFrameCanvas(kindId, side, 0);
 }
 
-const texCache = new Map<string, THREE.Texture>();
-
-export function unitFrameTexture(kindId: string, side: SideId, frame: IdleFrame): THREE.Texture {
-  const key = `${kindId}|${side}|${frame}`;
-  let t = texCache.get(key);
+const texCache = new Map<HTMLCanvasElement, THREE.Texture>();
+function texOf(cv: HTMLCanvasElement): THREE.Texture {
+  let t = texCache.get(cv);
   if (!t) {
-    t = new THREE.CanvasTexture(unitFrameCanvas(kindId, side, frame));
+    t = new THREE.CanvasTexture(cv);
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestFilter;
     t.colorSpace = THREE.SRGBColorSpace;
-    texCache.set(key, t);
+    texCache.set(cv, t);
   }
   return t;
+}
+
+export function unitFrameTexture(kindId: string, side: SideId, frame: IdleFrame, facing = 5): THREE.Texture {
+  return texOf(unitFrameCanvas(kindId, side, frame, facing));
 }
 
 export function unitTexture(kindId: string, side: SideId): THREE.Texture {
   return unitFrameTexture(kindId, side, 0);
 }
 
-const urlCache = new Map<string, string>();
-export function unitFrameUrl(kindId: string, side: SideId, frame: IdleFrame): string {
-  const key = `${kindId}|${side}|${frame}`;
-  let u = urlCache.get(key);
-  if (!u) {
-    u = unitFrameCanvas(kindId, side, frame).toDataURL();
-    urlCache.set(key, u);
+// ---------- DOM images: cropped and scaled by a whole number into a fixed box ----------
+
+type Box = { x0: number; y0: number; x1: number; y1: number };
+const boundsCache = new Map<string, Box>();
+/** Opaque bounds of a view over all idle frames, so animation never shifts the crop. */
+function frameBounds(kindId: string, side: SideId, view: ViewIndex, ps: number): Box {
+  const key = `${kindId}|${side}|${view}|${ps}`;
+  let b = boundsCache.get(key);
+  if (b) return b;
+  b = { x0: Infinity, y0: Infinity, x1: -1, y1: -1 };
+  for (const f of [0, 1, 2, 3, 4] as IdleFrame[]) {
+    const cv = baseCanvas(kindId, side, view, f, ps);
+    const d = cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data;
+    for (let y = 0; y < cv.height; y++)
+      for (let x = 0; x < cv.width; x++)
+        if (d[(y * cv.width + x) * 4 + 3] > 0) {
+          b.x0 = Math.min(b.x0, x);
+          b.y0 = Math.min(b.y0, y);
+          b.x1 = Math.max(b.x1, x);
+          b.y1 = Math.max(b.y1, y);
+        }
   }
+  boundsCache.set(key, b);
+  return b;
+}
+
+const urlCache = new Map<string, string>();
+/**
+ * A sprite frame as an image of exactly `boxW`×`boxH`: cropped to the figure
+ * and drawn at the largest whole-number scale that fits (trying the
+ * high-detail sprite first), centred and standing on the bottom edge.
+ */
+export function unitFrameUrl(kindId: string, side: SideId, frame: IdleFrame, facing = 5, boxW = 88, boxH = 110): string {
+  const key = `${kindId}|${side}|${frame}|${facing}|${boxW}|${boxH}`;
+  const hit = urlCache.get(key);
+  if (hit) return hit;
+  const { view, mirror } = viewForFacing(facing);
+  let pick: { ps: number; k: number; b: Box } | null = null;
+  for (const ps of [1, 2]) {
+    const b = frameBounds(kindId, side, view, ps);
+    const k = Math.floor(Math.min((boxW - 2) / (b.x1 - b.x0 + 1), (boxH - 2) / (b.y1 - b.y0 + 1)));
+    if (k >= 1 && (!pick || k * (b.y1 - b.y0 + 1) > pick.k * (pick.b.y1 - pick.b.y0 + 1))) pick = { ps, k, b };
+  }
+  const cv = document.createElement('canvas');
+  cv.width = boxW;
+  cv.height = boxH;
+  const ctx = cv.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  if (!pick) {
+    // too big even at 1×: scale the default sprite down to fit
+    const b = frameBounds(kindId, side, view, 2);
+    const k = Math.min(boxW / (b.x1 - b.x0 + 1), boxH / (b.y1 - b.y0 + 1));
+    pick = { ps: 2, k, b };
+  }
+  const { ps, k, b } = pick;
+  const src = baseCanvas(kindId, side, view, frame, ps);
+  const w = (b.x1 - b.x0 + 1) * k;
+  const h = (b.y1 - b.y0 + 1) * k;
+  const dx = Math.round((boxW - w) / 2);
+  const dy = boxH - 1 - h;
+  if (mirror) {
+    ctx.translate(boxW, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(src, b.x0, b.y0, b.x1 - b.x0 + 1, b.y1 - b.y0 + 1, dx, dy, w, h);
+  const u = cv.toDataURL();
+  urlCache.set(key, u);
   return u;
 }
 
+/** Small icon (timeline, menus, unit card). */
+export const ICON_BOX = [44, 55] as const;
 export function unitIconUrl(kindId: string, side: SideId): string {
-  return unitFrameUrl(kindId, side, 0);
+  return unitFrameUrl(kindId, side, 0, 5, ICON_BOX[0], ICON_BOX[1]);
 }
 
 /** Sprite world height for a kind: bigger overall, and larger with Cost and average defense. */
@@ -291,13 +304,12 @@ export function projectileTexture(style: 'arrow' | 'orb', element: Element | nul
 
 // ---------- target outline (silhouette dilated by 1px, white; tinted per use) ----------
 
-const outlineCache = new Map<string, THREE.Texture>();
+const outlineCache = new Map<HTMLCanvasElement, THREE.Texture>();
 
-export function unitOutlineTexture(kindId: string, side: SideId, frame: IdleFrame): THREE.Texture {
-  const key = `${kindId}|${side}|${frame}`;
-  const hit = outlineCache.get(key);
+export function unitOutlineTexture(kindId: string, side: SideId, frame: IdleFrame, facing = 5): THREE.Texture {
+  const src = unitFrameCanvas(kindId, side, frame, facing);
+  const hit = outlineCache.get(src);
   if (hit) return hit;
-  const src = unitFrameCanvas(kindId, side, frame);
   const w = src.width;
   const h = src.height;
   const data = src.getContext('2d')!.getImageData(0, 0, w, h).data;
@@ -315,6 +327,6 @@ export function unitOutlineTexture(kindId: string, side: SideId, frame: IdleFram
   const t = new THREE.CanvasTexture(cv);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.colorSpace = THREE.SRGBColorSpace;
-  outlineCache.set(key, t);
+  outlineCache.set(src, t);
   return t;
 }
