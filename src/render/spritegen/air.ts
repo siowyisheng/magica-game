@@ -1,6 +1,6 @@
 // Air summons.
 import { type V3, add } from './model';
-import { arm, both, breathe, eyes, flame, flick, membrane, mouthAt } from './kit';
+import { arm, both, breathe, eyes, figure, flame, flick, membrane, mouthAt } from './kit';
 import type { Design } from './designs';
 
 export const AIR: Record<string, Design> = {};
@@ -80,79 +80,96 @@ AIR.hawk = {
   },
 };
 
-// Monk: a bald monk in a Side-coloured robe with a gold sash and beads.
-// Wild: a third eye of light and a ring of lightning beads orbiting him.
+// Monk: a shaven-headed monk in a Side-coloured robe with a gold sash draped
+// over one shoulder, hands pressed together, beads hanging from them.
+// Wild: a glowing third eye and a ring of lightning beads orbiting him.
 AIR.monk = {
-  palette: { iris: '#5aa0e0', beads: '#6e3a28' },
+  palette: { iris: '#5aa0e0', beads: '#6e3a28', skin: '#f0cba8' },
   build(m, p) {
-    const { swell, lift } = breathe(p);
-    const robe = m.group();
-    m.ell([0, 0.08, 0], [0.16, 0.08, 0.13], 'side', [0, 0, 0], robe);
-    m.tube([[0, 0.1, 0], [0, 0.3, 0], [0, 0.42 + lift, 0]], [0.15, 0.12 * swell, 0.11 * swell], 'side', robe);
-    // sash across the chest
-    m.ell([0, 0.33 + lift * 0.5, 0.005], [0.125 * swell, 0.03, 0.115 * swell], 'gold', [0, 0, 0.45]);
-    m.ell([0, 0.2, 0.0], [0.142, 0.02, 0.12], 'elem');
-    // arms: hands together in prayer
-    both((s) => arm(m, [s * 0.12, 0.42 + lift, 0], [s * 0.13, 0.32 + lift, 0.08], [s * 0.02, 0.37 + lift, 0.13], 0.04, 'side', 'skin', 0.03));
-    // prayer beads hanging from the hands
+    const f = figure(m, p, {
+      top: 'side',
+      sleeve: 'side',
+      skirt: { mat: 'side', len: 0.22, flare: 0.75, hem: 'elem' },
+      legs: { mat: 'skin', boot: 'wood' },
+      shoulders: 0.11,
+      waistY: 0.27,
+      headR: 0.12,
+      arms: (s) => [[s * 0.02, -0.08, 0.07], [s * -0.075, -0.02, 0.13]],
+    });
+    const { hc, r, waistY, lift } = f;
+    // sash: across the chest and over the left shoulder
+    m.ell([0, waistY + 0.1 + lift * 0.5, 0.005], [0.1, 0.022, 0.072], 'gold', [0, 0, 0.6]);
+    m.ell([0, waistY + 0.02, 0], [0.072, 0.018, 0.058], 'gold');
+    m.ball([-0.09, waistY + 0.16 + lift, 0.0], 0.04, 'gold');
+    // prayer beads hanging from the joined hands
     for (let i = 0; i < 7; i++) {
       const a = (i / 6) * Math.PI;
-      m.ball([Math.cos(a) * 0.05, 0.31 + lift - Math.sin(a) * 0.05, 0.14], 0.015, 'beads');
+      m.ball([Math.cos(a) * 0.04, waistY + 0.06 + lift - Math.sin(a) * 0.06, 0.17], 0.013, 'beads');
     }
-    const hc: V3 = [0, 0.58 + lift, 0.02];
-    m.ball(hc, 0.13, 'skin');
-    both((s) => m.ell(add(hc, [s * 0.125, -0.01, 0]), [0.02, 0.035, 0.025], 'skin'));
-    eyes(m, hc, 0.13, 'anime', 'iris', 0.38, -0.15);
-    mouthAt(m, hc, 0.13, -0.5);
+    m.ball([0, waistY + 0.0 + lift, 0.17], 0.018, 'gold');
+    // face: calm closed eyes, ears
+    both((s) => m.ell(add(hc, [s * r * 0.95, -0.01, 0]), [0.018, 0.032, 0.022], 'skin'));
+    eyes(m, hc, r, 'anime', 'iris', 0.38, -0.18);
+    mouthAt(m, hc, r, -0.55);
     // third eye
-    const [tp] = [add(hc, [0, 0.06, 0.12])];
-    m.ell(tp, [0.015, 0.025, 0.01], 'spark*');
-    // wild: orbiting lightning beads
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + p.frame * 0.3;
-      m.ball([Math.cos(a) * 0.26, 0.3 + Math.sin(a) * 0.05, Math.sin(a) * 0.2], 0.028, i % 3 === 0 ? 'spark*' : 'elem*');
+    m.ell(add(hc, [0, 0.055, r * 0.93]), [0.013, 0.022, 0.01], 'spark*');
+    // wild: orbiting lightning beads, tilted ring
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + p.frame * 0.3;
+      m.ball([Math.cos(a) * 0.25, waistY + 0.12 + Math.sin(a) * 0.07, Math.sin(a) * 0.19], i % 2 ? 0.022 : 0.028, i % 3 === 0 ? 'spark*' : 'elem*');
     }
   },
 };
 
-// Muse: a winged muse with a golden lyre and a flowing Side-coloured gown.
-// Wild: her hair streams out as ribbons of wind.
+// Muse: a floating muse with feathered wings, a golden lyre and a flowing
+// Side-coloured gown. Wild: her hair streams out as ribbons of wind.
 AIR.muse = {
   palette: { iris: '#7a6cff', elem: '#bfe8f5' },
   build(m, p) {
-    const { swell, lift, b } = breathe(p);
-    const y0 = 0.08 + 0.015 * Math.sin(p.frame * 0.8);
-    // gown trailing to a point (floating)
-    const gown = m.group();
-    m.tube([[0.02, y0, -0.04], [0, y0 + 0.14, 0], [0, y0 + 0.3, 0], [0, y0 + 0.42 + lift, 0]], [0.04, 0.13, 0.1 * swell, 0.09 * swell], 'side', gown);
-    m.ell([0, y0 + 0.36, 0.0], [0.1 * swell, 0.02, 0.09], 'gold');
-    // wings
-    both((s) => {
-      const root: V3 = [s * 0.04, y0 + 0.4, -0.07];
-      const up = 0.05 * b;
-      const rim: V3[] = [[s * 0.14, y0 + 0.62 + up, -0.12], [s * 0.26, y0 + 0.68 + up, -0.13], [s * 0.34, y0 + 0.6 + up, -0.14], [s * 0.33, y0 + 0.5 + up, -0.14], [s * 0.24, y0 + 0.44, -0.13], [s * 0.3, y0 + 0.36, -0.13], [s * 0.26, y0 + 0.26, -0.12], [s * 0.14, y0 + 0.3, -0.1]];
-      membrane(m, root, rim, 'cloud');
-      m.tube(rim, rim.map(() => 0.011), 'sideL');
+    const hover = 0.05 + 0.015 * Math.sin(p.frame * 0.8);
+    const f = figure(m, p, {
+      top: 'side',
+      skirt: { mat: 'side', len: 0.27, flare: 0.7, hem: 'gold' },
+      shoulders: 0.085,
+      waistY: 0.28,
+      headR: 0.115,
+      hover,
+      arms: (s) => (s > 0 ? [[0.05, -0.07, 0.05], [0.04, -0.12, 0.11]] : [[-0.05, -0.07, 0.05], [-0.0, -0.09, 0.12]]),
     });
-    // lyre held at the side
-    const lyre: V3 = [0.15, y0 + 0.32 + lift, 0.08];
-    m.tube([add(lyre, [-0.04, -0.05, 0]), add(lyre, [-0.05, 0.04, 0]), add(lyre, [-0.03, 0.09, 0])], [0.012, 0.012, 0.008], 'gold');
-    m.tube([add(lyre, [0.04, -0.05, 0]), add(lyre, [0.05, 0.04, 0]), add(lyre, [0.03, 0.09, 0])], [0.012, 0.012, 0.008], 'gold');
-    m.tube([add(lyre, [-0.04, -0.05, 0]), add(lyre, [0.04, -0.05, 0])], [0.014, 0.014], 'gold');
-    arm(m, [0.09, y0 + 0.44 + lift, 0], [0.13, y0 + 0.36 + lift, 0.05], [0.12, y0 + 0.33 + lift, 0.1], 0.025, 'skin', 'skin', 0.022);
-    arm(m, [-0.09, y0 + 0.44 + lift, 0], [-0.13, y0 + 0.36 + lift, 0.04], [-0.12, y0 + 0.3 + lift, 0.06], 0.025, 'skin', 'skin', 0.022);
-    const hc: V3 = [0, y0 + 0.58 + lift, 0.02];
-    m.ball(hc, 0.12, 'skin');
-    eyes(m, hc, 0.12, 'anime', 'iris', 0.4, -0.15);
-    mouthAt(m, hc, 0.12, -0.5);
-    // wild: hair of wind ribbons
+    const { hc, r, waistY, lift } = f;
+    // feathered wings: overlapping feathers fanning up and out
+    both((s) => {
+      const root: V3 = [s * 0.05, waistY + 0.14 + lift, -0.07];
+      const up = 0.04 * p.breath;
+      const g = m.group();
+      for (let i = 0; i < 6; i++) {
+        const a = 0.25 + i * 0.27; // from upward to outward-down
+        const len = 0.16 + 0.035 * (5 - Math.abs(i - 2.5));
+        const c: V3 = add(root, [s * Math.sin(a) * len * 0.75, Math.cos(a) * len * 0.75 + up, -0.03 - i * 0.004]);
+        m.ell(c, [0.03, len * 0.6, 0.012], i % 2 ? 'cloud' : 'white', [0, 0, s * -a], g);
+      }
+      for (let i = 0; i < 4; i++) {
+        const a = 0.4 + i * 0.3;
+        m.ell(add(root, [s * Math.sin(a) * 0.06, Math.cos(a) * 0.06 + up, 0.0]), [0.025, 0.05, 0.012], 'sideL', [0, 0, s * -a], g);
+      }
+    });
+    // lyre held in front
+    const lyre: V3 = [0.12, waistY + 0.06 + lift, 0.15];
+    m.tube([add(lyre, [-0.04, -0.04, 0]), add(lyre, [-0.05, 0.04, 0]), add(lyre, [-0.025, 0.09, 0])], [0.012, 0.012, 0.008], 'gold');
+    m.tube([add(lyre, [0.04, -0.04, 0]), add(lyre, [0.05, 0.04, 0]), add(lyre, [0.025, 0.09, 0])], [0.012, 0.012, 0.008], 'gold');
+    m.tube([add(lyre, [-0.04, -0.04, 0]), add(lyre, [0.04, -0.04, 0])], [0.014, 0.014], 'gold');
+    for (const x of [-0.015, 0.015]) m.tube([add(lyre, [x, -0.035, 0.005]), add(lyre, [x, 0.06, 0.005])], [0.005, 0.005], 'spark*');
+    eyes(m, hc, r, 'anime', 'iris', 0.4, -0.18);
+    mouthAt(m, hc, r, -0.55);
+    // wild: hair of wind ribbons streaming to one side
     const hair = m.group();
-    m.ell(add(hc, [0, 0.04, -0.02]), [0.13, 0.1, 0.12], 'elem', [0, 0, 0], hair);
-    m.ell(add(hc, [0, 0.06, 0.06]), [0.11, 0.05, 0.06], 'elem', [0.4, 0, 0], hair);
+    m.ell(add(hc, [0, 0.03, -0.035]), [r * 1.06, r * 0.92, r], 'elem', [0, 0, 0], hair);
+    m.ell(add(hc, [0, 0.055, 0.065]), [r * 0.9, r * 0.32, r * 0.42], 'elem', [0.45, 0, 0], hair);
     for (let i = 0; i < 3; i++) {
       const w = flick(p, i, 0.03);
-      m.tube([add(hc, [0.0, 0.06 - i * 0.05, -0.08]), add(hc, [-0.12, 0.04 - i * 0.06 + w, -0.12]), add(hc, [-0.24, 0.08 - i * 0.07 - w, -0.12]), add(hc, [-0.34, 0.02 - i * 0.08 + w, -0.1])], [0.035, 0.03, 0.022, 0.008], 'elem', hair);
+      m.tube([add(hc, [-0.04, 0.05 - i * 0.05, -0.07]), add(hc, [-0.14, 0.03 - i * 0.06 + w, -0.1]), add(hc, [-0.25, 0.07 - i * 0.07 - w, -0.1]), add(hc, [-0.34, 0.01 - i * 0.08 + w, -0.08])], [0.035, 0.03, 0.022, 0.008], 'elem', hair);
     }
+    m.ball(add(hc, [0.06, 0.07, 0.07]), 0.02, 'gold'); // hair ornament
   },
 };
 

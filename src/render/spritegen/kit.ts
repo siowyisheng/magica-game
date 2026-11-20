@@ -73,3 +73,143 @@ export function both(f: (s: number) => void) {
 }
 
 export { mx };
+
+export interface BeastOpts {
+  fur: Mat;
+  /** Chest, muzzle and paw colour. */
+  light: Mat;
+  pawMat?: Mat;
+  iris?: Mat;
+  /** Overall body scale. */
+  size?: number;
+}
+
+/**
+ * A four-legged beast (dog, wolf): deep chest, tucked waist, jointed legs with
+ * bent hind hocks, a neck rising to a head with a tapering muzzle.
+ * Returns anchor points for extra features.
+ */
+export function beast(m: Model, p: Pose, o: BeastOpts) {
+  const k = o.size ?? 1;
+  const S = (v: V3): V3 => [v[0] * k, v[1] * k, v[2] * k];
+  const { swell, lift } = breathe(p);
+  const body = m.group();
+  // chest deeper than the hips, back sloping down to the rump
+  m.ell(S([0, 0.37, 0.12]), S([0.12 * swell, 0.14 * swell, 0.13]), o.fur, [0.25, 0, 0], body);
+  m.tube([S([0, 0.37, 0.08]), S([0, 0.35, -0.06]), S([0, 0.36, -0.16])], [0.11 * k * swell, 0.085 * k, 0.1 * k], o.fur, body);
+  m.ell(S([0, 0.35, 0.19]), S([0.075, 0.1, 0.05]), o.light, [0.3, 0, 0]); // chest ruff
+  const pawMat = o.pawMat ?? o.light;
+  // front legs: straight, slim, slightly forward
+  both((s) => {
+    const g = m.group();
+    m.tube([S([s * 0.075, 0.32, 0.15]), S([s * 0.078, 0.17, 0.17]), S([s * 0.078, 0.05, 0.18])], [0.048 * k, 0.032 * k, 0.028 * k], o.fur, g);
+    m.ell(S([s * 0.078, 0.025, 0.205]), S([0.033, 0.024, 0.045]), pawMat);
+  });
+  // hind legs: thick thigh, bent hock
+  both((s) => {
+    const g = m.group();
+    m.tube([S([s * 0.08, 0.34, -0.15]), S([s * 0.085, 0.22, -0.11]), S([s * 0.085, 0.13, -0.21]), S([s * 0.083, 0.05, -0.18])], [0.068 * k, 0.05 * k, 0.03 * k, 0.027 * k], o.fur, g);
+    m.ell(S([s * 0.083, 0.025, -0.155]), S([0.033, 0.024, 0.045]), pawMat);
+  });
+  // neck and head
+  const neck0 = S([0, 0.44, 0.17]);
+  const hc = S([0, 0.585 + lift / k, 0.27]);
+  m.tube([neck0, S([0, 0.52 + lift / k, 0.23]), add(hc, S([0, -0.03, -0.03]))], [0.085 * k, 0.07 * k, 0.065 * k], o.fur, body);
+  m.ball(hc, 0.095 * k, o.fur);
+  m.ell(add(hc, S([0, -0.03, 0.02])), S([0.085, 0.045, 0.07]), o.fur, [0, 0, 0]); // cheek fluff
+  const muz = m.group();
+  m.tube([add(hc, S([0, -0.02, 0.05])), add(hc, S([0, -0.035, 0.12])), add(hc, S([0, -0.04, 0.16]))], [0.05 * k, 0.036 * k, 0.026 * k], o.light, muz);
+  m.ball(add(hc, S([0, -0.025, 0.175])), 0.02 * k, 'dark');
+  // ears
+  both((s) => {
+    const g = m.group();
+    m.spike(add(hc, S([s * 0.05, 0.05, -0.02])), add(hc, S([s * 0.075, 0.15, -0.04])), 0.032 * k, o.fur, g);
+    m.spike(add(hc, S([s * 0.05, 0.06, -0.012])), add(hc, S([s * 0.07, 0.13, -0.03])), 0.016 * k, 'pink', g);
+  });
+  // eyes on the front of the skull
+  for (const s of [-1, 1]) {
+    const [pt, n] = onSphere(hc, 0.095 * k, s * 0.5, 0.15);
+    m.eye(pt, n, 'beast', o.iris ?? 'iris');
+  }
+  // tail, rising then curling
+  const sw = flick(p, 3, 0.02);
+  const tail = [S([0, 0.38, -0.2]), S([0.02 + sw, 0.44, -0.29]), S([0.04 + sw, 0.52, -0.31])];
+  return { hc, neck0, tail, body };
+}
+
+export interface FigureOpts {
+  /** Top garment (bodice / tunic / robe top). */
+  top: Mat;
+  /** Skirt or robe; omit for trousers/legs. */
+  skirt?: { mat: Mat; len: number; flare: number; hem?: Mat };
+  legs?: { mat: Mat; boot: Mat };
+  skin?: Mat;
+  /** Shoulder half-width. */
+  shoulders?: number;
+  /** Height of the waist. */
+  waistY?: number;
+  /** Sleeves cover the upper arms. */
+  sleeve?: Mat;
+  /** Arm poses: elbow and hand positions per side (+1 right, -1 left), relative to the shoulder. */
+  arms?: (s: number) => [V3, V3] | null;
+  headR?: number;
+  /** Hover height (floating figures). */
+  hover?: number;
+}
+
+/**
+ * A chibi humanoid figure with shoulders, a waist and hips, so it reads as a
+ * person rather than a tube. Returns the head centre and key anchors.
+ */
+export function figure(m: Model, p: Pose, o: FigureOpts) {
+  const { swell, lift } = breathe(p);
+  const y0 = o.hover ?? 0;
+  const skin = o.skin ?? 'skin';
+  const sw = o.shoulders ?? 0.1;
+  const waistY = y0 + (o.waistY ?? 0.27);
+  const torso = m.group();
+  // waist and chest
+  m.ell([0, waistY + 0.02, 0], [sw * 0.62, 0.06, sw * 0.5], o.top, [0, 0, 0], torso);
+  m.ell([0, waistY + 0.11 + lift * 0.5, 0.0], [sw * 0.92 * swell, 0.085, sw * 0.62 * swell], o.top, [0, 0, 0], torso);
+  // shoulders
+  both((s) => m.ball([s * sw * 0.85, waistY + 0.15 + lift, 0], sw * 0.36, o.sleeve ?? o.top, torso));
+  if (o.skirt) {
+    const { mat, len, flare } = o.skirt;
+    const g = m.group();
+    const top = waistY - 0.01;
+    const bottom = Math.max(y0 + 0.02, top - len);
+    // a bell: stacked flattened discs widening toward a flat hem
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const r = sw * (0.62 + flare * Math.pow(t, 1.4));
+      const y = top - (top - bottom) * t;
+      m.ell([0, y, -0.005 * t], [r, (top - bottom) / (n - 1) * 0.9 + 0.012, r * 0.86], mat, [0, 0, 0], g);
+    }
+    if (o.skirt.hem) m.ell([0, bottom + 0.012, -0.005], [sw * (0.62 + flare) * 1.04, 0.016, sw * (0.62 + flare) * 0.9], o.skirt.hem);
+  }
+  if (o.legs) {
+    both((s) => {
+      const g = m.group();
+      m.tube([[s * sw * 0.4, waistY - 0.02, 0], [s * sw * 0.45, y0 + 0.1, 0.01], [s * sw * 0.47, y0 + 0.04, 0.02]], [0.036, 0.03, 0.028], o.legs!.mat, g);
+      m.ell([s * sw * 0.47, y0 + 0.025, 0.04], [0.035, 0.026, 0.05], o.legs!.boot);
+    });
+  }
+  // arms
+  both((s) => {
+    const sh: V3 = [s * sw * 0.95, waistY + 0.14 + lift, 0];
+    const pose = o.arms ? o.arms(s) : ([[s * 0.04, -0.09, 0.03], [s * 0.02, -0.17, 0.06]] as [V3, V3]);
+    if (!pose) return;
+    const el = add(sh, pose[0]);
+    const hand = add(sh, pose[1]);
+    const g = m.group();
+    m.tube([sh, el], [0.03, 0.027], o.sleeve ?? o.top, g);
+    m.tube([el, hand], [0.025, 0.022], o.sleeve ? o.sleeve : skin, g);
+    m.ball(hand, 0.026, skin);
+  });
+  const r = o.headR ?? 0.13;
+  const hc: V3 = [0, waistY + 0.2 + r * 0.9 + lift, 0.01];
+  m.ball([0, waistY + 0.2 + lift, 0], 0.03, skin); // neck
+  m.ball(hc, r, skin);
+  return { hc, r, waistY, sw, lift, swell, y0 };
+}

@@ -1,6 +1,6 @@
 // Earth summons.
 import { type V3, add } from './model';
-import { arm, both, breathe, eyes, flick, mouthAt } from './kit';
+import { arm, both, breathe, eyes, figure, flick, mouthAt } from './kit';
 import type { Design } from './designs';
 
 export const EARTH: Record<string, Design> = {};
@@ -33,9 +33,9 @@ EARTH.clod = {
 };
 
 // Thorn: a fighter of twisted bramble with thorny arms and leaves.
-// Wild: its head is a huge blooming rose, with glowing eyes in the heart.
+// Wild: its head is a huge rose-pink bloom, with glowing eyes in the heart.
 EARTH.thorn = {
-  palette: { glow: '#ffe46a', bark: '#5e4a2e' },
+  palette: { glow: '#ffe46a', bark: '#4a7a34', leaf: '#94d060', rose: '#e8508a', rose2: '#a8285e', roseL: '#ff8ab8' },
   build(m, p) {
     const { swell, lift } = breathe(p);
     both((s) => m.tube([[s * 0.05, 0.22, 0], [s * 0.08, 0.1, 0.03], [s * 0.07, 0.0, 0.05]], [0.035, 0.03, 0.03], 'bark'));
@@ -47,121 +47,144 @@ EARTH.thorn = {
       m.ball([Math.sin(a) * 0.085, 0.22 + i * 0.035, Math.cos(a) * 0.075], 0.022, 'leaf');
     }
     // Side-coloured leaf pauldrons and skirt
-    both((s) => m.ell([s * 0.1, 0.43 + lift, 0], [0.07, 0.03, 0.05], 'side', [0, 0, s * -0.5]));
-    for (let i = 0; i < 5; i++) {
-      const a = -1.2 + i * 0.6;
-      m.ell([Math.sin(a) * 0.08, 0.2, Math.cos(a) * 0.07], [0.035, 0.06, 0.015], 'side', [0.3, a, 0]);
+    both((s) => {
+      m.ell([s * 0.11, 0.44 + lift, 0], [0.085, 0.035, 0.065], 'side', [0, 0, s * -0.45]);
+      m.ell([s * 0.13, 0.41 + lift, 0.02], [0.06, 0.025, 0.045], 'side2', [0, 0, s * -0.7]);
+    });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      m.ell([Math.sin(a) * 0.085, 0.19, Math.cos(a) * 0.075], [0.04, 0.075, 0.015], i % 2 ? 'side' : 'side2', [0.35, a, 0]);
     }
+    m.ell([0, 0.33 + lift * 0.5, 0.07], [0.06, 0.07, 0.03], 'side'); // leaf breastplate
     // thorny arms
     both((s) => {
       const a: V3[] = [[s * 0.1, 0.42 + lift, 0], [s * 0.18, 0.32 + lift, 0.03], [s * 0.2, 0.2 + lift, 0.08]];
       m.tube(a, [0.03, 0.025, 0.022], 'bark');
       for (let i = 0; i < 3; i++) m.spike([s * (0.14 + i * 0.03), 0.37 - i * 0.06 + lift, 0.02 + i * 0.03], [s * (0.2 + i * 0.03), 0.4 - i * 0.06 + lift, 0.03 + i * 0.03], 0.012, 'cloth');
     });
-    // wild: rose head
-    const hc: V3 = [0, 0.58 + lift, 0.03];
+    // wild: a huge rose-pink bloom for a head, with green sepals
+    const hc: V3 = [0, 0.6 + lift, 0.03];
     const rose = m.group();
-    m.ball(hc, 0.1, 'side2', rose);
+    both((s) => m.ell(add(hc, [s * 0.1, -0.09, -0.02]), [0.07, 0.025, 0.04], 'leaf', [0, 0, s * -0.5]));
+    m.ball(hc, 0.11, 'rose2', rose);
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2;
-      m.ell(add(hc, [Math.cos(a) * 0.1, Math.sin(a) * 0.09, -0.01]), [0.07, 0.065, 0.035], 'side', [0, 0, a]);
+      m.ell(add(hc, [Math.cos(a) * 0.105, Math.sin(a) * 0.095, -0.005]), [0.075, 0.07, 0.035], 'rose', [0.15, 0, a]);
     }
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2 + 0.5;
-      m.ell(add(hc, [Math.cos(a) * 0.05, Math.sin(a) * 0.05, 0.06]), [0.045, 0.045, 0.025], 'sideL', [0, 0, a]);
+      m.ell(add(hc, [Math.cos(a) * 0.05, Math.sin(a) * 0.05, 0.07]), [0.05, 0.045, 0.025], 'roseL', [0, 0, a]);
     }
-    m.ball(add(hc, [0, 0, 0.07]), 0.035, 'side2');
-    m.eye(add(hc, [0.025, 0.005, 0.11]), [0.2, 0, 1], 'glow', 'glow');
-    m.eye(add(hc, [-0.025, 0.005, 0.11]), [-0.2, 0, 1], 'glow', 'glow');
-    both((s) => m.ell(add(hc, [s * 0.12, -0.1, -0.04]), [0.06, 0.02, 0.03], 'leaf', [0, 0, s * -0.6]));
+    m.ball(add(hc, [0, 0, 0.085]), 0.04, 'rose2');
+    m.eye(add(hc, [0.026, 0.008, 0.123]), [0.2, 0, 1], 'glow', 'glow');
+    m.eye(add(hc, [-0.026, 0.008, 0.123]), [-0.2, 0, 1], 'glow', 'glow');
   },
 };
 
-// Sling: a hooded goblin slinger whirling a sling stone.
-// Wild: a cluster of amethyst geode crystals grows from its back.
+// Sling: a crouching goblin slinger with huge ears and nose, a Side-coloured
+// hood pushed back and a short cape, whirling a stone above its head.
+// Wild: a geode of amethyst crystals erupts from its back.
 EARTH.sling = {
-  palette: { skin: '#b0a060', iris: '#ffd23c', gem: '#b07aff' },
+  palette: { skin: '#a8b060', iris: '#ffd23c', gem: '#b07aff' },
   build(m, p) {
-    const { swell, lift } = breathe(p);
-    both((s) => {
-      m.tube([[s * 0.05, 0.17, 0], [s * 0.07, 0.08, 0.02], [s * 0.07, 0.02, 0.03]], [0.035, 0.03, 0.03], 'skin');
-      m.ell([s * 0.07, 0.02, 0.06], [0.04, 0.025, 0.05], 'wood');
+    const f = figure(m, p, {
+      top: 'side',
+      legs: { mat: 'skin', boot: 'wood' },
+      shoulders: 0.09,
+      waistY: 0.2,
+      headR: 0.13,
+      arms: (s) => (s > 0 ? [[0.05, 0.08, 0.0], [0.04, 0.2, 0.02]] : [[-0.05, -0.07, 0.05], [-0.04, -0.12, 0.11]]),
     });
-    const body = m.group();
-    m.ell([0, 0.27, 0], [0.11 * swell, 0.12, 0.09 * swell], 'side2', [0, 0, 0], body);
-    m.ell([0, 0.22, 0.0], [0.115, 0.02, 0.095], 'wood'); // belt
-    m.ball([0.06, 0.2, 0.08], 0.03, 'wood'); // pouch
-    // hood and cape
+    const { hc, r, waistY, lift } = f;
+    // belt, pouch of stones
+    m.ell([0, waistY + 0.02, 0], [0.065, 0.018, 0.052], 'wood');
+    m.ball([0.06, waistY - 0.01, 0.05], 0.028, 'wood');
+    // hood pushed back, cape behind
     const hood = m.group();
-    m.tube([[0, 0.4 + lift, -0.04], [0, 0.25, -0.1], [0.0, 0.1, -0.11]], [0.12, 0.13, 0.12], 'side', hood);
-    const hc: V3 = [0, 0.48 + lift, 0.03];
-    m.ell(add(hc, [0, 0.03, -0.03]), [0.15, 0.14, 0.13], 'side', [0, 0, 0], hood);
-    m.ball(hc, 0.12, 'skin');
-    both((s) => m.spike(add(hc, [s * 0.1, -0.0, 0.0]), add(hc, [s * 0.26, 0.04, -0.03]), 0.035, 'skin'));
-    m.ball(add(hc, [0, -0.02, 0.12]), 0.03, 'skin'); // nose
-    eyes(m, hc, 0.12, 'beast', 'iris', 0.4, 0.02);
-    mouthAt(m, hc, 0.12, -0.45, 'fang', 0.15);
-    // sling arm raised and whirling
-    const hand: V3 = [0.13, 0.62 + lift, 0.02];
-    arm(m, [0.1, 0.36 + lift, 0], [0.16, 0.48 + lift, 0.0], hand, 0.03, 'side2', 'skin', 0.03);
+    m.ell(add(hc, [0, -0.02, -0.08]), [r * 1.05, r * 0.85, r * 0.7], 'side', [0.3, 0, 0], hood);
+    m.poly([[-0.09, waistY + 0.16 + lift, -0.05], [0.09, waistY + 0.16 + lift, -0.05], [0.12, 0.06, -0.1], [-0.12, 0.06, -0.1]], 'side');
+    // big goblin face
+    both((s) => {
+      const g = m.group();
+      m.spike(add(hc, [s * r * 0.85, 0.0, -0.01]), add(hc, [s * 0.27, 0.06, -0.04]), 0.04, 'skin', g);
+      m.spike(add(hc, [s * r * 0.9, 0.005, 0.0]), add(hc, [s * 0.22, 0.05, -0.025]), 0.018, 'pink', g);
+    });
+    m.ell(add(hc, [0, -0.03, r * 0.95]), [0.025, 0.03, 0.035], 'skin'); // nose
+    eyes(m, hc, r, 'beast', 'iris', 0.42, 0.04);
+    mouthAt(m, hc, r, -0.55, 'fang', 0.15);
+    mouthAt(m, hc, r, -0.55, 'mouth', -0.05);
+    // sling whirling above the raised hand
+    const hand: V3 = [0.13, waistY + 0.34 + lift, 0.02];
     const a = p.frame * 1.3;
-    const stone: V3 = add(hand, [Math.cos(a) * 0.12, 0.08, Math.sin(a) * 0.1]);
-    m.tube([hand, add(hand, [Math.cos(a) * 0.06, 0.06, Math.sin(a) * 0.05]), stone], [0.008, 0.008, 0.008], 'wood');
+    const stone: V3 = add(hand, [Math.cos(a) * 0.13, 0.07, Math.sin(a) * 0.1]);
+    m.tube([hand, add(hand, [Math.cos(a) * 0.07, 0.05, Math.sin(a) * 0.05]), stone], [0.008, 0.008, 0.008], 'wood');
     m.ball(stone, 0.03, 'stone');
-    arm(m, [-0.1, 0.36 + lift, 0], [-0.15, 0.28 + lift, 0.04], [-0.12, 0.22 + lift, 0.08], 0.03, 'side2', 'skin', 0.03);
-    // wild: geode crystals
-    for (const [x, y, len, t] of [[0.04, 0.42, 0.18, 0.3], [-0.06, 0.38, 0.14, -0.5], [0.1, 0.32, 0.12, 0.9], [-0.1, 0.28, 0.1, -1.0]] as [number, number, number, number][]) {
-      const base: V3 = [x, y + lift, -0.12];
-      m.spike(base, add(base, [Math.sin(t) * len * 0.6, len * Math.cos(t * 0.5), -len * 0.5]), 0.035, 'gem');
+    // wild: geode crystal cluster on the back
+    const back: V3 = [0, waistY + 0.12 + lift, -0.1];
+    m.ell(back, [0.08, 0.07, 0.04], 'rock');
+    for (const [dx, dy, len, t, mat] of [[0.02, 0.03, 0.2, 0.15, 'gem'], [-0.05, 0.02, 0.15, -0.6, 'gem'], [0.07, 0.0, 0.13, 0.9, 'crystal'], [-0.08, -0.03, 0.11, -1.1, 'crystal'], [0.0, -0.02, 0.12, 0.0, 'gem']] as [number, number, number, number, string][]) {
+      const b0: V3 = add(back, [dx, dy, -0.02]);
+      m.spike(b0, add(b0, [Math.sin(t) * len * 0.7, len * Math.cos(t), -len * 0.45]), 0.032, mat);
     }
   },
 };
 
-// Dryad: a tree spirit woman with bark skin and a Side-coloured leaf gown.
+// Dryad: a tree spirit woman with bark-brown skin, leaf hair and a
+// Side-coloured gown of layered leaves, standing on spreading roots.
 // Wild: a crown of branching antlers in blossom.
 EARTH.dryad = {
   palette: { skin: '#d8b48a', iris: '#4ab05a', pink: '#ffb0d0' },
   build(m, p) {
-    const { swell, lift } = breathe(p);
-    // root feet and gown
-    for (let i = 0; i < 5; i++) {
-      const a = -1.3 + i * 0.65;
-      m.tube([[Math.sin(a) * 0.06, 0.06, Math.cos(a) * 0.05], [Math.sin(a) * 0.15, 0.01, Math.cos(a) * 0.12]], [0.025, 0.01], 'bark');
+    // spreading roots
+    for (let i = 0; i < 6; i++) {
+      const a = -1.6 + i * 0.64;
+      m.tube([[Math.sin(a) * 0.05, 0.05, Math.cos(a) * 0.04], [Math.sin(a) * 0.13, 0.015, Math.cos(a) * 0.11], [Math.sin(a) * 0.17, 0.01, Math.cos(a) * 0.14]], [0.022, 0.014, 0.006], 'bark');
     }
-    const gown = m.group();
-    m.tube([[0, 0.07, 0], [0, 0.24, 0], [0, 0.4 + lift, 0]], [0.13, 0.1 * swell, 0.085 * swell], 'side', gown);
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2;
-      m.ell([Math.sin(a) * 0.12, 0.1, Math.cos(a) * 0.11], [0.045, 0.07, 0.015], 'side2', [0, a, 0]);
-    }
-    both((s) => arm(m, [s * 0.09, 0.4 + lift, 0], [s * 0.15, 0.3 + lift, 0.04], [s * 0.12, 0.24 + lift, 0.1], 0.025, 'skin', 'skin', 0.025));
-    const hc: V3 = [0, 0.55 + lift, 0.02];
-    m.ball(hc, 0.12, 'skin');
-    eyes(m, hc, 0.12, 'anime', 'iris', 0.4, -0.15);
-    mouthAt(m, hc, 0.12, -0.5);
-    // leaf hair
-    const hair = m.group();
-    m.ell(add(hc, [0, 0.04, -0.03]), [0.13, 0.11, 0.12], 'side', [0, 0, 0], hair);
+    const f = figure(m, p, {
+      top: 'side',
+      skirt: { mat: 'side', len: 0.24, flare: 0.85 },
+      shoulders: 0.09,
+      waistY: 0.28,
+      headR: 0.12,
+      arms: (s) => (s > 0 ? [[0.05, -0.07, 0.04], [0.06, -0.01, 0.1]] : [[-0.05, -0.08, 0.03], [-0.07, -0.15, 0.05]]),
+    });
+    const { hc, r, waistY, lift } = f;
+    // layered leaf skirt edges
     for (let i = 0; i < 8; i++) {
-      const a = -1.4 + i * 0.4;
-      m.ell(add(hc, [Math.sin(a) * 0.12, -0.05 - (i % 2) * 0.05, -0.06]), [0.035, 0.07, 0.02], 'side', [0, a, 0.2 * Math.sin(a)], hair);
+      const a = (i / 8) * Math.PI * 2;
+      m.ell([Math.sin(a) * 0.1, 0.07, Math.cos(a) * 0.09], [0.04, 0.065, 0.014], i % 2 ? 'side2' : 'leaf', [0.25, a, 0]);
     }
-    m.ell(add(hc, [0, 0.07, 0.06]), [0.1, 0.04, 0.05], 'side', [0.5, 0, 0], hair);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.5;
+      m.ell([Math.sin(a) * 0.07, waistY - 0.04, Math.cos(a) * 0.06], [0.03, 0.05, 0.012], 'side2', [0.2, a, 0]);
+    }
+    // a blossom held in the raised hand
+    m.ball([0.15, waistY + 0.13 + lift, 0.1], 0.03, 'pink');
+    eyes(m, hc, r, 'anime', 'iris', 0.4, -0.18);
+    mouthAt(m, hc, r, -0.55);
+    // leaf hair falling past the shoulders
+    const hair = m.group();
+    m.ell(add(hc, [0, 0.03, -0.035]), [r * 1.06, r * 0.92, r], 'side', [0, 0, 0], hair);
+    m.ell(add(hc, [0, 0.06, 0.065]), [r * 0.88, r * 0.3, r * 0.4], 'side', [0.5, 0, 0], hair);
+    for (let i = 0; i < 7; i++) {
+      const a = -1.5 + i * 0.5;
+      m.ell(add(hc, [Math.sin(a) * r * 0.95, -0.07 - (i % 2) * 0.04, Math.cos(a) * -0.05 - 0.02]), [0.03, 0.065, 0.016], i % 2 ? 'side' : 'leaf', [0, a, 0.15 * Math.sin(a)], hair);
+    }
     // wild: blossoming antlers
     both((s) => {
-      const b0 = add(hc, [s * 0.06, 0.09, -0.02]);
-      const b1 = add(hc, [s * 0.13, 0.2, -0.05]);
-      const b2 = add(hc, [s * 0.22, 0.3, -0.06]);
+      const b0 = add(hc, [s * 0.05, 0.09, -0.02]);
+      const b1 = add(hc, [s * 0.12, 0.19, -0.05]);
+      const b2 = add(hc, [s * 0.21, 0.28, -0.06]);
+      const t1 = add(hc, [s * 0.07, 0.29, -0.06]);
+      const t2 = add(hc, [s * 0.26, 0.2, -0.04]);
       m.tube([b0, b1, b2], [0.018, 0.014, 0.008], 'bark');
-      m.tube([b1, add(hc, [s * 0.08, 0.3, -0.06])], [0.012, 0.006], 'bark');
-      m.tube([lerpMid(b1, b2), add(hc, [s * 0.27, 0.22, -0.04])], [0.01, 0.005], 'bark');
-      for (const q of [b2, add(hc, [s * 0.08, 0.3, -0.06]), add(hc, [s * 0.27, 0.22, -0.04])]) m.ball(q, 0.025, 'pink');
+      m.tube([b1, t1], [0.012, 0.006], 'bark');
+      m.tube([[(b1[0] + b2[0]) / 2, (b1[1] + b2[1]) / 2, (b1[2] + b2[2]) / 2], t2], [0.01, 0.005], 'bark');
+      for (const q of [b2, t1, t2]) m.ball(q, 0.026, 'pink');
+      m.ell(add(b1, [s * 0.02, 0.01, 0.01]), [0.03, 0.012, 0.015], 'leaf', [0, 0, s * 0.6]);
     });
   },
 };
-function lerpMid(a: V3, b: V3): V3 {
-  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
-}
 
 // Turtle: a great tortoise with a Side-coloured domed shell.
 // Wild: a tiny mountain with a shrine gate and a pine tree grows on its shell.
@@ -202,45 +225,52 @@ EARTH.turtle = {
   },
 };
 
-// Wyrm: a long, low earth serpent on stubby legs, in Side-coloured scales.
+// Wyrm: a long earth serpent on stubby legs, its body coiled in an S so its
+// length shows from every side, head reared up, in Side-coloured scales.
 // Wild: amethyst crystal spines along its back and a spiral drill horn.
 EARTH.wyrm = {
-  palette: { iris: '#ffcf3a', gem: '#b07aff', elem: '#d0a860' },
+  palette: { iris: '#ffcf3a', gem: '#b07aff', elem: '#e0c080' },
   build(m, p) {
     const { swell, lift } = breathe(p);
     const sw = flick(p, 1, 0.02);
     const spine: V3[] = [
-      [0.12 + sw, 0.06, -0.36],
-      [0.2, 0.1, -0.2],
-      [0.12, 0.17, -0.06],
-      [-0.04, 0.2, 0.04],
-      [-0.08, 0.26, 0.14],
-      [0.0, 0.42 + lift, 0.2],
+      [-0.3 + sw, 0.04, -0.2],
+      [-0.12, 0.07, -0.3],
+      [0.14, 0.1, -0.27],
+      [0.27, 0.13, -0.08],
+      [0.12, 0.15, 0.06],
+      [-0.08, 0.18, 0.08],
+      [-0.1, 0.3 + lift * 0.5, 0.14],
+      [-0.02, 0.43 + lift, 0.18],
     ];
+    const radii = [0.025, 0.05, 0.075, 0.09 * swell, 0.095 * swell, 0.09, 0.08, 0.075];
     const body = m.group();
-    m.tube(spine, [0.03, 0.07, 0.1 * swell, 0.1 * swell, 0.09, 0.085], 'side', body);
-    // belly plates
-    for (let i = 1; i < 5; i++) m.ell(add(spine[i], [0, -0.03, 0.05]), [0.06, 0.03, 0.05], 'elem');
-    // stubby legs
-    for (const [i, s] of [[2, 1], [2, -1], [4, 1], [4, -1]] as [number, number][]) {
+    m.tube(spine, radii, 'side', body);
+    // pale belly scutes on the underside
+    for (let i = 1; i < 7; i++) m.ell(add(spine[i], [0, -radii[i] * 0.55, 0]), [radii[i] * 0.8, radii[i] * 0.4, radii[i] * 0.8], 'elem');
+    // stubby clawed legs
+    for (const [i, s] of [[3, 1], [3, -1], [5, 1], [5, -1]] as [number, number][]) {
       const q = spine[i];
-      m.tube([add(q, [s * 0.07, 0, 0]), [q[0] + s * 0.11, 0.03, q[2] + 0.02]], [0.035, 0.03], 'side2');
+      const g = m.group();
+      m.tube([add(q, [s * 0.06, -0.02, 0.03]), [q[0] + s * 0.1, 0.025, q[2] + 0.05]], [0.035, 0.028], 'side2', g);
+      m.ell([q[0] + s * 0.1, 0.015, q[2] + 0.07], [0.03, 0.015, 0.035], 'bone');
     }
-    // head
-    const hc: V3 = add(spine[5], [0, 0.04, 0.08]);
-    m.ell(hc, [0.08, 0.07, 0.1], 'side');
-    m.ell(add(hc, [0, -0.04, 0.05]), [0.06, 0.03, 0.07], 'elem');
-    eyes(m, hc, 0.08, 'slit', 'iris', 0.6, 0.2);
+    // head: broad, with a jaw and a frill
+    const hc: V3 = add(spine[7], [0.01, 0.05, 0.08]);
+    m.ell(hc, [0.085, 0.07, 0.1], 'side');
+    m.ell(add(hc, [0, -0.045, 0.05]), [0.065, 0.03, 0.07], 'elem');
+    both((s) => m.poly([add(hc, [s * 0.06, 0.02, -0.05]), add(hc, [s * 0.17, 0.06, -0.12]), add(hc, [s * 0.13, -0.04, -0.1])], 'side2'));
+    eyes(m, hc, 0.085, 'slit', 'iris', 0.55, 0.2);
     mouthAt(m, add(hc, [0, -0.03, 0.06]), 0.06, -0.4, 'fang', 0.3);
     // wild: drill horn
     const horn = m.group();
-    const h0 = add(hc, [0, 0.06, 0.06]);
-    m.spike(h0, add(h0, [0, 0.08, 0.1]), 0.035, 'gold', horn);
-    for (let i = 0; i < 3; i++) m.ball(add(h0, [0, 0.02 + i * 0.022, 0.025 + i * 0.028]), 0.024 - i * 0.006, 'metal', horn);
-    // crystal spines
-    for (let i = 1; i < 5; i++) {
+    const h0 = add(hc, [0, 0.06, 0.05]);
+    m.spike(h0, add(h0, [0, 0.09, 0.1]), 0.034, 'gold', horn);
+    for (let i = 0; i < 3; i++) m.ball(add(h0, [0, 0.02 + i * 0.024, 0.024 + i * 0.03]), 0.024 - i * 0.006, 'metal', horn);
+    // crystal spines along the back
+    for (let i = 2; i < 7; i++) {
       const q = spine[i];
-      m.spike(add(q, [0, 0.07, 0]), add(q, [0, 0.17 - i * 0.01, -0.03]), 0.035, 'gem');
+      m.spike(add(q, [0, radii[i] * 0.7, 0]), add(q, [0, radii[i] + 0.09 - i * 0.004, -0.02]), 0.032, i % 2 ? 'gem' : 'crystal');
     }
   },
 };
