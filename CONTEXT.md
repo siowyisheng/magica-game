@@ -126,6 +126,17 @@ Any Unit that starts its turn on a Magic Stone, whoever controls it, heals 1 HP,
 **Capture**:
 A Unit that ends its turn on a Magic Stone gives control of the Stone to its Side. Being Summoned onto a Stone does not count. Control lasts until an enemy Unit Captures it, including while the Stone is under water.
 
+**Pit**:
+A hex type of its own: a hole no Unit can enter or stand on. It does not block a shot.
+_Avoid_: Chasm, hole, void
+
+**Obstacle**:
+A neutral map object placed on a hex at the start of a match. No Unit can enter or stand on its hex. It blocks Direct shots but not High ones. It has 10 HP like a Unit, no Element and no Facing, and its Defense and Magic Defense are equal: 5, 10 or 15. Destroyed at 0 HP.
+_Avoid_: Wall, prop, blocker
+
+**Theme**:
+The look of a map: two visual variants each for Plain and Rough, one for Pit, and one Obstacle design for each Defense value (5, 10, 15). Water looks the same in every Theme. A Theme changes only appearance, never rules.
+
 **Zone of Control (ZOC)**:
 The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn. Fly Units ignore ZOC. A Unit that starts its turn in a ZOC may leave it.
 
