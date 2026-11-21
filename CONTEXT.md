@@ -9,7 +9,7 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Summoner**:
-The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon, keeping at most 7 Summons on the map. When it dies, its Side loses. Each Side picks one of ten Summoners before the match (Sigil, Warden, Orrery, Bramble, Cinder, Zephyr, Sexton, Nereid, Cairn, Tinker); they differ in stats, and a few in Element or Alignment. Both Sides may pick the same one.
+The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of ten Summoners before the match (Sigil, Warden, Orrery, Bramble, Cinder, Zephyr, Sexton, Nereid, Cairn, Tinker); they differ in stats, and a few in Element or Alignment. Both Sides may pick the same one.
 _Avoid_: Master, hero, commander
 
 **Loadout**:

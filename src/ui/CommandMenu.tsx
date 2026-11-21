@@ -9,9 +9,7 @@ import {
   kindOf,
   magicTargetHexes,
   mapHexAt,
-  MAX_SUMMONS,
   neighbor,
-  summonCount,
   inRoster,
   SUMMONS,
   unitAt,
@@ -68,7 +66,6 @@ export function CommandMenu() {
       });
     }
     if (phase.sub === 'summon') {
-      const full = summonCount(match, u.side) >= MAX_SUMMONS;
       return (
         <div className="summon-panel">
           <div className="summon-grid">
@@ -78,7 +75,7 @@ export function CommandMenu() {
                   .slice()
                   .sort((a, b) => a.cost - b.cost)
                   .map((s) => {
-                    const ok = !full && mana >= s.cost && canSummonAny(match, u.id, to, s);
+                    const ok = mana >= s.cost && canSummonAny(match, u.id, to, s);
                     // a div, not a disabled button, so hover (and the detail card) works even when unaffordable
                     return (
                       <div

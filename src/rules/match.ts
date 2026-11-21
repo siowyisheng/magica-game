@@ -4,7 +4,6 @@ import {
   MANA_MAX,
   MANA_START,
   MAX_HP,
-  MAX_SUMMONS,
   STONE_BASE,
   TIME_LIMIT_HOURS,
   UPKEEP_DIVISOR,
@@ -201,7 +200,6 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
       if (sk.isSummoner) return 'cannot summon a Summoner';
       if (!inRoster(state, unit.side, sk.id)) return 'not in this Side’s Loadout';
       if (state.sides[unit.side].mana < sk.cost) return 'not enough mana';
-      if (summonCount(state, unit.side) >= MAX_SUMMONS) return 'summon limit reached';
       const h = neighbor(action.to, cmd.dir);
       if (!mapHexAt(state.map, h)) return 'off map';
       if (!canPlace(view, sk, h, unit.id)) return 'summon cannot be placed there';

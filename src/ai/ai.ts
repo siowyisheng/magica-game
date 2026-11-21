@@ -23,12 +23,10 @@ import {
   magicTargetHexes,
   manaIncome,
   mapHexAt,
-  MAX_SUMMONS,
   neighbor,
   previewEffects,
   reachable,
   SUMMONS,
-  summonCount,
   validateTurn,
   attackTargets,
   activeUnit,
@@ -313,7 +311,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const income = manaIncome(state, me.side);
 
   // Rank summon kinds once (placement-independent).
-  const summonKinds = kind.isSummoner && summonCount(state, me.side) < MAX_SUMMONS
+  const summonKinds = kind.isSummoner
     ? SUMMONS.filter((s) => s.cost <= myMana && inRoster(state, me.side, s.id))
         .map((s) => {
           let counter = 0;
@@ -366,10 +364,9 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
 
       if (command.type === 'attack' || command.type === 'magic') {
         const ab = command.type === 'magic' ? kind.magic.find((m) => m.id === command.ability)! : null;
-        // Mana that would overflow the cap (or can't buy a Summon anyway) is free to spend.
-        const capFull = summonCount(state, me.side) >= MAX_SUMMONS;
+        // Mana that would overflow the cap is free to spend.
         const overflow = myMana + Math.max(0, income) >= MANA_MAX;
-        if (ab && !capFull && !overflow) score -= ab.manaCost * w.manaSpend;
+        if (ab && !overflow) score -= ab.manaCost * w.manaSpend;
         if (ab && ab.kind === 'water') {
           const level = state.waterLevel + ab.delta;
           for (const u of state.units) {

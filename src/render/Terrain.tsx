@@ -398,20 +398,21 @@ export function Water({ match, interactive = true }: { match: MatchState; intera
     },
   };
   const y = match.waterLevel * STEP - 0.06;
+  // drawn after the units (renderOrder) so the water covers the legs of units wading in it
   return (
     <group position={[0, y, 0]}>
       {shallow && (
-        <mesh geometry={shallow} {...handlers}>
+        <mesh geometry={shallow} {...handlers} renderOrder={13}>
           <meshLambertMaterial color="#5cc2c8" map={shallowTex} transparent opacity={0.48} depthWrite={false} />
         </mesh>
       )}
       {deep && (
-        <mesh geometry={deep} {...handlers}>
+        <mesh geometry={deep} {...handlers} renderOrder={13}>
           <meshLambertMaterial color="#2f6fb0" map={deepTex} transparent opacity={0.74} depthWrite={false} />
         </mesh>
       )}
       {shelf && (
-        <mesh geometry={shelf} position={[0, 0.004, 0]} raycast={() => null}>
+        <mesh geometry={shelf} position={[0, 0.004, 0]} raycast={() => null} renderOrder={13}>
           <meshBasicMaterial color="#4fb8d8" transparent opacity={0.45} depthWrite={false} />
         </mesh>
       )}

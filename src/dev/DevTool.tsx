@@ -11,6 +11,10 @@ import {
   kindOf,
   kindWarnings,
   shippedKind,
+  abilityOf,
+  abilityUsers,
+  isBuiltInAbility,
+  shippedAbility,
   type Alignment,
   type Element,
   type MagicAbility,
@@ -21,7 +25,23 @@ import {
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
-import { CAN_WRITE_REPO, exportBalanceJson, importBalanceJson, isEdited, isRepoEdited, resetAll, resetKind, saveKind, writeRepoBalance } from './balance';
+import {
+  CAN_WRITE_REPO,
+  allAbilities,
+  createAbility,
+  exportBalanceJson,
+  importBalanceJson,
+  isAbilityEdited,
+  isAbilityRepoEdited,
+  isEdited,
+  isRepoEdited,
+  resetAbility,
+  resetAll,
+  resetKind,
+  saveAbility,
+  saveKind,
+  writeRepoBalance,
+} from './balance';
 
 const STAT_KEYS: (keyof Stats)[] = ['atk', 'def', 'mp', 'mdf', 'spd', 'mov'];
 const MOVE_TYPES: MoveType[] = ['walk', 'slow', 'fly', 'swim', 'wade'];
@@ -42,13 +62,22 @@ export function DevTool() {
   };
 
   const roster = useMemo(() => [...SUMMONERS, ...SUMMONS], [rev]); // eslint-disable-line react-hooks/exhaustive-deps
-  const kind = kindOf(selected);
-  const warnings = kindWarnings(kind, roster);
+  // the selection is a unit kind id, or 'ability:<id>' for a Magic Ability
+  const abilitySel = selected.startsWith('ability:') ? selected.slice(8) : null;
+  const kind = abilitySel ? null : kindOf(selected);
+  const warnings = kind ? kindWarnings(kind, roster) : [];
 
   const edit = (f: (k: UnitKind) => void) => {
     const k = clone(kindOf(selected));
     f(k);
     saveKind(k);
+    bump();
+  };
+  const editAbility = (f: (m: MagicAbility) => void) => {
+    if (!abilitySel) return;
+    const a = clone(abilityOf(abilitySel)!);
+    f(a);
+    saveAbility(a);
     bump();
   };
 
@@ -88,25 +117,55 @@ export function DevTool() {
               })}
             </div>
           ))}
+          <div className="title">Magic Abilities</div>
+          <button
+            onClick={() => {
+              const id = createAbility();
+              bump();
+              setSelected(`ability:${id}`);
+            }}
+          >
+            + New ability
+          </button>
+          {allAbilities().map((a) => (
+            <button key={a.id} className={`map-item dev-item ${selected === `ability:${a.id}` ? 'on' : ''}`} onClick={() => setSelected(`ability:${a.id}`)}>
+              <span className="dev-name">{a.name}</span>
+              <span className="muted small">{abilityUsers(a.id).length}</span>
+              {isAbilityEdited(a.id) && <span className="tag edited">edited</span>}
+              {isAbilityRepoEdited(a.id) && <span className="tag repo">repo</span>}
+            </button>
+          ))}
         </div>
 
         <div className="window dev-form" key={selected}>
-          <KindForm kind={kind} edit={edit} />
+          {kind ? (
+            <KindForm kind={kind} edit={edit} openAbility={(id) => setSelected(`ability:${id}`)} />
+          ) : abilitySel && abilityOf(abilitySel) ? (
+            <AbilityForm a={abilityOf(abilitySel)!} edit={editAbility} openKind={setSelected} />
+          ) : (
+            <div className="muted">This ability no longer exists.</div>
+          )}
         </div>
 
         <div className="window editor-side">
           <div className="title">Warnings</div>
           {warnings.length ? warnings.map((w) => <div key={w} className="bad small">• {w}</div>) : <div className="good small">No warnings.</div>}
-          <div className="title">This unit</div>
+          <div className="title">{kind ? 'This unit' : 'This ability'}</div>
           <button
-            disabled={!isEdited(selected)}
+            disabled={kind ? !isEdited(selected) : !abilitySel || !isAbilityEdited(abilitySel)}
             onClick={() => {
-              resetKind(selected);
+              if (kind) {
+                resetKind(selected);
+                flash(`${kind.name} reset`);
+              } else if (abilitySel) {
+                const name = abilityOf(abilitySel)?.name;
+                resetAbility(abilitySel);
+                flash(`${name} reset`);
+              }
               bump();
-              flash(`${kind.name} reset`);
             }}
           >
-            Reset to shipped values
+            {abilitySel && !isBuiltInAbility(abilitySel) && !shippedAbility(abilitySel) ? 'Delete this new ability' : 'Reset to shipped values'}
           </button>
           <div className="title">All units</div>
           <div className="btn-row">
@@ -213,7 +272,7 @@ function TrajectorySelect({ value, onChange }: { value?: Trajectory; onChange: (
   );
 }
 
-function KindForm({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => void) => void }) {
+function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: UnitKind) => void) => void; openAbility: (id: string) => void }) {
   const shipped = shippedKind(kind.id);
   const summon = !kind.isSummoner;
   return (
@@ -304,30 +363,73 @@ function KindForm({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => v
       </div>
 
       <div className="title">Magic</div>
-      {summon && (
-        <label className="dev-check">
-          <input
-            type="checkbox"
-            checked={kind.magic.length > 0}
-            onChange={(e) =>
-              edit((k) => {
-                k.magic = e.target.checked
-                  ? [{ id: `${k.id}:magic`, name: 'Spell', kind: 'damage', range: 2, radius: 0, manaCost: 4, trajectory: 'direct' }]
-                  : [];
-              })
-            }
-          />{' '}
-          Has a Magic Ability
-        </label>
-      )}
-      {kind.magic.map((m, i) => (
-        <MagicForm key={m.id} m={m} summoner={kind.isSummoner} shipped={shipped.magic[i]} onChange={(f) => edit((k) => f(k.magic[i]))} />
-      ))}
+      <div className="muted small">Magic Abilities are shared: edit one under Magic Abilities and every unit using it changes.</div>
+      {(summon ? [0] : kind.magic.map((_, i) => i)).map((slot) => {
+        const cur = kind.magic[slot];
+        const options = allAbilities().filter((a) => kind.isSummoner || a.kind !== 'water');
+        return (
+          <div key={slot} className="dev-section magic">
+            <label className="dev-field">
+              <span>{summon ? 'Ability' : `Slot ${slot + 1}`}</span>
+              <select
+                value={cur?.id ?? ''}
+                onChange={(e) =>
+                  edit((k) => {
+                    const a = e.target.value ? abilityOf(e.target.value) : undefined;
+                    if (summon) k.magic = a ? [a] : [];
+                    else if (a) k.magic[slot] = a;
+                  })
+                }
+              >
+                {summon && <option value="">None</option>}
+                {options.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.kind === 'water' ? `water ${a.delta > 0 ? 'rise' : 'ebb'}` : `${a.kind}, range ${a.range}`}, {a.manaCost}◆)
+                  </option>
+                ))}
+              </select>
+            </label>
+            {cur && <span className="muted small">{magicSummary(cur)} · used by {abilityUsers(cur.id).length}</span>}
+            {cur && <button onClick={() => openAbility(cur.id)}>Edit ability…</button>}
+            {(shipped.magic[slot]?.id ?? '') !== (cur?.id ?? '') && <span className="muted small">(shipped: {shipped.magic[slot]?.name ?? 'none'})</span>}
+          </div>
+        );
+      })}
     </>
   );
 }
 
-function MagicForm({ m, summoner, shipped, onChange }: { m: MagicAbility; summoner: boolean; shipped?: MagicAbility; onChange: (f: (m: MagicAbility) => void) => void }) {
+function magicSummary(m: MagicAbility): string {
+  if (m.kind === 'water') return `${m.delta > 0 ? 'raises' : 'lowers'} the Water Level`;
+  return `${m.kind}, range ${m.range}${m.radius ? ', area' : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
+}
+
+/** A shared Magic Ability, with the units that use it. */
+function AbilityForm({ a, edit, openKind }: { a: MagicAbility; edit: (f: (m: MagicAbility) => void) => void; openKind: (id: string) => void }) {
+  const users = abilityUsers(a.id);
+  return (
+    <>
+      <div className="title">{a.name}</div>
+      <div className="muted small">
+        Magic Ability · id {a.id}
+        {isBuiltInAbility(a.id) ? '' : ' · new'}
+      </div>
+      <MagicForm m={a} shipped={shippedAbility(a.id)} onChange={edit} />
+      <div className="title">Used by ({users.length})</div>
+      <div className="btn-row">
+        {users.length === 0 && <span className="muted small">No unit uses this ability yet: pick it from a unit's Magic section.</span>}
+        {users.map((k) => (
+          <button key={k.id} className="map-item dev-item" onClick={() => openKind(k.id)}>
+            <img src={unitIconUrl(k.id, 0)} alt="" />
+            <span className="dev-name">{k.name}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicAbility; onChange: (f: (m: MagicAbility) => void) => void }) {
   const sh = shipped && shipped.kind === m.kind ? shipped : undefined;
   return (
     <div className="dev-section magic">
@@ -372,7 +474,6 @@ function MagicForm({ m, summoner, shipped, onChange }: { m: MagicAbility; summon
         </>
       )}
       <Num label="Mana" value={m.manaCost} min={0} max={120} shipped={sh?.manaCost} onChange={(v) => onChange((x) => void (x.manaCost = v))} />
-      {summoner && <span className="muted small">(Summoner spells can be edited, not added or removed)</span>}
     </div>
   );
 }
