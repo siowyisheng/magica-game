@@ -168,6 +168,19 @@ export function importReplayJson(text: string): Replay {
   return imported;
 }
 
+/** Why a Replay can't be watched at all (it names unit kinds that no longer exist), or null. */
+export function replayProblem(r: Pick<Replay, 'initial' | 'actions'>): string | null {
+  const kinds = new Set<string>(r.initial.units.map((u) => u.kind));
+  for (const a of r.actions) if (a.command.type === 'summon') kinds.add(a.command.kind);
+  for (const k of kinds)
+    try {
+      kindOf(k);
+    } catch {
+      return `it uses ${k}, which is no longer in the game`;
+    }
+  return null;
+}
+
 // ---------- playback ----------
 
 /** Positions kept while watching, so stepping back is quick. */

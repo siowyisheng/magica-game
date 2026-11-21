@@ -10,6 +10,7 @@ import {
   importReplayJson,
   listReplays,
   loadReplay,
+  replayProblem,
   replayTitle,
   updateReplay,
   type ReplayMeta,
@@ -76,6 +77,11 @@ export function ReplaysScreen() {
         ) : (
           <b>{replayTitle(m)}</b>
         )}
+        {(() => {
+          const r = loadReplay(m.id);
+          const p = r ? replayProblem(r) : 'it could not be read';
+          return p ? <div className="bad small">Can't be watched: {p}.</div> : null;
+        })()}
         <div className="muted small">
           {m.mapName} · {m.turns} turns · {result(m.winner)} · {when(m.updatedAt)}
           {m.id === currentId ? ' · the match in progress' : ''}

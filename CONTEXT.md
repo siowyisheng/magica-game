@@ -9,7 +9,7 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Summoner**:
-The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of ten Summoners before the match (Sigil, Warden, Orrery, Bramble, Cinder, Zephyr, Sexton, Nereid, Cairn, Tinker); they differ in stats, and a few in Element or Alignment. Both Sides may pick the same one.
+The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Summoners before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Summoner's stats fit the Stat Budget. Both Sides may pick the same one.
 _Avoid_: Master, hero, commander
 
 **Loadout**:
@@ -45,6 +45,10 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 **Magic Defense (MDF)**: Reduces damage taken from the Magic Command.
 **Speed (SPD)**: Decides how soon a Unit acts again (see Action Value). The average is about 10, and most Units fall between 8 and 15.
 **Move (MOV)**: The Move Points a Unit can spend in one turn.
+
+**Stat Budget**:
+The hidden exchange rate that keeps Summoners balanced: each stat is priced in Magic Power, and every Summoner's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack nearly free for a melee Summoner but dear for a ranged one, the more so the longer its range.
+_Avoid_: Point buy, stat total
 
 **Move Type**:
 A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex. Slow only ever comes paired with Swim: it marks swimmers that move with difficulty on land.

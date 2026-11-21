@@ -7,7 +7,7 @@ import { chooseAction } from '../src/ai/ai';
 
 it('bench', async () => {
   const lo = STARTER_LOADOUTS[0].summons;
-  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 9, summoners: ['sigil', 'warden'], rosters: [lo, lo] });
+  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 9, summoners: ['regent', 'templar'], rosters: [lo, lo] });
   for (let i = 0; i < 60 && st.winner === null; i++) st = applyTurn(st, chooseAction(st)).state;
   const session = new Session();
   session.connect();

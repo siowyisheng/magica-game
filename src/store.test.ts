@@ -15,7 +15,7 @@ describe('closestFacing', () => {
 
 describe('facing is set while the command menu is open', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
   });
 
@@ -52,7 +52,7 @@ describe('facing is set while the command menu is open', () => {
 
 describe('selection, quick actions and range toggles', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
   });
 
@@ -138,7 +138,7 @@ describe('selection, quick actions and range toggles', () => {
 describe('choosing a summon hex', () => {
   it('selects the valid adjacent hex closest in angle to the cursor, even through crowded hexes', async () => {
     const { summonDirToward, validSummonDirs } = await import('./store');
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
@@ -181,7 +181,7 @@ describe('handing a Side to a person', () => {
     vi.useFakeTimers();
     try {
       useGame.setState({ animate: true, anim: null, aiThinking: false });
-      useGame.getState().startFromSetup({ mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [true, true] });
+      useGame.getState().startFromSetup({ mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, true] });
       for (let i = 0; i < 40 && !useGame.getState().anim; i++) {
         useGame.getState().tickAi();
         vi.advanceTimersByTime(500);

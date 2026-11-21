@@ -22,6 +22,9 @@ import {
   type Stats,
   type Trajectory,
   type UnitKind,
+  budgetError,
+  generateSpread,
+  mulberry32,
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
@@ -50,7 +53,7 @@ const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 export function DevTool() {
   const setScreen = useGame((s) => s.setScreen);
   const setSetupOpen = useGame((s) => s.setSetupOpen);
-  const [selected, setSelected] = useState('sigil');
+  const [selected, setSelected] = useState('regent');
   // bumped after every change so the roster (a live array) re-renders
   const [rev, setRev] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -321,6 +324,7 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
           <Num key={s} label={s.toUpperCase()} value={kind.stats[s]} min={0} max={40} shipped={shipped.stats[s]} onChange={(v) => edit((k) => void (k.stats[s] = v))} />
         ))}
       </div>
+      {kind.isSummoner && <BudgetRow kind={kind} edit={edit} />}
 
       <div className="title">Move Types</div>
       <div className="dev-section">
@@ -474,6 +478,28 @@ function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicA
         </>
       )}
       <Num label="Mana" value={m.manaCost} min={0} max={120} shipped={sh?.manaCost} onChange={(v) => onChange((x) => void (x.manaCost = v))} />
+    </div>
+  );
+}
+
+/** A Summoner's distance from the Stat Budget, and a button to roll a new balanced spread. */
+function BudgetRow({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => void) => void }) {
+  const err = budgetError(kind.stats, kind.attack.range);
+  return (
+    <div className="dev-section">
+      <span className={Math.abs(err) <= 0.5 ? 'muted small' : 'bad small'} title="MP-equivalent of the stats minus the Stat Budget's total; within ±0.5 counts as balanced">
+        Stat Budget: {err >= 0 ? '+' : ''}
+        {err.toFixed(2)} MP {Math.abs(err) <= 0.5 ? '(balanced)' : err > 0 ? '(too strong)' : '(too weak)'}
+      </span>
+      <button
+        title="Replace the stats with a random spread on the Stat Budget, for this Summoner's Attack range"
+        onClick={() => {
+          const s = generateSpread(mulberry32((Date.now() ^ (Math.random() * 1e9)) >>> 0), kind.attack.range);
+          if (s) edit((k) => void (k.stats = s));
+        }}
+      >
+        Roll a balanced spread
+      </button>
     </div>
   );
 }
