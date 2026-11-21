@@ -4,11 +4,14 @@
 // Summoner's stats sum to a hidden constant once each stat is priced in MP
 // (the stat that pays for everything, because it sets Mana Income):
 //
-//   MP + w_spd·SPD + w_mov·MOV + w_def·DEF + w_mdf·MDF + ATK·w_atk(range) ≈ total
+//   MP + w_spd·SPD + w_mov·MOV + w_def·DEF + w_mdf·MDF + w_atk·ATK·reach ≈ total
 //
-// ATK is priced by Attack range: nearly free for melee (a Summoner that has
-// to fight is already in trouble) and worth a lot at range, more the longer
-// the range. The generator samples ATK, DEF, MDF, SPD and MOV with the
+// ATK is priced by its reach: Move + Attack range, beyond FREE_REACH. ATK
+// that can't get anywhere is worth little: a melee Summoner with Move 3
+// pays nothing for it, one with Move 5 pays twice what Move 4 pays, and a
+// ranged Summoner pays for every hex of range. This one rule fits the
+// references about as well as separate melee and ranged prices, and it
+// prices Move-and-ATK fighters correctly. The generator samples ATK, DEF, MDF, SPD and MOV with the
 // references' correlations (casters are frail and slow; fighters are tough
 // and fast), solves for the MP that meets the budget, and keeps the spreads
 // that are most unlike each other. Names come from a catalogue of words
@@ -66,21 +69,20 @@ export interface StatBudget {
   mov: number;
   def: number;
   mdf: number;
-  /** Price of a point of ATK with a melee (range 1) Attack. */
-  atkMelee: number;
-  /** Price of a point of ATK per point of range, for a ranged Attack. */
-  atkPerRange: number;
+  /** Price of a point of ATK per hex of reach beyond FREE_REACH. */
+  atkPerReach: number;
   total: number;
 }
 
-const FEATURES = (s: Stats, range: number): number[] => [
-  s.spd,
-  s.mov,
-  s.def,
-  s.mdf,
-  range > 1 ? 0 : s.atk,
-  range > 1 ? s.atk * range : 0,
-];
+/** Reach (Move + Attack range) that ATK gets for free. */
+export const FREE_REACH = 4;
+
+/** How far beyond FREE_REACH a Summoner's ATK reaches: Move + Attack range − FREE_REACH, at least 0. */
+export function atkReach(s: Stats, range: number): number {
+  return Math.max(0, s.mov + range - FREE_REACH);
+}
+
+const FEATURES = (s: Stats, range: number): number[] => [s.spd, s.mov, s.def, s.mdf, s.atk * atkReach(s, range)];
 
 /** Solve the least-squares problem A·x ≈ b (normal equations, Gaussian elimination). */
 function leastSquares(A: number[][], b: number[]): number[] {
@@ -103,7 +105,7 @@ function leastSquares(A: number[][], b: number[]): number[] {
 export function fitStatBudget(refs: readonly ReferenceSpread[] = REFERENCE_SPREADS): StatBudget {
   const A = refs.map((r) => [...FEATURES(r.stats, r.range).map((v) => -v), 1]);
   const x = leastSquares(A, refs.map((r) => r.stats.mp));
-  return { spd: x[0], mov: x[1], def: x[2], mdf: x[3], atkMelee: x[4], atkPerRange: x[5], total: x[6] };
+  return { spd: x[0], mov: x[1], def: x[2], mdf: x[3], atkPerReach: x[4], total: x[5] };
 }
 
 export const STAT_BUDGET: StatBudget = fitStatBudget();
@@ -111,7 +113,7 @@ export const STAT_BUDGET: StatBudget = fitStatBudget();
 /** A spread's value in MP: equals the budget's total when balanced. */
 export function budgetValue(s: Stats, range: number, b: StatBudget = STAT_BUDGET): number {
   const f = FEATURES(s, range);
-  return s.mp + b.spd * f[0] + b.mov * f[1] + b.def * f[2] + b.mdf * f[3] + b.atkMelee * f[4] + b.atkPerRange * f[5];
+  return s.mp + b.spd * f[0] + b.mov * f[1] + b.def * f[2] + b.mdf * f[3] + b.atkPerReach * f[4];
 }
 
 /** How far a spread is from the budget, in MP (positive: stronger than balanced). */

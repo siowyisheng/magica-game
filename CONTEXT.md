@@ -47,7 +47,7 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 **Move (MOV)**: The Move Points a Unit can spend in one turn.
 
 **Stat Budget**:
-The hidden exchange rate that keeps Summoners balanced: each stat is priced in Magic Power, and every Summoner's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack nearly free for a melee Summoner but dear for a ranged one, the more so the longer its range. Magic Defense has a floor: Magic reaches further than most Attacks, so a Summoner keeps Magic Defense of at least 7, and at most one Summoner may have 6.
+The hidden exchange rate that keeps Summoners balanced: each stat is priced in Magic Power, and every Summoner's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack is priced by how far it reaches (Move plus Attack range): free for a slow melee Summoner, dearer with every extra hex of Move or range. Magic Defense has a floor: Magic reaches further than most Attacks, so a Summoner keeps Magic Defense of at least 7, and at most one Summoner may have 6.
 _Avoid_: Point buy, stat total
 
 **Move Type**:

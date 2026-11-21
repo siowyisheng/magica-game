@@ -198,11 +198,11 @@ describe('damage', () => {
   it('applies day/night alignment', () => {
     const state = createMatch(testMap(6, 6));
     const archer = place(state, 'archer', 0, 1, 1); // day, fire ATK 14
-    const sum = place(state, 'oni', 1, 3, 1, 3); // DEF 14, no Alignment
+    const sum = place(state, 'oni', 1, 3, 1, 3); // DEF 15, no Alignment
     state.clock = 12 * 60; // day: ATK ×1.2
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(4); // 3.6
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(3); // 3.36
     state.clock = 22 * 60; // night: ×0.8
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(2); // 2.4
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(2); // 2.24
   });
 });
 
