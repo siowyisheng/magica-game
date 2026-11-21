@@ -54,6 +54,10 @@ export const AI_WEIGHTS = {
   onStone: 6,
   approach: 3,
   summonerSafety: 8,
+  /** Hits-to-kill at which a Summoner keeps the standard distance (fewer: more careful, more: bolder). */
+  postureHits: 4,
+  /** How strongly a durable, hard-hitting Summoner is pulled toward objectives (× approach). */
+  summonerAggression: 1,
   /** Share of an enemy's damage counted as threat when it has a better target than this unit. */
   threatShare: 0.7,
   /** Weight of second-round threat to the Summoner (enemies acting before its turn after next). */
@@ -282,6 +286,24 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const objs = objectives();
   const enemySummoner = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isSummoner);
 
+  // Summoner posture from the matchup: how many hits the strongest enemies need
+  // to kill it (fragile ones keep away), and how hard it hits back (durable
+  // hitters move up to threaten).
+  let fragility = 1;
+  let aggression = 0;
+  if (kind.isSummoner) {
+    const enemies = state.units.filter((u) => u.side !== me.side);
+    const incoming = enemies.map((e) => approxDamage(state, e, me, me.pos, me.facing)).sort((a, b) => b - a).slice(0, 3);
+    const perHit = incoming.length ? incoming.reduce((a, b) => a + b, 0) / incoming.length : 0;
+    const hitsToKill = me.hp / Math.max(0.5, perHit);
+    fragility = Math.max(0.35, Math.min(1.5, w.postureHits / hitsToKill));
+    const outgoing = enemies
+      .filter((e) => !kindOf(e.kind).isSummoner)
+      .map((e) => computeDamage(state, me, neighbor(e.pos, facingToward(e.pos, me.pos)), e, 'physical').amount);
+    const myHit = outgoing.length ? outgoing.reduce((a, b) => a + b, 0) / outgoing.length : 0;
+    aggression = Math.max(0, Math.min(1, (myHit - 1.5) / 2)) * Math.max(0, Math.min(1, (hitsToKill - 3) / 3));
+  }
+
   // Stones decide the Time Limit: they matter more over the last day, most when not ahead.
   const lateness = Math.max(0, Math.min(1, 1 - hoursLeft / 24));
   const stoneUrgency = 1 + lateness * (myStones > theirStones ? 1 : 3);
@@ -298,7 +320,12 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
       // Keep distance from enemies (but not infinitely).
       let minD = 99;
       for (const u of state.units) if (u.side !== me.side) minD = Math.min(minD, hexDistance(u.pos, h));
-      s += w.summonerSafety * Math.min(minD, 7);
+      s += w.summonerSafety * fragility * Math.min(minD, 7);
+      if (aggression > 0 && objs.length) {
+        let minO = 99;
+        for (const o of objs) minO = Math.min(minO, hexDistance(o, h));
+        s -= w.approach * pressure * aggression * w.summonerAggression * minO;
+      }
     } else if (objs.length) {
       let minD = 99;
       for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
