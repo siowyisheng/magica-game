@@ -33,7 +33,7 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 - **Setting up a kill.** If the hit doesn't kill but leaves the target low enough that an ally can finish it before it acts again, that counts for part of a kill (`setupKill`, 0.3).
 - **Healing** allies is valued a little less than damage (`heal`, 7).
 - **Breaking Obstacles** is valued by how many enemies would then be able to reach you. Each one that breaking the Obstacle would open up is worth `obstacleOpening` (25), scaled by how much of its HP this hit takes. This is what makes the AI break a wall that blocks its only shot.
-- **Stones.** Standing on a Stone you don't own is worth `capture` (45), scaled by how urgent the Time Limit is (see below). Standing on a Stone you already own is worth a little, and more late in the game. Each Stone's value rises as the clock runs out.
+- **Stones.** Standing on a Stone you don't own is worth `capture` (45), more if the enemy holds it. Standing on a Stone you already own is worth a little, more for a wounded Unit (Stone Heal). Stones are valued for their Mana, the same at every hour: **the AI never plays for the Time Limit**, and nothing in its scoring rewards running out the clock.
 - **Water.** When a Magic ability changes the Water Level, the AI counts which Units it would strand. Stranding an enemy is good (`strandEnemy`, 30 × value). Stranding an ally is bad (`strandAlly`, 35).
 - **Summoning** is scored in its own section below.
 
@@ -42,19 +42,25 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 - **Friendly fire.** Damage to its own Units is penalised at 14 × value per point, which is more than the same damage dealt to an enemy is worth.
 - **Mana spent.** Casting a Magic ability or Summoning costs `manaSpend` (0.25) per point of Mana, unless the Mana would overflow the cap anyway. Spending free Mana is never penalised. If the AI is **saving up** for a better Summon (see section 2), each point spent out of that reserve costs `reserveSpend` (0.6) more.
 - **Time.** Every candidate pays `delay` (0.15) per unit of timeline delay its action causes. Slower actions are a little worse.
-- **Threat.** The AI estimates the damage enemies could deal to this Unit at its end position before its next turn. That is multiplied by `threat` (9) × value, capped at the Unit's current HP. If the threat would kill it, there is an extra penalty: `deathRisk` (70) × value for a Summon, or `summonerDeathRisk` (5,000) for a Summoner.
+- **Threat.** The AI estimates the damage enemies could deal to this Unit at its end position before its next turn, capped at its current HP, and charges `threat` (9) × value for it. For a Summon the charge is shaped and scaled:
+  - **Sized to toughness.** The charge follows the share of its HP the Unit would lose, on a curve (`hurtCurve` 0.5: half linear, half quadratic). Scrapes a Unit can absorb cost little, and damage that nearly kills it costs the most. A Rook barely minds a 2-damage poke; a 1-HP Summon minds everything.
+  - **Bolder when ahead.** The charge is divided by the side's push (see Position).
+  - If the threat would kill it, there is an extra penalty: `deathRisk` (70) × value for a Summon, or `summonerDeathRisk` (5,000) for a Summoner. The Summoner's threat is never shaped or scaled.
 
 The threat estimate is smarter than "worst-case damage":
 
 - Each enemy is considered only if it acts before this Unit's next turn. A Summoner also looks one enemy round further ahead (`summonerSecondRound`).
 - A fast enemy may get several turns in before this Unit acts again. If it can't hit this Unit this turn, the AI still checks whether it could walk over and hit it in time.
+- **Trades.** An enemy that my side can finish before it acts again pays for its hit: its threat is cut by up to `tradeCredit` (50%), in proportion to how much of its HP my allies can deal in time. An advance is judged as an exchange, not just as damage taken.
 - An enemy attacks only one target. A Summon is charged with its **share** of each enemy: the damage the enemy would deal to it, weighted against everything else that enemy could hit (by damage², so it leans toward its best target), and never less than 25% (`threatShareMin`). Summoners always carry full threat, because enemies always go after them.
 
 **Position**
 
 Every candidate also gets a position score for where it ends up. This is not about the Command itself:
 
-- **Summons** are pulled toward the nearest objective. Objectives are enemy Units, enemy-owned Stones, and the enemy Summoner (weighted lower). The pull is stronger when the AI is ahead on material or Stones, and stronger still when it is behind late in the game. The formula is `approach` (3) × pressure × distance.
+- **Push from a lead.** The side's lead is its share of HP-weighted material, plus 0.08 per Stone ahead, plus a little for Mana. The push is 1 + `leadPush` (3) × lead, between 1 and `maxPush` (2.5). It multiplies every Summon's pull toward objectives and divides its fear of damage, so a side that is ahead attacks rather than sits.
+- **A shared target.** Each turn the side picks one target: the enemy Summoner, when ahead by more than `focusLead` (0.15) or when any Summon could reach it within two moves; otherwise the enemy-held or free Stone nearest the Summons as a group. Summons converge on it instead of each drifting to its own nearest objective.
+- **Summons** are pulled by `approach` (3) × push × distance. Half of that pull goes toward the nearest objective (enemy Units and Stones not held), and half (`focus`), doubled, goes toward the shared target.
 - **Summoners** set their posture from the matchup:
   - **Fragility.** The AI works out how many hits from the three strongest enemies would kill the Summoner, using the real damage formula. It then scales the keep-away bonus, `summonerSafety` (8) per hex of distance to the nearest enemy up to 7 hexes, by `postureHits` (4) ÷ that number, clamped to ×0.35–1.5. A Summoner that takes 4 hits to kill keeps the standard distance, a glass cannon keeps further back, and a tank stands closer.
   - **Aggression.** A Summoner that is durable (more than 3 hits to kill) and hits enemy Summons hard (more than 1.5 damage per hit) is also pulled toward objectives, like a Summon. The pull is scaled by both, up to `summonerAggression` × `approach`. Its attacks then compete normally; the Summoner death-risk penalty still vetoes anything that would get it killed.
@@ -110,7 +116,7 @@ A Summon with a good attack will usually take it. The interesting part is what i
 ## Normal and Hard
 
 - **Normal** takes the single best-scoring candidate. Ties are broken with a random number from a seed based on the match's RNG state and the turn number, so the same match always plays out the same way.
-- **Hard** takes the top 5 distinct, legal candidates and plays each out (the playouts skip the screening re-score to stay within the time budget). After each one, every Unit plays Normal until this Unit's next turn (at most 6 turns). Each resulting position is then rated with `evaluate()`, which compares HP-weighted material, Summoners, Stones (weighted more as the Time Limit nears), and Mana. The best-rated first move wins. The candidate's own score only breaks near-ties.
+- **Hard** takes the top 5 distinct, legal candidates and plays each out (the playouts skip the screening re-score to stay within the time budget). After each one, every Unit plays Normal until this Unit's next turn (at most 6 turns). Each resulting position is then rated with `evaluate()`, which compares HP-weighted material, Summoners, Stones (a fixed weight for their Mana, never more as the Time Limit nears) and Mana. The best-rated first move wins. The candidate's own score only breaks near-ties.
 
 Hard is therefore only a few turns deeper in a rough sense. It sees how the next few turns play out with the AI's own policy, not how the opponent would respond. That's the design limit of the current version.
 
