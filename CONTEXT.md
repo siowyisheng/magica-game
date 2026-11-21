@@ -56,7 +56,7 @@ _Avoid_: Threat range, attack range (when meaning after moving)
 One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has none.
 
 **Counter**:
-Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. A Counter does ×2 damage; being Countered does ×0.5. Opposite Elements (Fire–Earth, Air–Water) are neutral.
+Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. A Counter adds +1.0 to the damage multiplier (×2 on its own); being Countered adds −0.5 (×0.5 on its own). It adds to the Facing bonus (see Damage). Opposite Elements (Fire–Earth, Air–Water) are neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
@@ -113,11 +113,11 @@ A Unit that starts its turn on a hex none of its Move Types may enter. It takes 
 One of the six hex directions a Unit faces.
 
 **Facing Modifier**:
-A damage multiplier based on the angle between a defender's Facing and the direction the hit comes from: ×1.0 at 0°, ×1.2 at 60°, ×1.6 at 120° and ×2.0 at 180°, interpolated for angles in between. It applies to both Attack and Magic.
+A damage multiplier based on the angle between a defender's Facing and the direction the hit comes from: ×1.0 at 0°, ×1.2 at 60°, ×1.6 at 120° and ×2.0 at 180°, interpolated for angles in between. It applies to both Attack and Magic, and adds to the Element bonus rather than multiplying with it (see Damage).
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic), then multiplied by Element, Facing, cover and Alignment. Can be 0; never raised to a minimum.
+A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic) × (1 + Facing bonus + Element bonus), then multiplied by cover and Alignment. The Facing and Element bonuses add rather than multiply, with no cap: each is its modifier minus 1 (a hit from behind adds +1.0, a Counter +1.0, being Countered −0.5), so a Counter from behind deals ×3 and a Countered hit from behind ×1.5. Can be 0; never raised to a minimum.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed.

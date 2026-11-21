@@ -157,8 +157,16 @@ describe('damage', () => {
 
     const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 14
     const weak = computeDamage(state, hound, hex(2, 3), crab, 'physical');
-    // 3 × 15/14 × 0.5 (water counters fire) × 2.0 (from behind) = 3.21 → 3
-    expect(weak.amount).toBe(3);
+    // bonuses add: 3 × 15/14 × (1 − 0.5 (water counters fire) + 1.0 (from behind)) = 4.82 → 5
+    expect(weak.amount).toBe(5);
+
+    // a Counter from behind: 3 × 15/9 × (1 + 1.0 + 1.0) = 15 → capped at the target's 10 HP
+    const hawk2 = place(state, 'hawk', 1, 4, 1, 0); // faces E, away from a hound at (3,1)
+    const back = computeDamage(state, hound, hex(3, 1), hawk2, 'physical');
+    expect(back.breakdown!.facing).toBe(2);
+    expect(back.amount).toBe(10);
+    const golem = place(state, 'golem', 1, 1, 5, 0); // fire, no counter: 3 × 15/17 × (1 + 1.0) = 5.29 → 5
+    expect(computeDamage(state, hound, hex(0, 5), golem, 'physical').amount).toBe(5);
 
   });
 
