@@ -620,10 +620,11 @@ function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): Turn
   }
   if (picks.length < 2) return picks[0]?.action ?? null;
   let best: { action: TurnAction; value: number } | null = null;
+  const rollout: W = { ...w, screen: 0 }; // playouts skip the screening re-score to stay in budget
   for (const c of picks) {
     let st = applyTurn(state, c.action).state;
     for (let t = 0; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
-      st = applyTurn(st, chooseAction(st, w, 'normal')).state;
+      st = applyTurn(st, chooseAction(st, rollout, 'normal')).state;
     }
     // position value, with the candidate's own score as a small tie-breaker
     const value = evaluate(st, me.side) + c.score * 0.01;
