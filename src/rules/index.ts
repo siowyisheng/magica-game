@@ -10,3 +10,4 @@ export { ELEMENTS } from './data/summons';
 export { SCAFFOLD_MAP } from './maps/scaffold';
 export * from './reach';
 export { validateMapWater, validateMap, MAX_FLOOD_SHARE } from './maps/validate';
+export { kindWarnings } from './data/checks';

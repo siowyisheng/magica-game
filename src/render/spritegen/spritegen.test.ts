@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderSprite, hasDesign, type FrameIndex, type ViewIndex } from './index';
-import { SUMMONS } from '../../rules/data/summons';
+import { SUMMONS, SUMMONERS } from '../../rules/kinds';
 
 const opaque = (d: Uint8ClampedArray) => {
   let n = 0;
@@ -10,17 +10,18 @@ const opaque = (d: Uint8ClampedArray) => {
 const same = (a: Uint8ClampedArray, b: Uint8ClampedArray) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 describe('unit sprite designs', () => {
-  const kinds = ['summoner', ...SUMMONS.map((k) => k.id)];
+  const kinds = [...SUMMONERS.map((k) => k.id), ...SUMMONS.map((k) => k.id)];
+  const elementOf = (id: string) => [...SUMMONERS, ...SUMMONS].find((s) => s.id === id)?.element ?? null;
 
-  it('has a design for the Summoner and all 28 summons', () => {
-    expect(kinds).toHaveLength(29);
+  it('has a design for all 10 Summoners and all 28 summons', () => {
+    expect(kinds).toHaveLength(38);
     for (const k of kinds) expect(hasDesign(k), k).toBe(true);
   });
 
   it('renders every kind in all 3 views and 5 idle frames, inside the frame', () => {
     const clipped = new Set<string>();
     for (const k of kinds) {
-      const el = SUMMONS.find((s) => s.id === k)?.element ?? null;
+      const el = elementOf(k);
       for (const view of [0, 1, 2] as ViewIndex[])
         for (const f of [0, 1, 2, 3, 4] as FrameIndex[]) {
           const px = renderSprite(k, 0, el, view, f, 48);
@@ -42,7 +43,7 @@ describe('unit sprite designs', () => {
 
   it('is deterministic, differs by Side, by view, and breathes between frames', () => {
     for (const k of kinds) {
-      const el = SUMMONS.find((s) => s.id === k)?.element ?? null;
+      const el = elementOf(k);
       const a = renderSprite(k, 0, el, 0, 0, 48).data;
       expect(same(a, renderSprite(k, 0, el, 0, 0, 48).data)).toBe(true);
       expect(same(a, renderSprite(k, 1, el, 0, 0, 48).data), `${k} side colours`).toBe(false);

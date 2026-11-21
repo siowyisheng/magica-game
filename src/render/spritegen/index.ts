@@ -44,7 +44,7 @@ export function hasDesign(kindId: string): boolean {
 
 export function buildModel(kindId: string, frame: FrameIndex): Model {
   const m = new Model();
-  const design = DESIGNS[kindId] ?? DESIGNS.summoner;
+  const design = DESIGNS[kindId] ?? DESIGNS.sigil;
   design.build(m, { ...FRAME_POSES[frame], frame });
   return m;
 }
@@ -61,7 +61,7 @@ export function renderSprite(kindId: string, side: SideId, element: ElementKey, 
     ox: size / 2,
     oy: WINDOW.y1 * px,
   });
-  const design = DESIGNS[kindId] ?? DESIGNS.summoner;
+  const design = DESIGNS[kindId] ?? DESIGNS.sigil;
   const data = shade(gb, paletteFor(kindId, side, element, design.palette), { blink: FRAME_POSES[frame].blink, px });
   return { w: size, h: size, data };
 }

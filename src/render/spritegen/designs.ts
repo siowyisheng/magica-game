@@ -8,6 +8,7 @@ import { FIRE } from './fire';
 import { AIR } from './air';
 import { EARTH } from './earth';
 import { WATER } from './water';
+import { SUMMONER_DESIGNS } from './summoners';
 
 export interface Design {
   /** Material colours for this kind (merged over the defaults). */
@@ -17,11 +18,11 @@ export interface Design {
 
 const D: Record<string, Design> = {};
 
-// ---------------------------------------------------------------- Summoner
-// A young mage in a long Side-coloured robe and cape, with a wide-brimmed
+// ---------------------------------------------------------------- Sigil
+// Sigil — accent violet. A young mage in a long Side-coloured robe and cape, with a wide-brimmed
 // hat and a staff. Wild: a halo of floating rune shards behind the head, and
 // a spark of magic held in the free hand.
-D.summoner = {
+D.sigil = {
   palette: { hair: '#e9e4f5', iris: '#8a5cff', glow: '#b98cff' },
   build(m, p) {
     const f = figure(m, p, {
@@ -124,4 +125,4 @@ D.hound = {
   },
 };
 
-export const DESIGNS: Record<string, Design> = { ...D, ...FIRE, ...AIR, ...EARTH, ...WATER };
+export const DESIGNS: Record<string, Design> = { ...D, ...SUMMONER_DESIGNS, ...FIRE, ...AIR, ...EARTH, ...WATER };

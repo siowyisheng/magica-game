@@ -81,7 +81,7 @@ describe('facing modifier', () => {
 // ---------- turn delays ----------
 
 describe('turn delay', () => {
-  const k = (spd: number) => ({ ...kindOf('summoner'), stats: { ...kindOf('summoner').stats, spd } });
+  const k = (spd: number) => ({ ...kindOf('sigil'), stats: { ...kindOf('sigil').stats, spd } });
   it('matches the designer anchors', () => {
     expect(turnDelay(k(13), false, false)).toBe(25);
     expect(turnDelay(k(13), false, true)).toBe(37);
@@ -128,7 +128,7 @@ describe('roster', () => {
   });
 
   it('gives Summoners walk+wade, most Earth summons wade, and no Fire summon wade', () => {
-    expect(kindOf('summoner').moveTypes).toEqual(['walk', 'wade']);
+    expect(kindOf('sigil').moveTypes).toEqual(['walk', 'wade']);
     const earth = SUMMONS.filter((x) => x.element === 'earth');
     expect(earth.filter((x) => x.moveTypes.includes('wade')).length).toBeGreaterThan(earth.length / 2);
     for (const f of SUMMONS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
@@ -168,8 +168,8 @@ describe('damage', () => {
   it('reduces damage on rough (20%) and magic stones (30%)', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
-    const a = place(state, 'summoner', 0, 1, 1);
-    const b = place(state, 'summoner', 1, 2, 1, 3);
+    const a = place(state, 'sigil', 0, 1, 1);
+    const b = place(state, 'sigil', 1, 2, 1, 3);
     // 3 × 8/10 = 2.4 ; rough → 1.92 → 2
     expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(20);
@@ -183,7 +183,7 @@ describe('damage', () => {
   it('applies day/night alignment', () => {
     const state = createMatch(testMap(6, 6));
     const archer = place(state, 'archer', 0, 1, 1); // day, fire ATK 14
-    const sum = place(state, 'summoner', 1, 3, 1, 3); // DEF 10
+    const sum = place(state, 'sigil', 1, 3, 1, 3); // DEF 10
     state.clock = 12 * 60; // day: ATK ×1.2
     expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(5); // 5.04
     state.clock = 22 * 60; // night: ×0.8
@@ -199,7 +199,7 @@ describe('movement', () => {
       testMap(8, 3, (q) => (q === 1 ? { terrain: 'rough' } : q === 2 ? { height: 2 } : q === 3 ? { height: 4 } : {})),
     );
     state.units = [];
-    const walker = place(state, 'summoner', 0, 0, 1); // MOV 4, walk
+    const walker = place(state, 'sigil', 0, 0, 1); // MOV 4, walk
     const nodes = reachable(state, walker);
     expect(nodes.get(hexKey(hex(1, 1)))?.cost).toBe(2); // rough
     expect(nodes.get(hexKey(hex(2, 1)))?.cost).toBe(4); // +1 plain +1 climb
@@ -590,3 +590,40 @@ function withLine(): MatchState {
   s.units = [];
   return s;
 }
+
+// ---------- Summoners and balance overrides ----------
+
+describe('summoners', () => {
+  it('has ten Summoners with short names, all walk + wade with Bolt, Rise and Ebb', async () => {
+    const { SUMMONERS, kindWarnings } = await import('./index');
+    expect(SUMMONERS).toHaveLength(10);
+    expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(10);
+    for (const k of SUMMONERS) {
+      expect(k.name.length).toBeLessThanOrEqual(7);
+      expect(k.moveTypes).toEqual(['walk', 'wade']);
+      expect(k.magic.map((m) => m.id)).toEqual(['bolt', 'rise', 'ebb']);
+      expect(kindWarnings(k, SUMMONERS)).toEqual([]);
+    }
+    expect(SUMMONERS.filter((k) => k.element).length).toBe(2);
+    expect(SUMMONERS.filter((k) => k.alignment !== 'none').length).toBe(2);
+  });
+
+  it('lets each Side start with its chosen Summoner', () => {
+    const s = createMatch(SCAFFOLD_MAP, { summoners: ['cinder', 'orrery'] });
+    expect(s.units.map((u) => u.kind)).toEqual(['cinder', 'orrery']);
+  });
+
+  it('applies local overrides to the live roster and can reset them', async () => {
+    const { setLocalOverrides, kindOf: k, SUMMONS: roster } = await import('./index');
+    setLocalOverrides({ imp: { stats: { ...k('imp').stats, atk: 20 } } });
+    expect(k('imp').stats.atk).toBe(20);
+    expect(roster.find((x) => x.id === 'imp')!.stats.atk).toBe(20);
+    setLocalOverrides({});
+    expect(k('imp').stats.atk).toBe(13);
+  });
+
+  it('summon kinds pass the design checks', async () => {
+    const { SUMMONS: roster, kindWarnings } = await import('./index');
+    for (const kind of roster) expect(kindWarnings(kind, roster), kind.id).toEqual([]);
+  });
+});

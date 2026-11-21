@@ -8,7 +8,7 @@ import {
   STONE_BASE,
   UPKEEP_DIVISOR,
 } from './data/tuning';
-import { kindOf } from './kinds';
+import { DEFAULT_SUMMONER, kindOf } from './kinds';
 import { affectedUnits, attackTargets, computeDamage, computeHeal, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
 import { canPlace, isStranded, mapHexAt, reachable, surfaceOf, targetAt } from './terrain';
 import { isObstacle, type GameEvent, type MagicAbility, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
@@ -91,6 +91,8 @@ export function canCastWater(state: MatchState, delta: 1 | -1): boolean {
 export interface MatchOptions {
   ai?: [boolean, boolean];
   seed?: number;
+  /** Summoner kind for each Side (default Sigil). */
+  summoners?: [string, string];
 }
 
 export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
@@ -121,7 +123,8 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
     rngState: (opts.seed ?? 12345) >>> 0,
   };
   for (const side of [0, 1] as const) {
-    const k = kindOf('summoner');
+    const k = kindOf(opts.summoners?.[side] ?? DEFAULT_SUMMONER);
+    if (!k.isSummoner) throw new Error(`${k.id} is not a Summoner`);
     state.units.push({
       id: state.nextUnitId++,
       kind: k.id,

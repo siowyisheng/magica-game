@@ -1,7 +1,7 @@
 import type { MapDef } from '../types';
 import { hexEq, hexKey } from '../hex';
 import { canStandOn, mapHexAt, surfaceOf } from '../terrain';
-import { SUMMONER } from '../data/summoner';
+import { BASE_SUMMONERS } from '../data/summoner';
 
 /** Highest share of the map that may be water after one Rise. */
 export const MAX_FLOOD_SHARE = 0.4;
@@ -40,7 +40,7 @@ export function validateMap(map: MapDef): string[] {
   map.spawns.forEach((s, i) => {
     const mh = mapHexAt(map, s);
     if (!mh) problems.push(`${names[i]} spawn is off the map`);
-    else if (!canStandOn(SUMMONER, mh, map.waterLevel)) problems.push(`${names[i]} spawn is on a hex a Summoner cannot stand on`);
+    else if (!canStandOn(BASE_SUMMONERS[0], mh, map.waterLevel)) problems.push(`${names[i]} spawn is on a hex a Summoner cannot stand on`);
     if ((map.obstacles ?? []).some((o) => hexEq(o.hex, s))) problems.push(`${names[i]} spawn is under an Obstacle`);
   });
   if (hexEq(map.spawns[0], map.spawns[1])) problems.push('both spawns are on the same hex');

@@ -410,8 +410,8 @@ function SpawnMarker({ match, side, hex, facing }: { match: MatchState; side: 0 
   const mh = match.map.hexes.find((h) => h.hex.q === hex.q && h.hex.r === hex.r);
   const [x, z] = hexToWorld(hex);
   const y = mh ? Math.max(mh.height, match.waterLevel) * STEP : 0;
-  const size = spriteWorldSize('summoner');
-  const lift = size / 2 - spriteFeetOffset('summoner') + 0.05;
+  const size = spriteWorldSize('sigil');
+  const lift = size / 2 - spriteFeetOffset('sigil') + 0.05;
   const [vx, vz] = hexToWorld([{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }][facing]);
   const angle = Math.atan2(-vz, vx);
   return (
@@ -420,7 +420,7 @@ function SpawnMarker({ match, side, hex, facing }: { match: MatchState; side: 0 
         <meshBasicMaterial color={SIDE_COLORS[side]} side={THREE.DoubleSide} />
       </mesh>
       <sprite scale={[size, size, 1]} position={[0, lift, 0]} raycast={() => null}>
-        <spriteMaterial map={unitFrameTexture('summoner', side, 0, facing)} transparent alphaTest={0.5} />
+        <spriteMaterial map={unitFrameTexture('sigil', side, 0, facing)} transparent alphaTest={0.5} />
       </sprite>
     </group>
   );

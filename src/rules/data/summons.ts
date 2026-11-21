@@ -114,4 +114,5 @@ function build(element: Element, d: Def): UnitKind {
 
 export const ELEMENTS: readonly Element[] = ['fire', 'air', 'earth', 'water'];
 
-export const SUMMONS: readonly UnitKind[] = ELEMENTS.flatMap((e) => TABLE[e].map((d) => build(e, d)));
+/** Built-in summons (before any balance overrides). */
+export const BASE_SUMMONS: readonly UnitKind[] = ELEMENTS.flatMap((e) => TABLE[e].map((d) => build(e, d)));

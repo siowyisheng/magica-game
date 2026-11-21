@@ -113,7 +113,7 @@ function baseCanvas(kindId: string, side: SideId, view: ViewIndex, frame: IdleFr
   let cv = baseCache.get(key);
   if (cv) return cv;
   const k = kindOf(kindId);
-  const px = renderSprite(k.isSummoner ? 'summoner' : kindId, side, k.element, view, frame, texelSize(kindId, ps));
+  const px = renderSprite(kindId, side, k.element, view, frame, texelSize(kindId, ps));
   cv = document.createElement('canvas');
   cv.width = px.w;
   cv.height = px.h;

@@ -13,7 +13,7 @@ describe('AI', () => {
       st = applyTurn(st, a).state;
       turns++;
     }
-    const summons = st.units.filter((u) => u.kind !== 'summoner').length;
+    const summons = st.units.filter((u) => u.kind !== 'sigil').length;
     console.log(`turns=${turns} winner=${st.winner} summons=${summons} clock=${st.clock} ms/turn=${((Date.now() - t0) / turns).toFixed(1)} stones=${st.stones.map((s) => s.owner).join(',')}`);
     expect(turns).toBeGreaterThan(10);
   }, 120000);
