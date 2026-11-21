@@ -9,4 +9,6 @@ export * from './data/tuning';
 export { ELEMENTS } from './data/summons';
 export { SCAFFOLD_MAP } from './maps/scaffold';
 export * from './reach';
-export { validateMapWater, MAX_FLOOD_SHARE } from './maps/validate';
+export { validateMapWater, validateMap, MAX_FLOOD_SHARE } from './maps/validate';
+export { kindWarnings } from './data/checks';
+export { STARTER_LOADOUTS, loadoutProblems, type Loadout } from './data/loadouts';

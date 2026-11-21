@@ -5,6 +5,11 @@ import { InfoPanel } from './ui/InfoPanel';
 import { SummonCard } from './ui/SummonCard';
 import { useGame } from './store';
 import { activeUnit, kindOf } from './rules';
+import { MapEditor } from './editor/MapEditor';
+import { DevTool } from './dev/DevTool';
+import { MatchSetupDialog } from './ui/MatchSetup';
+import { LoadoutEditor } from './ui/LoadoutEditor';
+import { LoadoutsModal } from './ui/LoadoutView';
 
 function PhaseHint() {
   const phase = useGame((s) => s.phase);
@@ -37,7 +42,8 @@ function GameOver() {
     <div className="game-over">
       <div className="window">
         <h2>{match.winner === 0 ? 'Green' : 'Red'} wins</h2>
-        <button onClick={newMatch}>New match</button>
+        <button onClick={newMatch}>Rematch</button>
+        <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
       </div>
     </div>
   );
@@ -47,9 +53,25 @@ export function App() {
   const version = useGame((s) => s.version);
   const tickAi = useGame((s) => s.tickAi);
   const match = useGame((s) => s.match);
+  const screen = useGame((s) => s.screen);
   useEffect(() => {
-    tickAi();
-  }, [version, match, tickAi]);
+    if (screen === 'game') tickAi();
+  }, [version, match, tickAi, screen]);
+  if (screen === 'editor') return <MapEditor />;
+  if (screen === 'loadouts')
+    return (
+      <>
+        <LoadoutEditor />
+        <MatchSetupDialog />
+      </>
+    );
+  if (screen === 'dev')
+    return (
+      <>
+        <DevTool />
+        <MatchSetupDialog />
+      </>
+    );
   return (
     <div className="app">
       <div className="main">
@@ -62,6 +84,8 @@ export function App() {
         </div>
         <InfoPanel />
       </div>
+      <MatchSetupDialog />
+      <LoadoutsModal />
     </div>
   );
 }

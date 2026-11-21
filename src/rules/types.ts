@@ -18,7 +18,16 @@ export interface Stats {
 /** Attack Ability: hits one enemy within `range` (no minimum range). */
 export interface AttackAbility {
   range: number;
+  /** How a ranged (range > 1) Attack flies; absent for melee. */
+  trajectory?: Trajectory;
 }
+
+/**
+ * How a ranged Attack or Magic Ability travels. High arcs over everything
+ * and always hits a target in range; Direct flies straight and needs a
+ * Clear Angle past Units and Obstacles.
+ */
+export type Trajectory = 'high' | 'direct';
 
 /**
  * Magic Ability. Damage hits enemies only; heals hit allies (caster
@@ -34,6 +43,8 @@ export type MagicAbility =
       /** 0 = single hex, 1 = aimed hex and its neighbours. */
       radius: 0 | 1;
       manaCost: number;
+      /** Set when range > 1. */
+      trajectory?: Trajectory;
     }
   | {
       id: string;
@@ -61,16 +72,29 @@ export interface UnitKind {
   role: string;
 }
 
-export type HexTerrain = 'plain' | 'rough' | 'stone';
+export type HexTerrain = 'plain' | 'rough' | 'stone' | 'pit';
 
 export interface MapHex {
   hex: Hex;
   height: number;
   terrain: HexTerrain;
+  /** Theme look (0 or 1) for Plain and Rough; picked from the position when absent. */
+  variant?: 0 | 1;
+}
+
+export type ObstacleDefense = 5 | 10 | 15;
+
+export interface MapObstacle {
+  hex: Hex;
+  def: ObstacleDefense;
 }
 
 export interface MapDef {
   name: string;
+  /** Theme id (visual only). */
+  theme?: string;
+  /** Obstacles at the start of the match. */
+  obstacles?: MapObstacle[];
   /** Hexes in deterministic authoring order. */
   hexes: MapHex[];
   waterLevel: number;
@@ -91,6 +115,21 @@ export interface Unit {
   stranded: boolean;
 }
 
+/** A neutral map object with HP; ids share the Unit id space. */
+export interface Obstacle {
+  id: number;
+  pos: Hex;
+  def: ObstacleDefense;
+  hp: number;
+}
+
+/** Anything that can be hit: a Unit or an Obstacle. */
+export type Target = Unit | Obstacle;
+
+export function isObstacle(t: Target): t is Obstacle {
+  return !('kind' in t);
+}
+
 export interface Stone {
   hex: Hex;
   owner: SideId | null;
@@ -99,6 +138,8 @@ export interface Stone {
 export interface SideState {
   mana: number;
   ai: boolean;
+  /** Summon kinds this Side may Summon (its Loadout); absent = all (Test Match). */
+  roster?: string[];
 }
 
 export interface MatchState {
@@ -110,6 +151,7 @@ export interface MatchState {
   /** Absolute minutes since 00:00 of day 1. */
   clock: number;
   units: Unit[];
+  obstacles: Obstacle[];
   stones: Stone[];
   sides: [SideState, SideState];
   nextUnitId: number;

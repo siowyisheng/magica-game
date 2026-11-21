@@ -1,4 +1,4 @@
-import type { Alignment, Element, MagicAbility, MoveType, Stats, UnitKind } from '../types';
+import type { Alignment, Element, MagicAbility, MoveType, Stats, Trajectory, UnitKind } from '../types';
 
 // 28 original placeholder Summons, 7 per Element. Names are at most 6
 // letters. Costs are multiples of 8 in 16..96 and unique within each
@@ -61,6 +61,35 @@ const TABLE: Record<Element, Def[]> = {
   ],
 };
 
+/** Trajectory of each ranged (range > 1) Attack, by kind. */
+const ATTACK_TRAJECTORY: Record<string, Trajectory> = { archer: 'high', sling: 'direct', djinn: 'direct', kraken: 'high' };
+
+/** Trajectory of each ranged Magic Ability, by name. Lightning strikes from the sky: High. */
+const MAGIC_TRAJECTORY: Record<string, Trajectory> = {
+  Spark: 'direct',
+  'Fire Arrow': 'direct',
+  Rekindle: 'high',
+  'Steam Burst': 'high',
+  Firestorm: 'high',
+  Gust: 'direct',
+  'Talon Wind': 'direct',
+  Lightning: 'high',
+  'Soothing Breeze': 'high',
+  Screech: 'direct',
+  Tempest: 'high',
+  Pebble: 'high',
+  'Thorn Spray': 'direct',
+  'Rock Throw': 'high',
+  'Verdant Mend': 'high',
+  Landslide: 'high',
+  Splash: 'direct',
+  'Bubble Shot': 'direct',
+  'Water Jet': 'direct',
+  'Healing Rain': 'high',
+  'Ice Fang': 'direct',
+  'Tidal Wave': 'high',
+};
+
 function build(element: Element, d: Def): UnitKind {
   const [id, name, cost, alignment, role, s, moveTypes, attackRange, magic] = d;
   const stats: Stats = { atk: s[0], def: s[1], mp: s[2], mdf: s[3], spd: s[4], mov: s[5] };
@@ -73,12 +102,17 @@ function build(element: Element, d: Def): UnitKind {
     cost,
     stats,
     moveTypes,
-    attack: { range: attackRange },
-    magic: [{ ...magic, id: `${id}:magic` }],
+    attack: attackRange > 1 ? { range: attackRange, trajectory: ATTACK_TRAJECTORY[id] } : { range: attackRange },
+    magic: [
+      magic.range > 1
+        ? { ...magic, id: `${id}:magic`, trajectory: MAGIC_TRAJECTORY[magic.name] ?? 'high' }
+        : { ...magic, id: `${id}:magic` },
+    ],
     role,
   };
 }
 
 export const ELEMENTS: readonly Element[] = ['fire', 'air', 'earth', 'water'];
 
-export const SUMMONS: readonly UnitKind[] = ELEMENTS.flatMap((e) => TABLE[e].map((d) => build(e, d)));
+/** Built-in summons (before any balance overrides). */
+export const BASE_SUMMONS: readonly UnitKind[] = ELEMENTS.flatMap((e) => TABLE[e].map((d) => build(e, d)));

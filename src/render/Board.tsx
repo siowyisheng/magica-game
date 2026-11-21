@@ -1,9 +1,9 @@
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   type Hex,
+  type MapHex,
   type MatchState,
   type SideId,
   type Unit,
@@ -20,7 +20,6 @@ import {
   pathTo,
   reachable,
   surfaceHeight,
-  surfaceOf,
   unitAt,
   DIRS,
   minAimDistance,
@@ -36,7 +35,6 @@ import {
   facingForHeading,
   idleFrameAt,
   projectileTexture,
-  setSpritePixelSize,
   spriteFeetOffset,
   spriteTopHeight,
   spriteWorldSize,
@@ -47,14 +45,10 @@ import {
 import { MS_PER_HEX, SUMMON_PHASES, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
+import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water } from './Terrain';
+import { themeOf, type Theme } from './themes';
 
-const SQRT3 = Math.sqrt(3);
-export const STEP = 0.5; // world units per Height level
-const BASE = -1.5;
-
-export function hexToWorld(h: Hex): [number, number] {
-  return [SQRT3 * (h.q + h.r / 2), 1.5 * h.r];
-}
+export { STEP, hexToWorld };
 
 function topY(match: MatchState, h: Hex): number {
   const mh = mapHexAt(match.map, h);
@@ -64,9 +58,10 @@ function topY(match: MatchState, h: Hex): number {
 
 // ---------- camera controls: wheel zoom, right-drag pan, right-click cancel ----------
 
-function CameraControls() {
+export function CameraControls({ onRightClick }: { onRightClick?: () => void } = {}) {
   const { camera, gl } = useThree();
-  const rightClick = useGame((s) => s.rightClick);
+  const gameRightClick = useGame((s) => s.rightClick);
+  const rightClick = onRightClick ?? gameRightClick;
   useEffect(() => {
     const el = gl.domElement;
     const cam = camera as THREE.OrthographicCamera;
@@ -122,25 +117,8 @@ function CameraControls() {
 
 // ---------- terrain ----------
 
-const hexGeoCache = new Map<number, THREE.CylinderGeometry>();
-function columnGeo(height: number): THREE.CylinderGeometry {
-  let g = hexGeoCache.get(height);
-  if (!g) {
-    const h = height * STEP - BASE;
-    g = new THREE.CylinderGeometry(0.97, 0.97, h, 6, 1);
-    g.translate(0, h / 2 + BASE, 0);
-    hexGeoCache.set(height, g);
-  }
-  return g;
-}
 // Flat hexagons aligned with the (pointy-top) tile columns.
 const ringGeo = new THREE.RingGeometry(0.74, 0.92, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
-
-function terrainColor(terrain: string, height: number): string {
-  const c = new THREE.Color(terrain === 'rough' ? '#5d6b34' : terrain === 'stone' ? '#77806a' : '#8f9a52');
-  c.offsetHSL(0, 0, (height - 3) * 0.05);
-  return `#${c.getHexString()}`;
-}
 
 const STONE_NEUTRAL = '#a8804a'; // light brown (glow brightens it)
 
@@ -159,9 +137,7 @@ const lightTex = (() => {
 })();
 
 /** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
-/** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
-/** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
-function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: number; owner: SideId | null }) {
+export function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: number; owner: SideId | null }) {
   const mat = useRef<THREE.MeshLambertMaterial>(null);
   const light = useRef<THREE.Sprite>(null);
   const lightMat = useRef<THREE.SpriteMaterial>(null);
@@ -206,39 +182,11 @@ function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: number; owne
   );
 }
 
-function Tile({
-  h,
-  height,
-  terrain,
-  owner,
-  depth,
-}: {
-  h: Hex;
-  height: number;
-  terrain: string;
-  owner?: SideId | null;
-  /** Water depth over this tile (0 = dry). */
-  depth: number;
-}) {
+function Tile({ mh, theme, owner, depth }: { mh: MapHex; theme: Theme; owner?: SideId | null; depth: number }) {
+  const h = mh.hex;
   const [x, z] = hexToWorld(h);
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
-  const color = useMemo(() => {
-    const c = new THREE.Color(terrainColor(terrain, height));
-    // seen through the water: shallow floors a little darker, deep floors much darker
-    if (depth === 1) c.lerp(new THREE.Color('#2f5a52'), 0.35);
-    else if (depth >= 2) c.lerp(new THREE.Color('#0a1622'), 0.7);
-    return `#${c.getHexString()}`;
-  }, [terrain, height, depth]);
-  const bushes = useMemo(() => {
-    if (terrain !== 'rough' || depth > 0) return [];
-    const seed = (h.q * 73856093) ^ (h.r * 19349663);
-    return [0, 1, 2].map((i) => {
-      const a = ((seed >>> (i * 5)) & 31) / 31 * Math.PI * 2;
-      const r = 0.25 + (((seed >>> (i * 3)) & 7) / 7) * 0.4;
-      return [Math.cos(a) * r, Math.sin(a) * r] as [number, number];
-    });
-  }, [terrain, h.q, h.r, depth]);
   const onMove = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     setHoverHex(h);
@@ -250,101 +198,14 @@ function Tile({
   };
   return (
     <group position={[x, 0, z]} onPointerMove={onMove} onClick={onClick}>
-      {terrain === 'stone' ? (
-        <StoneColumn hex={h} height={height} owner={owner ?? null} />
+      {mh.terrain === 'stone' ? (
+        <StoneColumn hex={h} height={mh.height} owner={owner ?? null} />
+      ) : mh.terrain === 'pit' ? (
+        <PitTile mh={mh} theme={theme} />
       ) : (
-        <mesh geometry={columnGeo(height)}>
-          <meshLambertMaterial color={color} flatShading />
-        </mesh>
+        <ThemedTile mh={mh} theme={theme} depth={depth} />
       )}
-      {bushes.map(([bx, bz], i) => (
-        <mesh key={i} position={[bx, height * STEP + 0.18, bz]}>
-          <coneGeometry args={[0.16, 0.38, 5]} />
-          <meshLambertMaterial color="#3d4a22" flatShading />
-        </mesh>
-      ))}
     </group>
-  );
-}
-
-/** Pixel ripple texture for the water surface (tiles seamlessly). */
-const rippleTex = (() => {
-  const n = 32;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = n;
-  const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = '#d0d0d0';
-  ctx.fillRect(0, 0, n, n);
-  for (let y = 0; y < n; y++)
-    for (let x = 0; x < n; x++) {
-      const w = Math.sin((x / n) * Math.PI * 4 + Math.sin((y / n) * Math.PI * 2) * 2) + Math.sin((y / n) * Math.PI * 6);
-      if (w > 1.3) ctx.fillStyle = '#ffffff';
-      else if (w < -1.4) ctx.fillStyle = '#a8a8a8';
-      else continue;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  const t = new THREE.CanvasTexture(cv);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.magFilter = t.minFilter = THREE.NearestFilter;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-})();
-
-/** Axial hex containing world point (x, z). */
-function worldToHex(x: number, z: number): Hex {
-  const qf = (SQRT3 / 3) * x - z / 3;
-  const rf = (2 / 3) * z;
-  const sf = -qf - rf;
-  let q = Math.round(qf);
-  let r = Math.round(rf);
-  const sRound = Math.round(sf);
-  const dq = Math.abs(q - qf);
-  const dr = Math.abs(r - rf);
-  const ds = Math.abs(sRound - sf);
-  if (dq > dr && dq > ds) q = -r - sRound;
-  else if (dr > ds) r = -q - sRound;
-  return { q, r };
-}
-
-/** One continuous water surface over every water hex, in a single look. */
-function Water({ match }: { match: MatchState }) {
-  const setHoverHex = useGame((s) => s.setHoverHex);
-  const clickHex = useGame((s) => s.clickHex);
-  const geo = useMemo(() => {
-    const parts: THREE.BufferGeometry[] = [];
-    for (const mh of match.map.hexes) {
-      if (surfaceOf(mh, match.waterLevel) === 'land') continue;
-      const [x, z] = hexToWorld(mh.hex);
-      const g = new THREE.CircleGeometry(1, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6).translate(x, 0, z);
-      const pos = g.getAttribute('position');
-      const uv = g.getAttribute('uv');
-      for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / 3, pos.getZ(i) / 3); // world-space UVs: seamless
-      parts.push(g);
-    }
-    return parts.length ? mergeGeometries(parts) : null;
-  }, [match.map, match.waterLevel]);
-  useFrame((_, dt) => {
-    rippleTex.offset.x += dt * 0.03;
-    rippleTex.offset.y += dt * 0.012;
-  });
-  if (!geo) return null;
-  const hexAt = (e: ThreeEvent<PointerEvent | MouseEvent>) => worldToHex(e.point.x, e.point.z);
-  return (
-    <mesh
-      geometry={geo}
-      position={[0, match.waterLevel * STEP - 0.06, 0]}
-      onPointerMove={(e) => {
-        e.stopPropagation();
-        setHoverHex(hexAt(e));
-      }}
-      onClick={(e) => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        clickHex(hexAt(e));
-      }}
-    >
-      <meshLambertMaterial color="#4a9aa2" map={rippleTex} transparent opacity={0.62} depthWrite={false} />
-    </mesh>
   );
 }
 
@@ -902,8 +763,9 @@ function Projectile({ step }: { step: Extract<AnimStep, { kind: 'projectile' }> 
     const p = (t - step.t0) / (step.t1 - step.t0);
     sp.visible = p >= 0 && p <= 1;
     if (!sp.visible) return;
-    const arc = step.style === 'arrow' ? 1.1 : 0.35;
-    const at = (q: number) => tmp.copy(a).lerp(b, q).setY(a.y + (b.y - a.y) * q + Math.sin(q * Math.PI) * arc * Math.min(1, a.distanceTo(b) / 3));
+    // High: a tall lob that grows with distance. Direct: a straight line.
+    const arc = step.high ? 1.2 + 0.35 * a.distanceTo(b) : 0;
+    const at = (q: number) => tmp.copy(a).lerp(b, q).setY(a.y + (b.y - a.y) * q + 4 * q * (1 - q) * arc);
     const cur = at(p).clone();
     sp.position.copy(cur);
     if (mat.current) {
@@ -1018,6 +880,7 @@ function Projector() {
 
 function Scene() {
   const match = useGame((s) => s.match);
+  const theme = themeOf(match.map.theme);
   const setHoverHex = useGame((s) => s.setHoverHex);
   const center = useMemo(() => {
     const xs = match.map.hexes.map((h) => hexToWorld(h.hex));
@@ -1035,7 +898,7 @@ function Scene() {
 
   return (
     <>
-      <color attach="background" args={['#1b2233']} />
+      <color attach="background" args={[theme.background]} />
       <hemisphereLight args={['#dfe8ff', '#3a3320', 0.9]} />
       <directionalLight position={[10, 20, 8]} intensity={1.6} />
       <CameraControls />
@@ -1043,12 +906,14 @@ function Scene() {
         {match.map.hexes.map((mh) => (
           <Tile
             key={hexKey(mh.hex)}
-            h={mh.hex}
-            height={mh.height}
-            terrain={mh.terrain}
+            mh={mh}
+            theme={theme}
             owner={mh.terrain === 'stone' ? (match.stones.find((s) => hexEq(s.hex, mh.hex))?.owner ?? null) : undefined}
-            depth={Math.max(0, match.waterLevel - mh.height)}
+            depth={mh.terrain === 'pit' ? 0 : Math.max(0, match.waterLevel - mh.height)}
           />
+        ))}
+        {match.obstacles.map((o) => (
+          <ObstacleView key={o.id} o={o} theme={theme} match={match} />
         ))}
       </group>
       <Water match={match} />
@@ -1061,17 +926,9 @@ function Scene() {
 }
 
 export function Board() {
-  const pixelSize = useGame((s) => s.pixelSize);
-  setSpritePixelSize(pixelSize);
   return (
     <>
-    <Canvas
-      orthographic
-      camera={{ zoom: 38, near: -200, far: 400 }}
-      dpr={1 / pixelSize}
-      gl={{ antialias: false }}
-      style={{ imageRendering: pixelSize > 1 ? 'pixelated' : 'auto' }}
-    >
+    <Canvas orthographic camera={{ zoom: 38, near: -200, far: 400 }} dpr={1} gl={{ antialias: false }}>
       <Scene />
     </Canvas>
     <Overlay />

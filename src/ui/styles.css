@@ -190,3 +190,88 @@ button:disabled { opacity: 0.4; cursor: default; }
 .now-playing { display: flex; align-items: center; gap: 6px; }
 .now-playing .track-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .small-btn { padding: 0 6px; line-height: 1.3; }
+
+.dmg-tag.blocked { background: #2a2030ee; color: #ffb0a0; border: 1px solid #a05050; padding: 2px 6px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
+.hp-bar span.on.grey { background: #c8c2b8; }
+
+/* map editor */
+.btn-row { display: flex; gap: 6px; margin: 3px 0; flex-wrap: wrap; }
+.editor { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
+.editor-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 6px; padding: 6px 10px; }
+.editor-top input[type='number'] { width: 46px; }
+.editor-top input:not([type]) { width: 170px; }
+.editor-top .spacer { flex: 1; }
+.editor-body { flex: 1; display: flex; min-height: 0; gap: 6px; padding: 0 6px 6px; }
+.editor-tools { width: 150px; display: flex; flex-direction: column; gap: 3px; }
+.editor-tools .tool { text-align: left; }
+.editor-tools .tool.on, .map-item.on { background: var(--win-edge); border-color: var(--win-edge-hi); color: #fff; }
+.editor-tools .key { display: inline-block; width: 14px; color: var(--muted); }
+.editor-tools .def-row { display: flex; gap: 4px; }
+.editor-tools .tool-hint { min-height: 44px; margin-top: 6px; }
+.editor-view { flex: 1; position: relative; min-width: 0; border: 1px solid var(--win-edge); }
+.editor-view canvas { display: block; }
+.editor-status { position: absolute; left: 8px; bottom: 6px; font-size: 12px; color: #dfe4f5; text-shadow: 0 1px 2px #000; pointer-events: none; }
+.editor-status .flash { color: #ffe066; margin-left: 10px; }
+.editor-side { width: 230px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+.editor-side .play { margin-top: 6px; font-weight: bold; }
+.map-list { display: flex; flex-direction: column; gap: 3px; }
+.map-item { text-align: left; }
+.good { color: #8fe08f; }
+.bad { color: #ff9a8a; }
+
+/* match setup */
+.modal-back { position: fixed; inset: 0; background: #0009; display: flex; align-items: center; justify-content: center; z-index: 200; }
+.match-setup { width: min(980px, 96vw); max-height: 94vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.match-setup .slider select { flex: 1; }
+.setup-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.setup-side .side-name { font-weight: bold; margin-bottom: 4px; }
+.summoner-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 4px; margin: 4px 0; }
+.summoner-pick { display: flex; flex-direction: column; align-items: center; padding: 3px 2px; font-size: 12px; }
+.summoner-pick img { width: 44px; height: 55px; image-rendering: pixelated; }
+.summoner-pick.on { background: var(--win-edge); border-color: var(--win-edge-hi); color: #fff; }
+.summoner-pick .random-mark { width: 44px; height: 55px; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--muted); }
+.summoner-info { min-height: 64px; }
+.btn-row.end { justify-content: flex-end; }
+.tool.on { background: var(--win-edge); border-color: var(--win-edge-hi); color: #fff; }
+
+/* dev tool */
+.devtool { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
+.devtool .flash { color: #ffe066; }
+.dev-list { width: 210px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.dev-item { display: flex; align-items: center; gap: 6px; padding: 1px 4px; }
+.dev-item img { width: 22px; height: 28px; image-rendering: pixelated; object-fit: contain; }
+.dev-item .dev-name { flex: 1; }
+.tag { font-size: 10px; padding: 0 4px; border-radius: 3px; }
+.tag.edited { background: #4a6ad8; color: #fff; }
+.tag.repo { background: #3a8a5a; color: #fff; }
+.tag.warn { background: #a04a3a; color: #fff; }
+.dev-form { flex: 1; overflow-y: auto; min-width: 0; }
+.dev-head { display: flex; align-items: center; gap: 8px; }
+.dev-head img { width: 44px; height: 55px; image-rendering: pixelated; }
+.dev-section { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 4px 0 8px; }
+.dev-section.magic { border-left: 2px solid var(--win-edge); padding-left: 8px; }
+.dev-field { display: flex; align-items: center; gap: 6px; }
+.dev-field span:first-child { color: var(--muted); min-width: 44px; }
+.dev-field input[type='number'] { width: 54px; }
+.dev-field.changed input { border-color: #6a8af8; background: #24345c; color: #fff; }
+.dev-check { display: inline-flex; align-items: center; gap: 4px; }
+
+/* loadouts */
+.loadout-strip { display: flex; flex-direction: column; gap: 2px; margin: 4px 0; }
+.loadout-row { display: flex; gap: 2px; border-left: 3px solid; padding-left: 3px; }
+.loadout-tile { width: 30px; height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; border-radius: 3px; position: relative; }
+.loadout-tile img { width: 26px; height: 32px; image-rendering: pixelated; object-fit: contain; }
+.loadout-tile.out img { filter: grayscale(1) brightness(0.35); opacity: 0.75; }
+.loadout-tile.clickable { cursor: pointer; }
+.loadout-tile.clickable:hover { outline: 1px solid var(--win-edge-hi); }
+.loadout-strip.big .loadout-tile { width: 62px; height: 78px; border: 1px solid #ffffff14; }
+.loadout-strip.big .loadout-tile img { width: 44px; height: 55px; }
+.loadout-strip.big .loadout-tile .nm { font-size: 11px; }
+.loadout-strip.big .loadout-tile .cost { position: absolute; top: 1px; right: 3px; font-size: 10px; color: var(--muted); }
+.loadout-strip.big .loadout-tile.out .nm { color: #666b80; }
+.loadout-strip.big .loadout-tile.in { border-color: #ffffff44; }
+.loadout-count { display: flex; gap: 12px; align-items: center; margin: 6px 0; }
+.loadout-count .spacer { flex: 1; }
+.loadout-card { min-height: 150px; margin-top: 8px; }
+.loadouts-modal { width: min(1040px, 96vw); }
+.btn-row .spacer { flex: 1; }

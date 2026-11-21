@@ -3,6 +3,9 @@ import { App } from './App';
 import './ui/styles.css';
 import { useGame } from './store';
 import { installAudio } from './audio';
+import { loadLocalBalance } from './dev/balance';
+
+loadLocalBalance();
 
 // Debug/automation hook (dev only).
 if (import.meta.env.DEV) (window as unknown as { __game: typeof useGame }).__game = useGame;

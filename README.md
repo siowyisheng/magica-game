@@ -22,7 +22,11 @@ npm run build
 | `src/rules/maps/scaffold.ts` | The fixed 15×13 map with 7 Magic Stones and a river (Water Level 2). |
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
 | `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
-| `src/render/` | three.js scene: isometric orthographic camera, hex columns, water, stones, highlights, procedural billboard sprites, and a pixelation pass (low-DPR canvas upscaled with nearest-neighbour). |
+| `src/render/` | three.js scene: orthographic camera, themed hex columns (`themes.ts`, `Terrain.tsx`), Pits, Obstacles, water, stones, highlights, and the unit sprites, rendered from small 3D part models into cel-shaded pixel art (`spritegen/`). |
+| `src/editor/` | The map editor screen and its state (draft, tools, mirroring, undo / redo). |
+| `src/maps/` | Map library: built-in maps plus your own, saved in the browser, with JSON import / export. |
+| `src/dev/` | Dev tools: the unit balance editor and its local / repo overrides. |
+| `src/loadouts/` | Saved Loadouts (browser storage, JSON import / export). |
 | `src/anim.ts` | Pure turn-animation plan (slide along path, melee wind-up and bonk, projectiles, hit shake). The board samples it, and the store applies the new state when it ends. |
 | `src/audio/` | Procedural music and sound effects (Web Audio; no audio files): five composed tracks with a smart shuffle, a synthesized effect for every action, and the hooks that time them to the turn animations. |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
@@ -38,7 +42,31 @@ npm run build
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.
 - While hovering a destination or command, the acting unit's icon jumps to its previewed slot on the timeline.
-- Options panel: toggle the HP/AV bars, change pixel size, switch Red to hotseat, or make Green an AI. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, start a **New match…** (map, Test match, and per Side a Summoner, a Loadout and Human or AI) or a **Rematch**, **View Loadouts** (both Sides, omitted Summons darkened), **Edit Loadouts**, open the **Map Editor** or the **Dev tools**. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+
+## Summoners
+
+Ten Summoners to pick from, all walk + wade with Bolt, Rise and Ebb: **Sigil** (rune mage, balanced), **Warden** (knight-cleric, tough, Day), **Orrery** (stargazer, richest but fragile, Night), **Bramble** (druid crone, magic-proof), **Cinder** (ember noble, Fire), **Zephyr** (wind herald, fast, poor), **Sexton** (grave-keeper, rich), **Nereid** (sea priestess, Water), **Cairn** (stone hermit, tough) and **Tinker** (clockwork tinkerer, fighter). MP sets Mana Income, so a richer Summoner is weaker in a fight or slower.
+
+## Loadouts
+
+A Loadout is exactly 18 of the 28 Summons: the only Summons a Side may summon. It is picked separately from the Summoner in **New match…**, where each Side chooses one of your Loadouts, a starter (Balanced, Fire & Air, Earth & Water, Swarm, Heavy Hitters), a random starter, or **Auto** (built for the Summoner: four or five of each Element, cheapest two always in). **Test match** ignores Loadouts and gives both Sides all 28. **Edit Loadouts** builds and saves them in this browser (click Summons to add or remove; Save, Save as new, Delete, Export / Import). During a match, **View Loadouts** shows both Sides' Loadouts, with the Summons each leaves out darkened.
+
+## Dev tools
+
+Options → Dev tools edits every Summoner's and summon's name, Cost, Element, Alignment, stats, Move Types, Attack range and Trajectory, and Magic (summons can have none or one Magic Ability). Design rules (name length, Cost steps, Summon Magic cost…) show as warnings. Edits are kept in this browser and apply to new matches; Export / Import them as JSON, reset one unit or all, or — while running `npm run dev` — **Write to repo**, which saves them into `src/rules/data/overrides.json` (commit that file to ship them).
+
+## Maps
+
+- **Terrain:** Plain, Rough, Magic Stone and **Pit** (only Fly crosses; nobody stands on it; never fills with water), plus water by depth.
+- **Obstacles:** neutral objects with 10 HP and DEF = MDF of 5, 10 or 15. They block ground movement and Direct shots; Fly passes over and High shots arc over. Either side can break them.
+- **Trajectory:** every ranged Attack or Magic is **High** (arcs over everything) or **Direct** (needs a Clear Angle past every other Unit and Obstacle, allies included). A blocked Direct shot shows "No clear shot".
+- **Themes:** Meadow, Desert, Ruins, Tundra and Volcanic. Each has two looks for Plain and Rough, a Pit and three Obstacles. Plain is always flat, Rough always has raised clutter, a Pit is always a hole, and bigger Obstacles have more Defense.
+- **Map Editor** (Options → Map Editor):
+  - Tools (keys 1–9): Plain, Rough, Pit, Magic Stone, Height (click raises, right-click lowers), Obstacle (pick 5 / 10 / 15), Look (auto / A / B), and the two spawns (click a spawn again to turn it). Drag to paint; right-click does the opposite of the tool.
+  - Settings: name, Theme, size (7–21 × 7–21), starting Water Level and start time. Mirror copies every edit top ↔ bottom.
+  - Undo / Redo (Ctrl+Z / Ctrl+Y), live problem list, Save / Save as new / Delete, Export / Import JSON, and Play this map.
+  - Your maps are kept in this browser. Built-in maps can't be overwritten: saving one makes your own copy.
 
 ## Sound
 

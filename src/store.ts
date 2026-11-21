@@ -4,6 +4,7 @@ import {
   type Dir,
   type GameEvent,
   type Hex,
+  type MapDef,
   type MatchState,
   type TurnAction,
   type Unit,
@@ -24,13 +25,69 @@ import {
   formatClock,
   unitAt,
   neighbor,
-  mapHexAt,
-  canStandOn,
   type TargetPlan,
   type MagicPlan,
+  type Target,
+  SUMMONERS,
+  STARTER_LOADOUTS,
+  targetAt,
+  targetById,
+  canPlace,
 } from './rules';
-import { chooseAction } from './ai/ai';
+import { autoLoadout, chooseAction } from './ai/ai';
+import { getLoadout } from './loadouts/library';
+import { getMap } from './maps/library';
 import { planTurnAnim, type TurnAnim } from './anim';
+
+/** Match Setup: map, and per Side a Summoner ('random' allowed) and who plays it. */
+export interface MatchSetup {
+  mapId: string;
+  /** Test Match: both Sides may Summon all 28 Summons. */
+  test: boolean;
+  summoners: [string, string];
+  /** Loadout id per Side, or 'random' (a random starter) or 'auto' (built for the Summoner). */
+  loadouts: [string, string];
+  ai: [boolean, boolean];
+}
+
+const SETUP_KEY = 'magica.setup';
+function loadSetup(): MatchSetup {
+  const d: MatchSetup = {
+    mapId: 'builtin:scaffold-ford',
+    test: false,
+    summoners: ['sigil', 'random'],
+    loadouts: ['starter:balanced', 'random'],
+    ai: [false, true],
+  };
+  try {
+    return { ...d, ...JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}') };
+  } catch {
+    return d;
+  }
+}
+
+/** Resolve 'random' Summoner choices (uses the given random source). */
+export function resolveSummoners(choice: [string, string], rand: () => number = Math.random): [string, string] {
+  const pick = (c: string) => (c === 'random' ? SUMMONERS[Math.floor(rand() * SUMMONERS.length)].id : c);
+  return [pick(choice[0]), pick(choice[1])];
+}
+
+/** Resolve a Loadout choice into its Summons. */
+export function resolveLoadout(choice: string, summonerId: string, rand: () => number = Math.random): string[] {
+  if (choice === 'auto') return autoLoadout(summonerId, rand);
+  const l = choice === 'random' ? undefined : getLoadout(choice);
+  if (l) return [...l.summons];
+  return [...STARTER_LOADOUTS[Math.floor(rand() * STARTER_LOADOUTS.length)].summons];
+}
+
+/** Summoners and Loadouts for a Match Setup ('random' / 'auto' resolved). */
+export function resolveSetup(setup: Pick<MatchSetup, 'test' | 'summoners' | 'loadouts'>, rand: () => number = Math.random) {
+  const summoners = resolveSummoners(setup.summoners, rand);
+  const rosters: [string[] | null, string[] | null] = setup.test
+    ? [null, null]
+    : [resolveLoadout(setup.loadouts[0], summoners[0], rand), resolveLoadout(setup.loadouts[1], summoners[1], rand)];
+  return { summoners, rosters };
+}
 
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
 export type Phase =
@@ -63,6 +120,17 @@ export const MAX_INSPECTED = 3;
 
 interface Store {
   match: MatchState;
+  /** Library id of the map new matches use. */
+  mapId: string;
+  /** Which screen is shown. */
+  screen: 'game' | 'editor' | 'dev' | 'loadouts';
+  /** The Match Setup dialog is open. */
+  setupOpen: boolean;
+  /** The in-match Loadouts view is open. */
+  loadoutsOpen: boolean;
+  setLoadoutsOpen: (open: boolean) => void;
+  /** Last Match Setup (remembered between visits). */
+  setup: MatchSetup;
   phase: Phase;
   hoverHex: Hex | null;
   hoverUnitId: number | null;
@@ -72,7 +140,6 @@ interface Store {
   /** Other units whose ranges are toggled on (oldest first). Cleared when a turn ends. */
   inspected: number[];
   showHpBars: boolean;
-  pixelSize: number;
   log: string[];
   aiThinking: boolean;
   /** The turn animation currently playing; `match` updates when it ends. */
@@ -83,6 +150,13 @@ interface Store {
   version: number;
 
   newMatch: () => void;
+  /** Start a match on a map (e.g. from the editor). */
+  startMatch: (map: MapDef, mapId?: string, setup?: Partial<MatchSetup>) => void;
+  setMapId: (id: string) => void;
+  setScreen: (s: 'game' | 'editor' | 'dev' | 'loadouts') => void;
+  setSetupOpen: (open: boolean) => void;
+  /** Start a match from a Match Setup (and remember it). */
+  startFromSetup: (setup: MatchSetup) => void;
   setHoverHex: (h: Hex | null) => void;
   setHoverUnit: (id: number | null) => void;
   setHoverCommand: (c: CommandHover) => void;
@@ -91,7 +165,6 @@ interface Store {
   rightClick: () => void;
   choose: (c: 'wait' | 'attack' | 'magic' | { magic: string } | { summon: string } | { sub: 'magic' | 'summon' }) => void;
   toggleHpBars: () => void;
-  setPixelSize: (n: number) => void;
   setAi: (side: 0 | 1, ai: boolean) => void;
   tickAi: () => void;
 }
@@ -105,7 +178,9 @@ function phaseFor(match: MatchState): Phase {
 function describe(match: MatchState, e: GameEvent): string | null {
   const name = (id: number) => {
     const u = match.units.find((x) => x.id === id);
-    return u ? `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}` : `#${id}`;
+    if (u) return `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}`;
+    const o = match.obstacles.find((x) => x.id === id);
+    return o ? `Obstacle (DEF ${o.def})` : `#${id}`;
   };
   switch (e.type) {
     case 'damage':
@@ -121,7 +196,7 @@ function describe(match: MatchState, e: GameEvent): string | null {
     case 'stranded':
       return `${name(e.unitId)} is Stranded`;
     case 'death':
-      return `${name(e.unitId)} fell`;
+      return match.obstacles.some((o) => o.id === e.unitId) ? `${name(e.unitId)} broke` : `${name(e.unitId)} fell`;
     case 'win':
       return `${e.side === 0 ? 'Green' : 'Red'} wins!`;
     case 'mana':
@@ -142,7 +217,7 @@ export const useGame = create<Store>((set, get) => {
     }
     // describe with the pre-state for names of units that die
     const { state, events } = applyTurn(match, action);
-    const lines = events.map((e) => describe({ ...state, units: [...match.units, ...state.units] }, e)).filter(Boolean) as string[];
+    const lines = events.map((e) => describe({ ...state, units: [...match.units, ...state.units], obstacles: [...match.obstacles, ...state.obstacles] }, e)).filter(Boolean) as string[];
     const finish = () =>
       set((s) => ({
         match: state,
@@ -177,10 +252,17 @@ export const useGame = create<Store>((set, get) => {
     return u && u.id !== match.activeUnitId ? u : undefined;
   };
 
-  const initial = createMatch(SCAFFOLD_MAP, { ai: [false, true], seed: Date.now() & 0xffff });
+  const initialSetup = loadSetup();
+  const initial = createMatch(getMap(initialSetup.mapId)?.map ?? SCAFFOLD_MAP, { ai: initialSetup.ai, seed: Date.now() & 0xffff, ...resolveSetup(initialSetup) });
 
   return {
     match: initial,
+    mapId: loadSetup().mapId,
+    screen: 'game',
+    setupOpen: false,
+    loadoutsOpen: false,
+    setLoadoutsOpen: (loadoutsOpen) => set({ loadoutsOpen }),
+    setup: loadSetup(),
     phase: phaseFor(initial),
     hoverHex: null,
     hoverUnitId: null,
@@ -188,7 +270,6 @@ export const useGame = create<Store>((set, get) => {
     hoverSummon: null,
     inspected: [],
     showHpBars: true,
-    pixelSize: 2,
     log: ['Match start — 06:00'],
     aiThinking: false,
     anim: null,
@@ -196,9 +277,16 @@ export const useGame = create<Store>((set, get) => {
     version: 0,
 
     newMatch: () => {
-      const ai = get().match.sides.map((s) => s.ai) as [boolean, boolean];
-      const m = createMatch(SCAFFOLD_MAP, { ai, seed: Date.now() & 0xffff });
-      set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: ['Match start — 06:00'], version: get().version + 1 });
+      const map = getMap(get().mapId)?.map ?? get().match.map;
+      get().startMatch(map);
+    },
+    startMatch: (map, mapId, setup) => {
+      const last = get().setup;
+      const ai = setup?.ai ?? (get().match.sides.map((s) => s.ai) as [boolean, boolean]);
+      const { summoners, rosters } = resolveSetup({ ...last, ...setup });
+      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners, rosters });
+      if (mapId) set({ mapId });
+      set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
       signal({ type: 'newMatch' });
     },
     setHoverHex: (h) => {
@@ -217,7 +305,7 @@ export const useGame = create<Store>((set, get) => {
       switch (phase.kind) {
         case 'move': {
           if (!phase.selected) return set({ phase: { kind: 'move', selected: true } });
-          const target = unitAt(match, h);
+          const target = targetAt(match, h);
           if (target && target.id !== u.id) {
             const q = quickPlans(match, u, target);
             const canAttack = !!q.attack;
@@ -229,7 +317,7 @@ export const useGame = create<Store>((set, get) => {
             if (canMagic) {
               return commit({ unitId: u.id, to: q.magic!.dest, facing: u.facing, command: { type: 'magic', ability: q.magic!.ability.id, target: target.pos }  }, false); // quick action: slide from the unit's hex
             }
-            if (q.magic) return signal({ type: 'deny' }); // in Magic Reach but not affordable: do nothing
+            if (q.magic || blockedShot(match, u, target)) return signal({ type: 'deny' }); // unaffordable, or no clear shot
             return set({ phase: { kind: 'move', selected: false } });
           }
           if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
@@ -313,8 +401,20 @@ export const useGame = create<Store>((set, get) => {
       set({ phase: { kind: 'target', to, facing, command: { magic: ab.id } } });
     },
 
+    setMapId: (mapId) => set({ mapId }),
+    setSetupOpen: (setupOpen) => set({ setupOpen }),
+    startFromSetup: (setup) => {
+      try {
+        localStorage.setItem(SETUP_KEY, JSON.stringify(setup));
+      } catch {
+        /* storage unavailable */
+      }
+      const map = getMap(setup.mapId)?.map ?? get().match.map;
+      set({ setup, setupOpen: false, screen: 'game' });
+      get().startMatch(map, setup.mapId, setup);
+    },
+    setScreen: (screen) => set({ screen, hoverHex: null, hoverUnitId: null }),
     toggleHpBars: () => set((s) => ({ showHpBars: !s.showHpBars })),
-    setPixelSize: (n) => set({ pixelSize: n }),
     setAi: (side, ai) => {
       const m = get().match;
       const sides = [...m.sides] as MatchState['sides'];
@@ -346,24 +446,24 @@ export interface QuickPlans {
   magic: MagicPlan | null;
 }
 
-export function quickPlans(match: MatchState, actor: Unit, target: Unit): QuickPlans {
+export function quickPlans(match: MatchState, actor: Unit, target: Target): QuickPlans {
   return { attack: planAttack(match, actor, target), magic: planMagic(match, actor, target) };
 }
 
 /** The quick-action preview for the unit under the cursor, when the acting unit is Selected. */
 export function hoverQuick(
   s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverUnitId'>,
-): { target: Unit; plans: QuickPlans } | null {
+): { target: Target; plans: QuickPlans } | null {
   const u = activeUnit(s.match);
   if (!u) return null;
   if (s.phase.kind === 'quickChoice') {
-    const target = s.match.units.find((x) => x.id === (s.phase as { targetId: number }).targetId);
+    const target = targetById(s.match, (s.phase as { targetId: number }).targetId);
     return target ? { target, plans: { attack: s.phase.attack, magic: s.phase.magic } } : null;
   }
   if (s.phase.kind !== 'move' || !s.phase.selected) return null;
   const target =
-    (s.hoverUnitId !== null ? s.match.units.find((x) => x.id === s.hoverUnitId) : undefined) ??
-    (s.hoverHex ? unitAt(s.match, s.hoverHex) : undefined);
+    (s.hoverUnitId !== null ? targetById(s.match, s.hoverUnitId) : undefined) ??
+    (s.hoverHex ? targetAt(s.match, s.hoverHex) : undefined);
   if (!target || target.id === u.id) return null;
   const plans = quickPlans(s.match, u, target);
   return plans.attack || plans.magic ? { target, plans } : null;
@@ -372,12 +472,16 @@ export function hoverQuick(
 /** Directions around `to` where `kind` could be summoned (hex on map, free, standable). */
 export function validSummonDirs(match: MatchState, summonerId: number, to: Hex, kind: string): Dir[] {
   const sk = kindOf(kind);
-  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => {
-    const h = neighbor(to, d);
-    const mh = mapHexAt(match.map, h);
-    const occ = unitAt(match, h);
-    return !!mh && canStandOn(sk, mh, match.waterLevel) && (!occ || occ.id === summonerId);
-  });
+  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => canPlace(match, sk, neighbor(to, d), summonerId));
+}
+
+/**
+ * True when `actor` could hit `target` from its Move Range but for a Clear
+ * Angle (a Direct shot blocked by Units or Obstacles).
+ */
+export function blockedShot(match: MatchState, actor: Unit, target: Target): boolean {
+  if (planAttack(match, actor, target) || planMagic(match, actor, target)) return false;
+  return !!(planAttack(match, actor, target, true) || planMagic(match, actor, target, true));
 }
 
 /**

@@ -20,7 +20,7 @@ export const STONE_BASE = 2;
 export const UPKEEP_DIVISOR = 8;
 
 /** Damage-taken reduction in percent. */
-export const COVER_PERCENT = { plain: 0, rough: 20, stone: 30 } as const;
+export const COVER_PERCENT = { plain: 0, rough: 20, stone: 30, pit: 0 } as const;
 
 /** Alignment stat modifier in percent. */
 export const ALIGN_BONUS = 120;

@@ -1,10 +1,10 @@
 // Move Range, Attack Reach, Magic Reach and targeting plans (pure).
 
 import { type Hex, hexDistance, hexEq, hexKey, hexesInRange } from './hex';
-import { affectedUnits, facingModifier, minAimDistance } from './combat';
+import { affectedUnits, facingModifier, minAimDistance, shotAllowed, trajectoryOf } from './combat';
 import { kindOf } from './kinds';
 import { mapHexAt, reachable } from './terrain';
-import type { MagicAbility, MatchState, Unit } from './types';
+import { isObstacle, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
 
 type TargetedMagic = Extract<MagicAbility, { kind: 'damage' | 'heal' }>;
 
@@ -27,16 +27,34 @@ function actionSources(state: MatchState, unit: Unit): Hex[] {
   return unit.stranded ? dests.filter((h) => !hexEq(h, unit.pos)) : dests;
 }
 
-function reachFrom(state: MatchState, dests: Hex[], min: number, max: number, radius: number): Map<string, Hex> {
+function reachFrom(
+  state: MatchState,
+  unit: Unit,
+  dests: Hex[],
+  min: number,
+  max: number,
+  radius: number,
+  trajectory: Trajectory | null,
+): Map<string, Hex> {
   const out = new Map<string, Hex>();
   for (const d of dests) {
+    const view = withUnitAt(state, unit.id, d);
     for (const h of hexesInRange(d, max + radius)) {
       const k = hexKey(h);
       if (out.has(k) || !mapHexAt(state.map, h)) continue;
       // some aim hex within [min,max] of d covers h within `radius`
       const dist = hexDistance(d, h);
       if (dist > max + radius) continue;
-      if (radius === 0 ? dist >= min : dist >= Math.max(0, min - radius)) out.set(k, h);
+      if (radius === 0) {
+        if (dist >= min && shotAllowed(view, unit.id, trajectory, d, h)) out.set(k, h);
+      } else if (dist >= Math.max(0, min - radius)) {
+        // an aim hex in range, with a clear shot if Direct, whose area covers h
+        const ok = hexesInRange(h, radius).some((a) => {
+          const da = hexDistance(d, a);
+          return da >= min && da <= max && !!mapHexAt(state.map, a) && shotAllowed(view, unit.id, trajectory, d, a);
+        });
+        if (ok) out.set(k, h);
+      }
     }
   }
   return out;
@@ -53,9 +71,9 @@ export function unitReach(state: MatchState, unit: Unit): Reach {
   const k = kindOf(unit.kind);
   const move = new Map(dests.map((h) => [hexKey(h), h] as const));
   const sources = actionSources(state, unit);
-  const attack = reachFrom(state, sources, 1, k.attack.range, 0);
+  const attack = reachFrom(state, unit, sources, 1, k.attack.range, 0, trajectoryOf(k.attack));
   const m = primaryMagic(unit);
-  const magic = m ? reachFrom(state, sources, minAimDistance(m), m.range, m.radius) : new Map<string, Hex>();
+  const magic = m ? reachFrom(state, unit, sources, minAimDistance(m), m.range, m.radius, trajectoryOf(m)) : new Map<string, Hex>();
   return { move, attack, magic };
 }
 
@@ -71,11 +89,11 @@ export interface TargetPlan {
  * Modifier, then farther from the target, then not moving, then the first in
  * deterministic order.
  */
-function bestSource(unit: Unit, target: Unit, sources: Hex[], useFacing: boolean): Hex {
+function bestSource(unit: Unit, target: Target, sources: Hex[], useFacing: boolean): Hex {
   let best = sources[0];
   let bestScore: [number, number, number] = [-1, -1, -1];
   for (const h of sources) {
-    const f = useFacing ? facingModifier(target.pos, target.facing, h) : { num: 1, den: 1 };
+    const f = useFacing && !isObstacle(target) ? facingModifier(target.pos, target.facing, h) : { num: 1, den: 1 };
     // compare ratios exactly: f.num / f.den
     const score: [number, number, number] = [f.num / f.den, hexDistance(h, target.pos), hexEq(h, unit.pos) ? 1 : 0];
     const better =
@@ -94,12 +112,14 @@ function withUnitAt(state: MatchState, id: number, pos: Hex): MatchState {
   return { ...state, units: state.units.map((u) => (u.id === id ? { ...u, pos } : u)) };
 }
 
-export function planAttack(state: MatchState, unit: Unit, target: Unit): TargetPlan | null {
-  if (target.side === unit.side || target.id === unit.id) return null;
+/** `ignoreClearAngle` plans as if nothing blocked Direct shots (to tell "out of reach" from "no clear shot"). */
+export function planAttack(state: MatchState, unit: Unit, target: Target, ignoreClearAngle = false): TargetPlan | null {
+  if (target.id === unit.id || (!isObstacle(target) && target.side === unit.side)) return null;
   const a = kindOf(unit.kind).attack;
+  const traj = ignoreClearAngle ? null : trajectoryOf(a);
   const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
-    return d >= 1 && d <= a.range;
+    return d >= 1 && d <= a.range && shotAllowed(withUnitAt(state, unit.id, h), unit.id, traj, h, target.pos);
   });
   if (!sources.length) return null;
   return { dest: bestSource(unit, target, sources, true), sources };
@@ -111,13 +131,15 @@ export interface MagicPlan extends TargetPlan {
 }
 
 /** Plan a quick Magic aimed at the target's hex. */
-export function planMagic(state: MatchState, unit: Unit, target: Unit): MagicPlan | null {
+export function planMagic(state: MatchState, unit: Unit, target: Target, ignoreClearAngle = false): MagicPlan | null {
   const ab = primaryMagic(unit);
   if (!ab || target.id === unit.id) return null;
+  const traj = ignoreClearAngle ? null : trajectoryOf(ab);
   const sources = actionSources(state, unit).filter((h) => {
     const d = hexDistance(h, target.pos);
     if (d < minAimDistance(ab) || d > ab.range) return false;
     const view = withUnitAt(state, unit.id, h);
+    if (!shotAllowed(view, unit.id, traj, h, target.pos)) return false;
     const caster = view.units.find((u) => u.id === unit.id)!;
     return affectedUnits(view, caster, ab, target.pos).some((u) => u.id === target.id);
   });

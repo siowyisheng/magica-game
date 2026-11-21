@@ -81,7 +81,7 @@ describe('facing modifier', () => {
 // ---------- turn delays ----------
 
 describe('turn delay', () => {
-  const k = (spd: number) => ({ ...kindOf('summoner'), stats: { ...kindOf('summoner').stats, spd } });
+  const k = (spd: number) => ({ ...kindOf('sigil'), stats: { ...kindOf('sigil').stats, spd } });
   it('matches the designer anchors', () => {
     expect(turnDelay(k(13), false, false)).toBe(25);
     expect(turnDelay(k(13), false, true)).toBe(37);
@@ -117,7 +117,8 @@ describe('roster', () => {
   it('uses short names, max-only ranges, and Summon Magic costs of 4–16', () => {
     for (const k of SUMMONS) {
       expect(k.name.length).toBeLessThanOrEqual(6);
-      expect(k.attack).toEqual({ range: k.attack.range });
+      expect(k.attack).toEqual(k.attack.range > 1 ? { range: k.attack.range, trajectory: k.attack.trajectory } : { range: k.attack.range });
+      if (k.attack.range > 1) expect(['high', 'direct']).toContain(k.attack.trajectory);
       const m = k.magic[0];
       expect(m.manaCost).toBeGreaterThanOrEqual(4);
       expect(m.manaCost).toBeLessThanOrEqual(16);
@@ -127,7 +128,7 @@ describe('roster', () => {
   });
 
   it('gives Summoners walk+wade, most Earth summons wade, and no Fire summon wade', () => {
-    expect(kindOf('summoner').moveTypes).toEqual(['walk', 'wade']);
+    expect(kindOf('sigil').moveTypes).toEqual(['walk', 'wade']);
     const earth = SUMMONS.filter((x) => x.element === 'earth');
     expect(earth.filter((x) => x.moveTypes.includes('wade')).length).toBeGreaterThan(earth.length / 2);
     for (const f of SUMMONS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
@@ -167,8 +168,8 @@ describe('damage', () => {
   it('reduces damage on rough (20%) and magic stones (30%)', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
-    const a = place(state, 'summoner', 0, 1, 1);
-    const b = place(state, 'summoner', 1, 2, 1, 3);
+    const a = place(state, 'sigil', 0, 1, 1);
+    const b = place(state, 'sigil', 1, 2, 1, 3);
     // 3 × 8/10 = 2.4 ; rough → 1.92 → 2
     expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(20);
@@ -182,7 +183,7 @@ describe('damage', () => {
   it('applies day/night alignment', () => {
     const state = createMatch(testMap(6, 6));
     const archer = place(state, 'archer', 0, 1, 1); // day, fire ATK 14
-    const sum = place(state, 'summoner', 1, 3, 1, 3); // DEF 10
+    const sum = place(state, 'sigil', 1, 3, 1, 3); // DEF 10
     state.clock = 12 * 60; // day: ATK ×1.2
     expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(5); // 5.04
     state.clock = 22 * 60; // night: ×0.8
@@ -198,7 +199,7 @@ describe('movement', () => {
       testMap(8, 3, (q) => (q === 1 ? { terrain: 'rough' } : q === 2 ? { height: 2 } : q === 3 ? { height: 4 } : {})),
     );
     state.units = [];
-    const walker = place(state, 'summoner', 0, 0, 1); // MOV 4, walk
+    const walker = place(state, 'sigil', 0, 0, 1); // MOV 4, walk
     const nodes = reachable(state, walker);
     expect(nodes.get(hexKey(hex(1, 1)))?.cost).toBe(2); // rough
     expect(nodes.get(hexKey(hex(2, 1)))?.cost).toBe(4); // +1 plain +1 climb
@@ -408,7 +409,7 @@ describe('targeting without minimum range', () => {
     const s = createMatch(testMap(6, 6));
     const archer = place(s, 'archer', 0, 2, 2);
     place(s, 'imp', 1, 3, 2);
-    expect(attackTargets(s, archer, archer.pos).map((u) => u.kind)).toContain('imp');
+    expect(attackTargets(s, archer, archer.pos).map((u) => ('kind' in u ? u.kind : 'obstacle'))).toContain('imp');
     // Newt's Steam Burst is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
     const newt = place(s, 'newt', 0, 2, 4);
     place(s, 'imp', 1, 3, 4);
@@ -475,5 +476,180 @@ describe('alignment never changes Speed or Move', () => {
       };
     };
     expect(at(12 * 60)).toEqual(at(22 * 60)); // day vs night
+  });
+});
+
+// ---------- Pits, Obstacles, Trajectory and Clear Angle ----------
+
+describe('pits', () => {
+  it('cannot be entered or stood on by ground units; Fly crosses but cannot stop', () => {
+    const map = testMap(6, 3, (q) => (q === 2 ? { terrain: 'pit' } : {}));
+    const s = createMatch(map);
+    s.units = [];
+    const imp = place(s, 'imp', 0, 1, 1);
+    const sprite = place(s, 'sprite', 0, 1, 0);
+    const walk = reachable(s, imp);
+    expect([...walk.values()].some((n) => n.hex.q >= 2)).toBe(false);
+    const fly = reachable(s, sprite);
+    expect(fly.get(hexKey(hex(2, 0)))?.canEnd).toBe(false);
+    expect(fly.get(hexKey(hex(3, 0)))?.canEnd).toBe(true);
+  });
+
+  it('never fill with water and are left out of the water rules', async () => {
+    const { validateMapWater } = await import('./index');
+    // pit at height -5 would otherwise be Deep Water
+    const map = testMap(6, 6, (q, r) => (q === 0 && r === 0 ? { terrain: 'pit', height: -5 } : {}), 0);
+    const s = createMatch(map);
+    expect(s.hasWater).toBe(false);
+    expect(validateMapWater(map)).toEqual([]);
+  });
+});
+
+describe('obstacles', () => {
+  const withObstacle = (def: 5 | 10 | 15 = 10) => {
+    const map = { ...testMap(7, 3), obstacles: [{ hex: hex(3, 1), def }] };
+    const s = createMatch(map);
+    s.units = [];
+    return s;
+  };
+
+  it('block movement for ground units, can be flown over, and take damage with DEF = MDF', async () => {
+    const { computeDamage: dmg } = await import('./index');
+    const s = withObstacle(10);
+    const golem = place(s, 'golem', 0, 2, 1);
+    expect(reachable(s, golem).has(hexKey(hex(3, 1)))).toBe(false);
+    const hawk = place(s, 'hawk', 0, 2, 0);
+    expect(reachable(s, hawk).get(hexKey(hex(3, 1)))?.canEnd).toBe(false);
+    const o = s.obstacles[0];
+    // no Facing, no Element: hit from any side for the same damage
+    const a = dmg(s, golem, hex(2, 1), o, 'physical').amount;
+    const b = dmg(s, golem, hex(4, 1), o, 'physical').amount;
+    expect(a).toBe(b);
+    // ATK 16 vs DEF 10 → round(3 × 16 / 10) = 5
+    expect(a).toBe(5);
+  });
+
+  it('are destroyed at 0 HP, freeing the hex', () => {
+    const s = withObstacle(5);
+    const golem = place(s, 'golem', 0, 2, 1, 0, 0);
+    s.obstacles[0].hp = 2;
+    activate(s, golem);
+    const { state } = applyTurn(s, { unitId: golem.id, to: golem.pos, facing: 0, command: { type: 'attack', target: hex(3, 1) } });
+    expect(state.obstacles).toHaveLength(0);
+    const g2 = getUnit(state, golem.id);
+    expect(reachable(state, g2).has(hexKey(hex(3, 1)))).toBe(true);
+  });
+});
+
+describe('trajectory and clear angle', () => {
+  it('Direct shots are blocked by a unit or obstacle in between; High shots are not', async () => {
+    const { attackTargets, clearShot } = await import('./index');
+    const s = withLine();
+    const sling = place(s, 'sling', 0, 0, 1); // Direct, range 3
+    const archer = place(s, 'archer', 0, 0, 0); // High, range 3
+    const foe = place(s, 'imp', 1, 3, 1);
+    // nothing in between
+    expect(clearShot(s, sling.id, sling.pos, foe.pos)).toBe(true);
+    // an Obstacle straight in the line of fire
+    s.obstacles.push({ id: 900, pos: hex(1, 1), def: 10, hp: 10 });
+    expect(attackTargets(s, sling, sling.pos).some((t) => t.id === foe.id)).toBe(false);
+    // High arcs over it (archer at (0,0) to (3,0)... aim at foe through the obstacle row)
+    const foe2 = place(s, 'imp', 1, 2, 1);
+    expect(attackTargets(s, archer, archer.pos).some((t) => t.id === foe2.id)).toBe(true);
+    // allies block Direct shots too
+    s.obstacles = [];
+    place(s, 'clod', 0, 1, 1);
+    expect(attackTargets(s, sling, sling.pos).some((t) => t.id === foe.id)).toBe(false);
+  });
+
+  it('a body beside the line does not block when there is room to shoot past it', async () => {
+    const { clearShot } = await import('./index');
+    const s = withLine();
+    const sling = place(s, 'sling', 0, 0, 1);
+    // target 2 hexes away diagonally; a unit next to the line, not on it
+    place(s, 'imp', 1, 1, 2);
+    expect(clearShot(s, sling.id, sling.pos, hex(2, 0))).toBe(true);
+  });
+
+  it('Direct Magic also needs a Clear Angle', async () => {
+    const { magicTargetHexes } = await import('./index');
+    const s = withLine();
+    const siren = place(s, 'siren', 0, 0, 1); // Water Jet: Direct, range 4
+    place(s, 'imp', 1, 3, 1);
+    const ab = kindOf('siren').magic[0];
+    if (ab.kind === 'water') throw new Error('unexpected');
+    expect(ab.trajectory).toBe('direct');
+    expect(magicTargetHexes(s, siren, ab, siren.pos).some((h) => h.q === 3 && h.r === 1)).toBe(true);
+    place(s, 'clod', 1, 2, 1);
+    expect(magicTargetHexes(s, siren, ab, siren.pos).some((h) => h.q === 3 && h.r === 1)).toBe(false);
+  });
+});
+
+function withLine(): MatchState {
+  const s = createMatch(testMap(7, 3));
+  s.units = [];
+  return s;
+}
+
+// ---------- Summoners and balance overrides ----------
+
+describe('summoners', () => {
+  it('has ten Summoners with short names, all walk + wade with Bolt, Rise and Ebb', async () => {
+    const { SUMMONERS, kindWarnings } = await import('./index');
+    expect(SUMMONERS).toHaveLength(10);
+    expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(10);
+    for (const k of SUMMONERS) {
+      expect(k.name.length).toBeLessThanOrEqual(7);
+      expect(k.moveTypes).toEqual(['walk', 'wade']);
+      expect(k.magic.map((m) => m.id)).toEqual(['bolt', 'rise', 'ebb']);
+      expect(kindWarnings(k, SUMMONERS)).toEqual([]);
+    }
+    expect(SUMMONERS.filter((k) => k.element).length).toBe(2);
+    expect(SUMMONERS.filter((k) => k.alignment !== 'none').length).toBe(2);
+  });
+
+  it('lets each Side start with its chosen Summoner', () => {
+    const s = createMatch(SCAFFOLD_MAP, { summoners: ['cinder', 'orrery'] });
+    expect(s.units.map((u) => u.kind)).toEqual(['cinder', 'orrery']);
+  });
+
+  it('applies local overrides to the live roster and can reset them', async () => {
+    const { setLocalOverrides, kindOf: k, SUMMONS: roster } = await import('./index');
+    setLocalOverrides({ imp: { stats: { ...k('imp').stats, atk: 20 } } });
+    expect(k('imp').stats.atk).toBe(20);
+    expect(roster.find((x) => x.id === 'imp')!.stats.atk).toBe(20);
+    setLocalOverrides({});
+    expect(k('imp').stats.atk).toBe(13);
+  });
+
+  it('summon kinds pass the design checks', async () => {
+    const { SUMMONS: roster, kindWarnings } = await import('./index');
+    for (const kind of roster) expect(kindWarnings(kind, roster), kind.id).toEqual([]);
+  });
+});
+
+describe('loadouts', () => {
+  it('ships valid starter Loadouts of exactly 18 Summons', async () => {
+    const { STARTER_LOADOUTS, loadoutProblems } = await import('./index');
+    expect(STARTER_LOADOUTS.length).toBeGreaterThanOrEqual(5);
+    for (const l of STARTER_LOADOUTS) expect(loadoutProblems(l.summons), l.name).toEqual([]);
+    expect(loadoutProblems(['imp'])).not.toEqual([]);
+  });
+
+  it('only lets a Side Summon what is in its Loadout; no Loadout means all', async () => {
+    const { STARTER_LOADOUTS, activeUnit } = await import('./index');
+    const swarm = STARTER_LOADOUTS.find((l) => l.id === 'starter:swarm')!.summons;
+    const s = createMatch(SCAFFOLD_MAP, { rosters: [swarm, null] });
+    const me = activeUnit(s)!;
+    s.sides[me.side].mana = 120;
+    const dir = ([0, 1, 2, 3, 4, 5] as const).find((d) => validateTurn(s, { unitId: me.id, to: me.pos, facing: d, command: { type: 'summon', kind: 'imp', dir: d } }) === null)!;
+    const kraken = { unitId: me.id, to: me.pos, facing: dir, command: { type: 'summon' as const, kind: 'kraken', dir } };
+    const imp = { ...kraken, command: { ...kraken.command, kind: 'imp' } };
+    if (me.side === 0) {
+      expect(validateTurn(s, kraken)).toMatch(/Loadout/);
+      expect(validateTurn(s, imp)).toBeNull();
+    } else {
+      expect(validateTurn(s, kraken)).toBeNull();
+    }
   });
 });

@@ -9,8 +9,18 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Summoner**:
-The single leader Unit of each Side. It casts several Magic Abilities and is the only Unit that can Summon, keeping at most 7 Summons on the map. When it dies, its Side loses.
+The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon, keeping at most 7 Summons on the map. When it dies, its Side loses. Each Side picks one of ten Summoners before the match (Sigil, Warden, Orrery, Bramble, Cinder, Zephyr, Sexton, Nereid, Cairn, Tinker); they differ in stats, and a few in Element or Alignment. Both Sides may pick the same one.
 _Avoid_: Master, hero, commander
+
+**Loadout**:
+A set of exactly 18 of the 28 Summons: the only Summons a Side may Summon in a match. It is chosen separately from the Summoner. Players save Loadouts in the browser; the game also ships a few starter Loadouts. Both Sides' Loadouts, and the Summons each one leaves out, are visible to both players during the match.
+_Avoid_: Deck, army, roster (as a player-facing term)
+
+**Test Match**:
+A match where both Sides may Summon all 28 Summons, ignoring Loadouts. For trying things out.
+
+**Match Setup**:
+The choices made before a match: the map, whether it is a Test Match, and for each Side its Summoner, its Loadout and whether a person or the AI plays it.
 
 **Summon**:
 A Unit that a Summoner brings onto a hex next to it. The new Summon faces the way it was summoned, and so does the Summoner. There are 28 kinds, seven per Element. Each has exactly one Magic Ability.
@@ -81,8 +91,15 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. Summons have one Magic Ability; Summoners have several.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. Summons have one Magic Ability; Summoners have several.
 _Avoid_: Skill, spell (as a code term)
+
+**Trajectory**:
+How a ranged Attack or Magic Ability (range above 1) travels. **High** arcs over everything and always reaches a target in range. **Direct** flies straight and needs a Clear Angle. Abilities with range 1 have no Trajectory.
+_Avoid_: Fire mode, arc type
+
+**Clear Angle**:
+Whether a Direct shot can reach its target. Seen from above, every Unit and Obstacle is a body of a standard size at its hex centre, and the shot is a small projectile. The angle is clear when some straight line from the shooter to any point across the target's body passes every other body, allies included. Height, Pits, water and Magic Stones never block.
 
 **Stranded**:
 A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage, then may move by its normal rules into hexes it can enter, and then act as usual. If it stays where it is, it can only Wait.
@@ -125,6 +142,17 @@ Any Unit that starts its turn on a Magic Stone, whoever controls it, heals 1 HP,
 
 **Capture**:
 A Unit that ends its turn on a Magic Stone gives control of the Stone to its Side. Being Summoned onto a Stone does not count. Control lasts until an enemy Unit Captures it, including while the Stone is under water.
+
+**Pit**:
+A hex type of its own that no Unit can stand on: a chasm, a lava pool, spikes, whatever the Theme draws. Only Fly can cross it. It never fills with water and does not count for the Water Level rules. It does not block a shot.
+_Avoid_: Chasm, hole, void (as the rules term)
+
+**Obstacle**:
+A neutral map object placed on dry Plain or Rough at the start of a match. No Unit can stand on its hex, and only Fly can cross it. It blocks Direct shots but not High ones. Both Sides may Attack it or hit it with damaging Magic, area Magic included; it cannot be healed and exerts no ZOC. It has 10 HP like a Unit, no Element and no Facing, and its Defense and Magic Defense are equal: 5, 10 or 15. Destroyed at 0 HP, leaving the hex beneath. It stays, and keeps blocking, if water rises over it.
+_Avoid_: Wall, prop, blocker
+
+**Theme**:
+The look of a map: two visual variants each for Plain and Rough, one for Pit, and one Obstacle design for each Defense value (5, 10, 15). Each hex's variant is picked from its position unless the map sets it. Water looks the same in every Theme. A Theme changes only appearance, never rules.
 
 **Zone of Control (ZOC)**:
 The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn. Fly Units ignore ZOC. A Unit that starts its turn in a ZOC may leave it.

@@ -20,6 +20,8 @@ import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { AlignmentIcon, ElementIcon, Icon } from './icons';
 import { StatGrid, magicText } from './Stats';
 import { useAudio } from '../audio';
+import { listMaps } from '../maps/library';
+import { fromMapDef, useEditor } from '../editor/editorStore';
 
 const SIDE_NAME = ['Green', 'Red'];
 
@@ -29,8 +31,6 @@ export function InfoPanel() {
   const hoverHex = useGame((s) => s.hoverHex);
   const showHpBars = useGame((s) => s.showHpBars);
   const toggleHpBars = useGame((s) => s.toggleHpBars);
-  const pixelSize = useGame((s) => s.pixelSize);
-  const setPixelSize = useGame((s) => s.setPixelSize);
   const setAi = useGame((s) => s.setAi);
   const newMatch = useGame((s) => s.newMatch);
   const log = useGame((s) => s.log);
@@ -43,6 +43,9 @@ export function InfoPanel() {
     activeUnit(match) ??
     undefined;
   const mh = hoverHex ? mapHexAt(match.map, hoverHex) : undefined;
+  const obstacle =
+    match.obstacles.find((o) => o.id === hoverUnitId) ??
+    (hoverHex ? match.obstacles.find((o) => o.pos.q === hoverHex.q && o.pos.r === hoverHex.r) : undefined);
 
   return (
     <div className="info">
@@ -58,6 +61,7 @@ export function InfoPanel() {
             <div key={side} className="side-row">
               <div className="side-name" style={{ color: SIDE_COLORS[side] }}>
                 {SIDE_NAME[side]} {match.sides[side].ai ? '(AI)' : '(Human)'}
+                {!match.sides[side].roster && <span className="muted small"> · Test match</span>}
                 {aiThinking && activeUnit(match)?.side === side && <span className="muted"> thinking…</span>}
               </div>
               <ManaBars side={side} />
@@ -66,14 +70,30 @@ export function InfoPanel() {
         })}
       </div>
 
-      {shown && <UnitCard unitId={shown.id} />}
+      {obstacle ? (
+        <div className="window">
+          <div className="title">Obstacle</div>
+          <div className="hp-bar big">
+            {Array.from({ length: 10 }, (_, i) => (
+              <span key={i} className={i < obstacle.hp ? 'on grey' : ''} />
+            ))}
+          </div>
+          <div>
+            <Icon name="def" /> {obstacle.def} · <Icon name="mdf" /> {obstacle.def}
+          </div>
+          <div className="muted small">Blocks movement and Direct shots; Fly passes over; High shots arc over. Takes ×1 damage from every side.</div>
+        </div>
+      ) : (
+        shown && <UnitCard unitId={shown.id} />
+      )}
 
       {mh && (
         <div className="window">
           <div className="title">Terrain</div>
           <div>
-            {mh.terrain === 'stone' ? 'Magic Stone' : mh.terrain === 'rough' ? 'Rough' : 'Plain'} · height {mh.height} ·{' '}
-            {surfaceOf(mh, match.waterLevel)}
+            {mh.terrain === 'pit'
+              ? 'Pit (only Fly crosses)'
+              : `${mh.terrain === 'stone' ? 'Magic Stone' : mh.terrain === 'rough' ? 'Rough' : 'Plain'} · height ${mh.height} · ${surfaceOf(mh, match.waterLevel)}`}
           </div>
           <div className="muted">Defense bonus {coverPercent(match, mh.hex)}%</div>
         </div>
@@ -88,16 +108,19 @@ export function InfoPanel() {
         <label>
           <input type="checkbox" checked={match.sides[0].ai} onChange={(e) => setAi(0, e.target.checked)} /> Green is AI
         </label>
-        <label>
-          Pixel size{' '}
-          <select value={pixelSize} onChange={(e) => setPixelSize(Number(e.target.value))}>
-            {[1, 2, 3, 4].map((n) => (
-              <option key={n} value={n}>{n}×</option>
-            ))}
-          </select>
-        </label>
         <SoundOptions />
-        <button onClick={newMatch}>New match</button>
+        <div className="btn-row">
+          <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
+          <button onClick={newMatch} title="Same map and Summoners">Rematch</button>
+        </div>
+        <div className="btn-row">
+          <button onClick={() => useGame.getState().setLoadoutsOpen(true)} title="Both Sides' Summoner and Loadout">View Loadouts</button>
+          <button onClick={() => useGame.getState().setScreen('loadouts')}>Edit Loadouts</button>
+        </div>
+        <div className="btn-row">
+          <button onClick={openEditor}>Map Editor</button>
+          <button onClick={() => useGame.getState().setScreen('dev')}>Dev tools</button>
+        </div>
         <div className="muted small">Wheel: zoom · Right-drag: pan · Right-click: back / cancel move</div>
       </div>
 
@@ -191,6 +214,15 @@ function ManaBars({ side }: { side: SideId }) {
       </div>
     </div>
   );
+}
+
+/** Open the editor on the map the current match is played on. */
+function openEditor() {
+  const g = useGame.getState();
+  const m = listMaps().find((x) => x.id === g.mapId);
+  const ed = useEditor.getState();
+  if (!ed.dirty) ed.load(m ? fromMapDef(m.map, m.id, m.builtin) : fromMapDef(g.match.map, null, false));
+  g.setScreen('editor');
 }
 
 function SoundOptions() {
