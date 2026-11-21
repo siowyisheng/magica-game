@@ -10,12 +10,15 @@ import { DevTool } from './dev/DevTool';
 import { MatchSetupDialog } from './ui/MatchSetup';
 import { LoadoutEditor } from './ui/LoadoutEditor';
 import { LoadoutsModal } from './ui/LoadoutView';
+import { PauseButton, PausedBanner, ReplayBar, TakeoverDialog } from './ui/ReplayControls';
+import { ReplaysScreen } from './ui/ReplaysScreen';
 
 function PhaseHint() {
   const phase = useGame((s) => s.phase);
   const match = useGame((s) => s.match);
   const u = activeUnit(match);
-  if (match.winner !== null) return null;
+  const watching = useGame((s) => s.replay !== null);
+  if (match.winner !== null || watching) return null;
   if (!u) return null;
   const who = `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}`;
   const text: Record<string, string> = {
@@ -37,7 +40,9 @@ function PhaseHint() {
 function GameOver() {
   const match = useGame((s) => s.match);
   const newMatch = useGame((s) => s.newMatch);
-  if (match.winner === null) return null;
+  const watching = useGame((s) => s.replay !== null);
+  const recordingId = useGame((s) => s.recording?.id);
+  if (match.winner === null || watching) return null;
   return (
     <div className="game-over">
       <div className="window">
@@ -48,6 +53,8 @@ function GameOver() {
           </div>
         )}
         <button onClick={newMatch}>Rematch</button>
+        {recordingId && <button onClick={() => useGame.getState().openReplay(recordingId)}>Watch Replay</button>}
+        <button onClick={() => useGame.getState().setScreen('replays')}>Replays…</button>
         <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
       </div>
     </div>
@@ -59,10 +66,27 @@ export function App() {
   const tickAi = useGame((s) => s.tickAi);
   const match = useGame((s) => s.match);
   const screen = useGame((s) => s.screen);
+  const paused = useGame((s) => s.paused);
+  const replay = useGame((s) => s.replay);
+  const anim = useGame((s) => s.anim);
   useEffect(() => {
-    if (screen === 'game') tickAi();
-  }, [version, match, tickAi, screen]);
+    if (screen !== 'game') return;
+    tickAi();
+    useGame.getState().tickReplay();
+  }, [version, match, tickAi, screen, paused, replay?.playing, replay?.index, anim]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || useGame.getState().screen !== 'game') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      e.preventDefault();
+      useGame.getState().togglePause();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   if (screen === 'editor') return <MapEditor />;
+  if (screen === 'replays') return <ReplaysScreen />;
   if (screen === 'loadouts')
     return (
       <>
@@ -85,12 +109,16 @@ export function App() {
           <Timeline />
           <SummonCard />
           <PhaseHint />
+          <PauseButton />
+          <PausedBanner />
+          <ReplayBar />
           <GameOver />
         </div>
         <InfoPanel />
       </div>
       <MatchSetupDialog />
       <LoadoutsModal />
+      <TakeoverDialog />
     </div>
   );
 }

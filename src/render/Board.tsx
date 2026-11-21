@@ -43,7 +43,7 @@ import {
   unitOutlineTexture,
   unitTexture,
 } from './sprites';
-import { FLY_LAND_MS, FLY_RISE_MS, SUMMON_PHASES, fliesKind, moveDurationMs, type AnimStep } from '../anim';
+import { FLY_LAND_MS, FLY_RISE_MS, SUMMON_PHASES, animElapsed, fliesKind, moveDurationMs, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
 import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
@@ -148,7 +148,7 @@ export function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: numbe
     let glow = 0;
     const anim = useGame.getState().anim;
     if (anim) {
-      const t = performance.now() - anim.start;
+      const t = animElapsed(anim);
       for (const st of anim.steps) {
         if (st.kind !== 'capture' || !hexEq(st.hex, h) || t < st.t0) continue;
         const p = Math.min(1, (t - st.t0) / (st.t1 - st.t0));
@@ -611,7 +611,7 @@ function UnitView({
     let glow = 0;
 
     if (anim) {
-      const t = now - anim.start;
+      const t = animElapsed(anim, now);
       for (const st of anim.steps) {
         if (st.kind === 'move' && st.unitId === unit.id) {
           const p = (t - st.t0) / (st.t1 - st.t0);
@@ -849,7 +849,7 @@ function Projectile({ step }: { step: Extract<AnimStep, { kind: 'projectile' }> 
     const anim = useGame.getState().anim;
     const sp = ref.current;
     if (!sp || !anim) return;
-    const t = performance.now() - anim.start;
+    const t = animElapsed(anim);
     const p = (t - step.t0) / (step.t1 - step.t0);
     sp.visible = p >= 0 && p <= 1;
     if (!sp.visible) return;
@@ -893,7 +893,7 @@ function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
   useFrame(() => {
     const anim = useGame.getState().anim;
     if (!anim) return;
-    const t = performance.now() - anim.start;
+    const t = animElapsed(anim);
     const p = (t - step.t0) / (step.t1 - step.t0);
     const { lightStart, fadeStart, fadeEnd } = SUMMON_PHASES;
     // light: bloom in, hold, fade out as the summon solidifies

@@ -17,6 +17,7 @@ import {
   getRepoBalance,
   kindOf,
   normalizeBalance,
+  activeBalance,
   setLocalBalance,
   setRepoBalance,
   shippedAbility,
@@ -119,11 +120,7 @@ export function isAbilityRepoEdited(id: string): boolean {
 
 /** Everything that differs from the built-in data: repo overrides plus local edits. */
 export function effectiveBalance(): Balance {
-  const repo = getRepoBalance();
-  const local = getLocalBalance();
-  const out: Balance = { kinds: { ...repo.kinds }, abilities: { ...repo.abilities, ...local.abilities } };
-  for (const [id, p] of Object.entries(local.kinds)) out.kinds[id] = { ...(repo.kinds[id] ?? {}), ...p };
-  return out;
+  return activeBalance();
 }
 
 export function exportBalanceJson(): string {

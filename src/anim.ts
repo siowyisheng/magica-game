@@ -45,13 +45,26 @@ export type AnimStep =
 export interface TurnAnim {
   /** performance.now() at which the animation started. */
   start: number;
+  /** Length in animation time (ms at 1×). */
   duration: number;
+  /** Playback speed: animation ms per real ms (Replays play at 1×, 2× or 4×). */
+  rate?: number;
   steps: AnimStep[];
   actorId: number;
   /** Where the actor ends its move. */
   to: Hex;
   /** Facing the actor shows while animating. */
   facing: number;
+}
+
+/** Animation time elapsed at real time `now`. */
+export function animElapsed(anim: TurnAnim, now: number = performance.now()): number {
+  return (now - anim.start) * (anim.rate ?? 1);
+}
+
+/** Real milliseconds the animation takes. */
+export function animWallMs(anim: TurnAnim): number {
+  return anim.duration / (anim.rate ?? 1);
 }
 
 export const MS_PER_HEX = 130;

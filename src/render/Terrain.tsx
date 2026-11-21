@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type Hex, type MapHex, type MatchState, type Obstacle, DIRS, hexKey, mapHexAt, neighbor, surfaceOf } from '../rules';
 import { useGame } from '../store';
+import { animElapsed } from '../anim';
 import { anchorSources } from './anchors';
 import { type Deco, type Theme, hexSeed, rng, variantOf } from './themes';
 
@@ -213,7 +214,7 @@ export function ObstacleView({ o, theme, match, interactive = true }: { o: Obsta
     g.position.set(x, y, z);
     const anim = useGame.getState().anim;
     if (!anim) return;
-    const t = performance.now() - anim.start;
+    const t = animElapsed(anim);
     for (const st of anim.steps) {
       if (st.kind === 'hit' && st.unitIds.includes(o.id) && t >= st.t0 && t <= st.t1) {
         const p = (t - st.t0) / (st.t1 - st.t0);

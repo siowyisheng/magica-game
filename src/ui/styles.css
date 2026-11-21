@@ -275,3 +275,24 @@ button:disabled { opacity: 0.4; cursor: default; }
 .loadout-card { min-height: 150px; margin-top: 8px; }
 .loadouts-modal { width: min(1040px, 96vw); }
 .btn-row .spacer { flex: 1; }
+
+/* pause and replays */
+.pause-btn { position: absolute; top: 96px; right: 8px; z-index: 45; }
+.pause-btn.on { background: var(--win-edge); border-color: var(--win-edge-hi); color: #fff; }
+.paused-banner {
+  position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 45; pointer-events: none;
+  background: #0d1020dd; border: 2px solid var(--win-edge-hi); padding: 8px 18px; font-size: 18px; letter-spacing: 0.05em;
+}
+.replay-bar { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: min(760px, 94%); z-index: 45; display: flex; flex-direction: column; gap: 4px; }
+.replay-row { display: flex; align-items: center; gap: 6px; }
+.replay-row .spacer { flex: 1; }
+.replay-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.replay-scrub { flex: 1; }
+.takeover { width: 340px; display: flex; flex-direction: column; gap: 6px; }
+.replay-list { flex: 1; overflow-y: auto; padding: 0 6px 6px; display: flex; flex-direction: column; gap: 4px; max-width: 980px; }
+.replay-list > .title { margin-top: 8px; font-weight: bold; color: #c8d2ff; }
+.replay-item { display: flex; align-items: center; gap: 10px; }
+.replay-faces { display: flex; }
+.replay-faces img { width: 36px; height: 45px; image-rendering: pixelated; }
+.replay-text { flex: 1; min-width: 0; }
+.replay-item .btn-row { margin: 0; }
