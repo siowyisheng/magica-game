@@ -67,6 +67,12 @@ export const AI_WEIGHTS = {
   summonCounter: 18,
   summonNegativeIncome: 35,
   manaSpend: 0.25,
+  /** Save for an unaffordable Summon whose value is at least this × the best affordable one… */
+  saveMargin: 1.25,
+  /** …and that income will pay for within this many hours. */
+  saveHours: 2,
+  /** Extra cost per point of Mana spent out of that reserve. */
+  reserveSpend: 0.6,
   strandEnemy: 30,
   strandAlly: 35,
   delay: 0.15,
@@ -310,9 +316,9 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const myMana = state.sides[me.side].mana;
   const income = manaIncome(state, me.side);
 
-  // Rank summon kinds once (placement-independent).
-  const summonKinds = kind.isSummoner
-    ? SUMMONS.filter((s) => s.cost <= myMana && inRoster(state, me.side, s.id))
+  // Rank summon kinds once (placement-independent), affordable or not.
+  const rankedKinds = kind.isSummoner
+    ? SUMMONS.filter((s) => inRoster(state, me.side, s.id))
         .map((s) => {
           let counter = 0;
           for (const u of state.units) {
@@ -329,8 +335,22 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
           return { kind: s, value: v };
         })
         .sort((a, b) => b.value - a.value || a.kind.cost - b.kind.cost)
-        .slice(0, 4)
     : [];
+  const summonKinds = rankedKinds.filter((k) => k.kind.cost <= myMana).slice(0, 4);
+  // Saving up: a clearly better Summon that income will soon pay for reserves its Cost.
+  const overflow = myMana + Math.max(0, income) >= MANA_MAX;
+  let reserve = 0;
+  {
+    const bestNow = summonKinds[0]?.value ?? 0;
+    const saveFor = rankedKinds.find((k) => k.kind.cost > myMana);
+    if (saveFor && income > 0 && saveFor.value >= Math.max(1, bestNow) * w.saveMargin && (saveFor.kind.cost - myMana) / income <= w.saveHours) reserve = saveFor.kind.cost;
+  }
+  /** Cost of spending `amount` Mana: what it's worth, plus eating into a reserve. */
+  const spendCost = (amount: number) => {
+    if (overflow) return 0;
+    const intoReserve = Math.max(0, Math.min(amount, reserve - (myMana - amount)));
+    return amount * w.manaSpend + intoReserve * w.reserveSpend;
+  };
 
   for (const dest of dests) {
     const pos = positionalScore(dest);
@@ -365,8 +385,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
       if (command.type === 'attack' || command.type === 'magic') {
         const ab = command.type === 'magic' ? kind.magic.find((m) => m.id === command.ability)! : null;
         // Mana that would overflow the cap is free to spend.
-        const overflow = myMana + Math.max(0, income) >= MANA_MAX;
-        if (ab && !overflow) score -= ab.manaCost * w.manaSpend;
+        if (ab) score -= spendCost(ab.manaCost);
         if (ab && ab.kind === 'water') {
           const level = state.waterLevel + ab.delta;
           for (const u of state.units) {
@@ -406,7 +425,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         }
       } else if (command.type === 'summon') {
         const sk = summonKinds.find((s) => s.kind.id === command.kind)!;
-        score += sk.value;
+        score += sk.value - spendCost(sk.kind.cost);
         const h = neighbor(dest, command.dir);
         if (enemySummoner) score -= hexDistance(h, enemySummoner.pos) * 0.5;
         const stone = state.stones.find((s) => hexEq(s.hex, h));
