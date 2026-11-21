@@ -6,7 +6,9 @@ import type { Alignment, Element, Stats, Trajectory, UnitKind } from '../types';
 // and Ebb; five attack at range, four have an Element and four an
 // Alignment. Each spread sums to the Stat Budget: MP, which also sets Mana
 // Income, trades against Speed, Move, the defences and (at range) ATK.
-// The comment after each is its distance from the budget in MP.
+// The comment after each is its distance from the budget in MP. After
+// generation, spreads below the MDF floor (MDF_FLOOR) were raised to 7 by
+// hand and paid for, mostly with DEF; only Sylph keeps MDF 6.
 
 type Def = [
   id: string,
@@ -24,21 +26,21 @@ const DEFS: Def[] = [
   ['harpist', 'Harpist', [11, 11, 13, 10, 10, 3], 4, 'direct'], // -0.29
   ['savage', 'Savage', [14, 15, 8, 13, 14, 6], 5, 'high'], // -0.11
   ['tracker', 'Tracker', [8, 9, 11, 10, 14, 4], 6, 'high'], // +0.07
-  ['witch', 'Witch', [4, 6, 15, 5, 10, 4], 1], // -0.18
-  ['sylph', 'Sylph', [3, 4, 13, 6, 14, 5], 1, undefined, 'air'], // +0.17
-  ['duelist', 'Duelist', [4, 4, 14, 5, 14, 3], 1], // +0.11
+  ['witch', 'Witch', [4, 6, 15, 7, 10, 4], 1], // +0.06 (MDF raised to the floor)
+  ['sylph', 'Sylph', [3, 4, 13, 6, 14, 5], 1, undefined, 'air'], // +0.17 (the one Summoner at the hard MDF floor of 6)
+  ['duelist', 'Duelist', [4, 3, 14, 7, 14, 3], 1], // +0.20 (MDF raised to the floor, paid with DEF)
   ['valkyr', 'Valkyr', [17, 13, 11, 8, 13, 5], 1], // -0.28
   ['lich', 'Lich', [3, 6, 15, 12, 10, 3], 1], // +0.15
   ['seraph', 'Seraph', [10, 10, 12, 15, 13, 3], 1, undefined, null, 'day'], // -0.09
   ['regent', 'Regent', [11, 9, 11, 12, 13, 6], 1], // -0.12
   ['warlock', 'Warlock', [10, 4, 14, 9, 12, 4], 1], // +0.22
   ['satyr', 'Satyr', [10, 7, 10, 9, 17, 5], 1], // -0.23
-  ['efreet', 'Efreet', [12, 10, 12, 5, 15, 4], 1, undefined, 'fire'], // +0.29
+  ['efreet', 'Efreet', [12, 8, 12, 7, 15, 4], 1, undefined, 'fire'], // +0.23 (MDF raised to the floor, paid with DEF)
   ['templar', 'Templar', [15, 14, 12, 12, 12, 4], 1, undefined, null, 'day'], // +0.29
   ['banshee', 'Banshee', [4, 5, 13, 12, 14, 3], 1, undefined, null, 'night'], // +0.11
   ['ronin', 'Ronin', [15, 10, 11, 9, 16, 3], 1], // -0.09
   ['oni', 'Oni', [18, 14, 9, 10, 17, 4], 1], // -0.25
-  ['vampire', 'Vampire', [10, 10, 13, 6, 12, 5], 1, undefined, null, 'night'], // +0.28
+  ['vampire', 'Vampire', [10, 9, 13, 7, 12, 5], 1, undefined, null, 'night'], // +0.24 (MDF raised to the floor, paid with DEF)
   ['herald', 'Herald', [14, 11, 10, 12, 15, 5], 1], // -0.16
   ['oracle', 'Oracle', [2, 5, 13, 11, 12, 5], 1], // -0.15
   ['gorgon', 'Gorgon', [12, 12, 11, 15, 12, 5], 1], // -0.27

@@ -2,6 +2,7 @@
 // but lets you experiment past them).
 
 import type { UnitKind } from '../types';
+import { MDF_FLOOR } from '../statgen';
 
 export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[] {
   const w: string[] = [];
@@ -16,6 +17,11 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   if (!k.moveTypes.length) w.push('needs at least one Move Type');
   if (k.moveTypes.includes('slow') && !k.moveTypes.includes('swim')) w.push('Slow should always come with Swim');
   if (!k.isSummoner && k.moveTypes.includes('walk') && k.stats.mov < 4) w.push('walking Summons should have MOV 4 or more');
+  if (k.isSummoner && k.stats.mdf < MDF_FLOOR.hard) w.push(`Summoners need MDF ${MDF_FLOOR.hard} or more (Magic reaches far)`);
+  else if (k.isSummoner && k.stats.mdf < MDF_FLOOR.soft) {
+    const low = roster.filter((o) => o.isSummoner && o.stats.mdf < MDF_FLOOR.soft);
+    if (low.length > MDF_FLOOR.atHardFloor) w.push(`only ${MDF_FLOOR.atHardFloor} Summoner may have MDF below ${MDF_FLOOR.soft} (now: ${low.map((o) => o.name).join(', ')})`);
+  }
   if (k.isSummoner && (k.moveTypes.length !== 2 || !k.moveTypes.includes('walk') || !k.moveTypes.includes('wade'))) w.push('Summoners walk + wade');
   if (k.attack.range < 1) w.push('Attack range must be at least 1');
   if (k.attack.range > 1 && !k.attack.trajectory) w.push('a ranged Attack needs a Trajectory');

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   REFERENCE_SPREADS,
+  MDF_FLOOR,
   RANGED_ATK,
   STAT_BOUNDS,
   STAT_BUDGET,
@@ -40,6 +41,7 @@ describe('Stat Budget', () => {
           expect(s[k as keyof typeof s]).toBeLessThanOrEqual(hi);
         }
         if (range > 1) expect(s.atk).toBeGreaterThanOrEqual(RANGED_ATK[0]);
+        expect(s.mdf).toBeGreaterThanOrEqual(MDF_FLOOR.soft);
       }
     }
   });
@@ -60,5 +62,16 @@ describe('Stat Budget', () => {
       expect(n.name.length).toBeLessThanOrEqual(7);
       expect(summonNames.has(n.name)).toBe(false);
     }
+  });
+});
+
+describe('MDF floor check', () => {
+  it('flags a Summoner below 6, and a second one below 7', async () => {
+    const { SUMMONERS, kindWarnings } = await import('./index');
+    const k = SUMMONERS.find((x) => x.id === 'regent')!;
+    expect(kindWarnings({ ...k, stats: { ...k.stats, mdf: 5 } }, SUMMONERS).join()).toMatch(/MDF 6 or more/);
+    const lowered = SUMMONERS.map((x) => (x.id === 'regent' ? { ...x, stats: { ...x.stats, mdf: 6 } } : x));
+    expect(kindWarnings(lowered.find((x) => x.id === 'regent')!, lowered).join()).toMatch(/only 1 Summoner/);
+    expect(kindWarnings(k, SUMMONERS)).toEqual([]);
   });
 });
