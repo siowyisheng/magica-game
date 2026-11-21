@@ -63,3 +63,15 @@ describe('AI', () => {
     }
   }, 60000);
 });
+
+describe('never playing for time', () => {
+  it('values a position the same whatever the hour: Stones count for their Mana, not the Time Limit', async () => {
+    const { evaluate } = await import('./ai');
+    const { createMatch, SCAFFOLD_MAP } = await import('../rules');
+    const s = createMatch(SCAFFOLD_MAP);
+    s.stones = s.stones.map((st, i) => ({ ...st, owner: i % 3 === 0 ? 1 : 0 }));
+    const early = evaluate(s, 0);
+    const late = evaluate({ ...s, clock: s.timeLimit - 30 }, 0);
+    expect(late).toBe(early);
+  });
+});
