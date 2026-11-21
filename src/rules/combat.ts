@@ -130,8 +130,10 @@ export function computeDamage(
     facingAngle = facingAngleDegrees(defender.pos, defender.facing, attackerPos);
     cover = coverPercent(state, defender.pos);
   }
-  const num = DAMAGE_K * aStat * el.num * fac.num * (100 - cover);
-  const den = Math.max(1, dStat) * el.den * fac.den * 100;
+  // Facing and Element bonuses add: 1 + (facing − 1) + (element − 1) = facing + element − 1
+  const mod: Ratio = { num: fac.num * el.den + el.num * fac.den - fac.den * el.den, den: fac.den * el.den };
+  const num = DAMAGE_K * aStat * mod.num * (100 - cover);
+  const den = Math.max(1, dStat) * mod.den * 100;
   const amount = Math.min(defender.hp, roundRatio(num, den));
   return {
     unitId: defender.id,

@@ -6,6 +6,7 @@ import {
   MAX_HP,
   MAX_SUMMONS,
   STONE_BASE,
+  TIME_LIMIT_HOURS,
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { DEFAULT_SUMMONER, kindOf } from './kinds';
@@ -93,6 +94,8 @@ export interface MatchOptions {
   seed?: number;
   /** Summoner kind for each Side (default Sigil). */
   summoners?: [string, string];
+  /** AI strength per Side. */
+  aiLevels?: ['normal' | 'hard', 'normal' | 'hard'];
   /** Each Side's Loadout (Summon kind ids); null = all Summons (Test Match). */
   rosters?: [string[] | null, string[] | null];
 }
@@ -124,12 +127,13 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
     obstacles: [],
     stones: map.hexes.filter((h) => h.terrain === 'stone').map((h) => ({ hex: h.hex, owner: null })),
     sides: [
-      { mana: MANA_START, ai: opts.ai?.[0] ?? false, ...(opts.rosters?.[0] ? { roster: [...opts.rosters[0]] } : {}) },
-      { mana: MANA_START, ai: opts.ai?.[1] ?? true, ...(opts.rosters?.[1] ? { roster: [...opts.rosters[1]] } : {}) },
+      { mana: MANA_START, ai: opts.ai?.[0] ?? false, aiLevel: opts.aiLevels?.[0] ?? 'normal', ...(opts.rosters?.[0] ? { roster: [...opts.rosters[0]] } : {}) },
+      { mana: MANA_START, ai: opts.ai?.[1] ?? true, aiLevel: opts.aiLevels?.[1] ?? 'normal', ...(opts.rosters?.[1] ? { roster: [...opts.rosters[1]] } : {}) },
     ],
     nextUnitId: 1,
     activeUnitId: null,
     winner: null,
+    timeLimit: map.startClock + TIME_LIMIT_HOURS * 60,
     turnNumber: 0,
     rngState: (opts.seed ?? 12345) >>> 0,
   };
@@ -386,6 +390,10 @@ function advance(state: MatchState, events: GameEvent[]): void {
     const delta = next.av;
     const from = state.clock;
     const to = from + delta;
+    if (to >= state.timeLimit) {
+      endOnTime(state, events);
+      return;
+    }
     // Hour marks crossed in (from, to]
     for (let h = Math.floor(from / 60) + 1; h * 60 <= to; h++) {
       for (const side of [0, 1] as const) {
@@ -417,6 +425,21 @@ function advance(state: MatchState, events: GameEvent[]): void {
     resolveDeaths(state, events);
     state.activeUnitId = null;
   }
+}
+
+/**
+ * Time Limit: the Side controlling more Magic Stones wins; if level, the Side
+ * with more total HP; if still level, a draw.
+ */
+function endOnTime(state: MatchState, events: GameEvent[]): void {
+  const stones: [number, number] = [stonesControlled(state, 0), stonesControlled(state, 1)];
+  const hp: [number, number] = [0, 1].map((s) => state.units.filter((u) => u.side === s).reduce((a, u) => a + u.hp, 0)) as [number, number];
+  const result: SideId | 'draw' = stones[0] !== stones[1] ? (stones[0] > stones[1] ? 0 : 1) : hp[0] !== hp[1] ? (hp[0] > hp[1] ? 0 : 1) : 'draw';
+  state.clock = state.timeLimit;
+  state.winner = result;
+  state.activeUnitId = null;
+  events.push({ type: 'timeUp', result, stones, hp });
+  if (result !== 'draw') events.push({ type: 'win', side: result });
 }
 
 // ---------- timeline ----------
@@ -467,3 +490,10 @@ export function projectTimeline(state: MatchState, count: number, activeDelay?: 
 }
 
 export { reachable, surfaceOf };
+
+/** Advance to the next turn (exposed for tests). */
+export function advanceForTest(state: MatchState): GameEvent[] {
+  const events: GameEvent[] = [];
+  advance(state, events);
+  return events;
+}

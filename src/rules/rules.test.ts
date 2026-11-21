@@ -114,12 +114,19 @@ describe('roster', () => {
     }
   });
 
+  it('gives exactly 18 of the 28 summons a Magic Ability, and none to ranged attackers', () => {
+    expect(SUMMONS.filter((k) => k.magic.length === 1)).toHaveLength(18);
+    for (const k of SUMMONS) if (k.attack.range > 1) expect(k.magic, k.id).toEqual([]);
+  });
+
   it('uses short names, max-only ranges, and Summon Magic costs of 4–16', () => {
     for (const k of SUMMONS) {
       expect(k.name.length).toBeLessThanOrEqual(6);
       expect(k.attack).toEqual(k.attack.range > 1 ? { range: k.attack.range, trajectory: k.attack.trajectory } : { range: k.attack.range });
       if (k.attack.range > 1) expect(['high', 'direct']).toContain(k.attack.trajectory);
+      expect(k.magic.length).toBeLessThanOrEqual(1);
       const m = k.magic[0];
+      if (!m) continue;
       expect(m.manaCost).toBeGreaterThanOrEqual(4);
       expect(m.manaCost).toBeLessThanOrEqual(16);
       expect(m).not.toHaveProperty('minRange');
@@ -150,8 +157,16 @@ describe('damage', () => {
 
     const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 14
     const weak = computeDamage(state, hound, hex(2, 3), crab, 'physical');
-    // 3 × 15/14 × 0.5 (water counters fire) × 2.0 (from behind) = 3.21 → 3
-    expect(weak.amount).toBe(3);
+    // bonuses add: 3 × 15/14 × (1 − 0.5 (water counters fire) + 1.0 (from behind)) = 4.82 → 5
+    expect(weak.amount).toBe(5);
+
+    // a Counter from behind: 3 × 15/9 × (1 + 1.0 + 1.0) = 15 → capped at the target's 10 HP
+    const hawk2 = place(state, 'hawk', 1, 4, 1, 0); // faces E, away from a hound at (3,1)
+    const back = computeDamage(state, hound, hex(3, 1), hawk2, 'physical');
+    expect(back.breakdown!.facing).toBe(2);
+    expect(back.amount).toBe(10);
+    const golem = place(state, 'golem', 1, 1, 5, 0); // fire, no counter: 3 × 15/17 × (1 + 1.0) = 5.29 → 5
+    expect(computeDamage(state, hound, hex(0, 5), golem, 'physical').amount).toBe(5);
 
   });
 
@@ -651,5 +666,29 @@ describe('loadouts', () => {
     } else {
       expect(validateTurn(s, kraken)).toBeNull();
     }
+  });
+});
+
+describe('time limit', () => {
+  it('ends the match 72 hours in: more Stones wins, then more HP, else a draw', async () => {
+    const { advanceForTest } = await import('./match');
+    const mk = () => {
+      const s = createMatch(SCAFFOLD_MAP);
+      s.clock = s.timeLimit - 5;
+      for (const u of s.units) u.av = 10;
+      return s;
+    };
+    let s = mk();
+    s.stones[0].owner = 1;
+    advanceForTest(s);
+    expect(s.winner).toBe(1);
+    s = mk();
+    s.units[0].hp = 4;
+    advanceForTest(s);
+    expect(s.winner).toBe(1);
+    s = mk();
+    advanceForTest(s);
+    expect(s.winner).toBe('draw');
+    expect(s.clock).toBe(s.timeLimit);
   });
 });

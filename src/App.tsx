@@ -41,7 +41,12 @@ function GameOver() {
   return (
     <div className="game-over">
       <div className="window">
-        <h2>{match.winner === 0 ? 'Green' : 'Red'} wins</h2>
+        <h2>{match.winner === 'draw' ? 'Draw' : `${match.winner === 0 ? 'Green' : 'Red'} wins`}</h2>
+        {match.clock >= match.timeLimit && (
+          <div className="muted">
+            Time Limit reached: Magic Stones {match.stones.filter((s) => s.owner === 0).length}–{match.stones.filter((s) => s.owner === 1).length}
+          </div>
+        )}
         <button onClick={newMatch}>Rematch</button>
         <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
       </div>

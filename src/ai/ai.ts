@@ -38,6 +38,9 @@ import {
   planAttack,
   shotAllowed,
   trajectoryOf,
+  turnDelay,
+  MANA_MAX,
+  applyTurn,
 } from '../rules';
 
 export const AI_WEIGHTS = {
@@ -52,7 +55,15 @@ export const AI_WEIGHTS = {
   capture: 45,
   onStone: 6,
   approach: 3,
-  summonerSafety: 4,
+  summonerSafety: 8,
+  /** Share of an enemy's damage counted as threat when it has a better target than this unit. */
+  threatShare: 0.7,
+  /** Weight of second-round threat to the Summoner (enemies acting before its turn after next). */
+  summonerSecondRound: 1,
+  /** Bonus (× kill) for damage that leaves a target finishable by allies before it acts. */
+  setupKill: 0.3,
+  /** How much a material / Stone lead raises the pull toward the enemy. */
+  pressure: 0,
   summonBase: 40,
   summonCostValue: 0.45,
   summonCounter: 18,
@@ -144,18 +155,50 @@ function obstacleValue(state: MatchState, me: Unit, dest: Hex, id: number, amoun
   return opened * w.obstacleOpening * share;
 }
 
+/** Rough best damage `e` could deal to `me` at `h` from somewhere near, ignoring reach and Clear Angles. */
+function approxDamage(state: MatchState, e: Unit, me: Unit, h: Hex, f: Dir): number {
+  const ek = kindOf(e.kind);
+  const target: Unit = { ...me, pos: h, facing: f };
+  // it arrives from its own direction: use the hex next to `h` toward it
+  const dir = facingToward(h, e.pos);
+  const from = neighbor(h, dir);
+  let best = computeDamage(state, e, from, target, 'physical').amount;
+  const mana = state.sides[e.side].mana;
+  if (ek.magic.some((m) => m.kind === 'damage' && m.manaCost <= mana)) best = Math.max(best, computeDamage(state, e, from, target, 'magic').amount);
+  return best;
+}
+
 interface Candidate {
   action: TurnAction;
   score: number;
 }
 
-export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAction {
+function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
   const me = activeUnit(state);
   if (!me) throw new Error('no active unit');
   const kind = kindOf(me.kind);
   const w = weights;
   const reaches = enemyReaches(state, me);
   const threatCache = new Map<string, number>();
+  const dmgCache = new Map<string, number>();
+  const maxDamage = (e: EnemyReach, target: Unit, h: Hex, f: Dir) => {
+    const key = `${e.unit.id}>${target.id}@${hexKey(h)}|${f}`;
+    let v = dmgCache.get(key);
+    if (v === undefined) dmgCache.set(key, (v = maxDamageFrom(state, e, target, h, f)));
+    return v;
+  };
+  const allies = state.units.filter((u) => u.side === me.side && u.id !== me.id);
+
+  // Each enemy's best damage against my other units: an enemy with a better
+  // target elsewhere is unlikely to spend its turn on this unit.
+  const otherBest = new Map<number, number>();
+  for (const e of reaches) {
+    let best = 0;
+    for (const a of allies) best = Math.max(best, maxDamage(e, a, a.pos, a.facing));
+    otherBest.set(e.unit.id, best);
+  }
+  // The Summoner also looks one enemy round further ahead.
+  const secondWindow = kind.isSummoner ? turnDelay(kind, true, true) : 0;
 
   const threatAt = (h: Hex, f: Dir, delay: number, killed: Set<number>): number => {
     const key = `${hexKey(h)}|${f}|${delay}|${[...killed].join(',')}`;
@@ -164,12 +207,49 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
     let total = 0;
     for (const e of reaches) {
       if (killed.has(e.unit.id)) continue;
-      if (e.unit.av >= delay) continue; // acts after my next turn
-      total += maxDamageFrom(state, e, me, h, f);
+      const first = e.unit.av < delay;
+      const second = !first && kind.isSummoner && e.unit.av < delay + secondWindow;
+      if (!first && !second) continue; // acts after the window
+      let d = maxDamage(e, me, h, f);
+      // a fast enemy may act more than once before my next turn: it can close in first
+      const ek = kindOf(e.unit.kind);
+      const rep = turnDelay(ek, true, false); // closing in: Move + Wait, the quickest repeat
+      const turnsBefore = first ? 1 + Math.floor(Math.max(0, delay - e.unit.av - 1) / rep) : 1;
+      if (turnsBefore >= 2 && d === 0) {
+        const reach = ek.stats.mov * turnsBefore + Math.max(ek.attack.range, ...ek.magic.map((m) => (m.kind === 'water' ? 0 : m.range + m.radius)));
+        if (hexDistance(e.unit.pos, h) <= reach) d = approxDamage(state, e.unit, me, h, f);
+      }
+      // enemies go for the Summoner; otherwise only part of the threat is real when they have a better target
+      if (!kind.isSummoner && d < (otherBest.get(e.unit.id) ?? 0)) d *= w.threatShare;
+      total += second ? d * w.summonerSecondRound : d;
     }
     threatCache.set(key, total);
     return total;
   };
+
+  // Focus fire: how much allies could deal to each enemy before that enemy acts again.
+  const allyReaches = allies.map((u) => {
+    const nodes = reachable(state, u);
+    const positions: Hex[] = [];
+    for (const n of nodes.values()) if (n.canEnd || hexEq(n.hex, u.pos)) positions.push(n.hex);
+    return { unit: u, positions };
+  });
+  const followUp = new Map<number, number>();
+  for (const e of state.units) {
+    if (e.side === me.side) continue;
+    let sum = 0;
+    for (const a of allyReaches) if (a.unit.av < e.av) sum += maxDamageFrom(state, a, e, e.pos, e.facing);
+    followUp.set(e.id, sum);
+  }
+
+  // Pressure: a lead in material and Stones (and the clock running out while behind) pulls units forward.
+  const sideValue = (s: number) => state.units.filter((u) => u.side === s).reduce((a, u) => a + unitValue(u) * u.hp, 0);
+  const myStones = state.stones.filter((x) => x.owner === me.side).length;
+  const theirStones = state.stones.filter((x) => x.owner !== null && x.owner !== me.side).length;
+  const lead = (sideValue(me.side) - sideValue(1 - me.side)) / Math.max(10, sideValue(me.side) + sideValue(1 - me.side)) + 0.08 * (myStones - theirStones);
+  const hoursLeft = (state.timeLimit - state.clock) / 60;
+  const behindLate = hoursLeft < 24 && myStones <= theirStones;
+  const pressure = Math.max(0.8, Math.min(3, 1 + w.pressure * lead * 4 + (behindLate ? 1 : 0)));
 
   const bestFacing = (h: Hex, delay: number, killed: Set<number>): { facing: Dir; threat: number } => {
     let bestF: Dir = me.facing;
@@ -198,23 +278,28 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
   const objs = objectives();
   const enemySummoner = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isSummoner);
 
+  // Stones decide the Time Limit: they matter more over the last day, most when not ahead.
+  const lateness = Math.max(0, Math.min(1, 1 - hoursLeft / 24));
+  const stoneUrgency = 1 + lateness * (myStones > theirStones ? 1 : 3);
   const positionalScore = (h: Hex): number => {
     let s = 0;
     const stone = state.stones.find((st) => hexEq(st.hex, h));
     if (stone) {
-      if (stone.owner !== me.side) s += w.capture;
+      if (stone.owner !== me.side) s += w.capture * stoneUrgency * (stone.owner === null ? 1 : 1.5);
       s += w.onStone * (10 - me.hp + 1) * 0.3;
+      // late on, standing on one of our Stones keeps the enemy from taking it
+      if (stone.owner === me.side) s += w.capture * 0.4 * lateness;
     }
     if (kind.isSummoner) {
       // Keep distance from enemies (but not infinitely).
       let minD = 99;
       for (const u of state.units) if (u.side !== me.side) minD = Math.min(minD, hexDistance(u.pos, h));
-      s += w.summonerSafety * Math.min(minD, 6);
+      s += w.summonerSafety * Math.min(minD, 7);
     } else if (objs.length) {
       let minD = 99;
       for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
-      s -= w.approach * minD;
-      if (enemySummoner) s -= w.approach * 0.3 * hexDistance(enemySummoner.pos, h);
+      s -= w.approach * pressure * minD;
+      if (enemySummoner) s -= w.approach * 0.3 * pressure * hexDistance(enemySummoner.pos, h);
     }
     return s;
   };
@@ -281,7 +366,10 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
 
       if (command.type === 'attack' || command.type === 'magic') {
         const ab = command.type === 'magic' ? kind.magic.find((m) => m.id === command.ability)! : null;
-        if (ab) score -= ab.manaCost * w.manaSpend;
+        // Mana that would overflow the cap (or can't buy a Summon anyway) is free to spend.
+        const capFull = summonCount(state, me.side) >= MAX_SUMMONS;
+        const overflow = myMana + Math.max(0, income) >= MANA_MAX;
+        if (ab && !capFull && !overflow) score -= ab.manaCost * w.manaSpend;
         if (ab && ab.kind === 'water') {
           const level = state.waterLevel + ab.delta;
           for (const u of state.units) {
@@ -309,6 +397,9 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
                 if (e.lethal) {
                   killed.add(t.id);
                   score += kindOf(t.kind).isSummoner ? w.killSummoner : w.kill * v;
+                } else if (t.hp - e.amount <= (followUp.get(t.id) ?? 0)) {
+                  // allies can finish it before it acts
+                  score += w.kill * v * w.setupKill;
                 }
               }
             } else {
@@ -349,14 +440,81 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
     }
   }
 
-  const legal = candidates.filter((c) => validateTurn(state, c.action) === null);
-  if (legal.length === 0) return { unitId: me.id, to: me.pos, facing: me.facing, command: { type: 'wait' } };
+  candidates.sort((a, b) => b.score - a.score);
+  return { me, candidates };
+}
+
+/**
+ * Choose the active Unit's turn. Normal: the best-scoring candidate. Hard:
+ * the top candidates are each played out — every Unit then plays Normal
+ * until this Unit's next turn — and the resulting positions are compared.
+ */
+export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?: 'normal' | 'hard'): TurnAction {
+  const { me, candidates } = rankCandidates(state, weights);
+  const lvl = level ?? state.sides[me.side].aiLevel ?? 'normal';
+  if (lvl === 'hard') {
+    const pick = lookahead(state, me, candidates, weights);
+    if (pick) return pick;
+  }
+  // Validate best-first (validation re-runs path-finding, so only check what could be chosen).
   let best = -Infinity;
-  for (const c of legal) best = Math.max(best, c.score);
-  const top = legal.filter((c) => c.score >= best - 1e-9);
+  const top: Candidate[] = [];
+  for (const c of candidates) {
+    if (top.length && c.score < best - 1e-9) break;
+    if (validateTurn(state, c.action) !== null) continue;
+    if (!top.length) best = c.score;
+    top.push(c);
+  }
+  if (top.length === 0) return { unitId: me.id, to: me.pos, facing: me.facing, command: { type: 'wait' } };
+  // stable order for the tie-break, independent of sort internals
+  top.sort((a, b) => JSON.stringify(a.action) < JSON.stringify(b.action) ? -1 : 1);
   const rng = mulberry32(state.rngState ^ (state.turnNumber * 2654435761));
   return top[Math.floor(rng() * top.length)].action;
 }
+
+export const LOOKAHEAD = { candidates: 5, maxTurns: 6 };
+
+function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): TurnAction | null {
+  const picks: Candidate[] = [];
+  const seen = new Set<string>();
+  for (const c of ranked) {
+    if (picks.length >= LOOKAHEAD.candidates) break;
+    const key = JSON.stringify(c.action);
+    if (seen.has(key) || validateTurn(state, c.action) !== null) continue;
+    seen.add(key);
+    picks.push(c);
+  }
+  if (picks.length < 2) return picks[0]?.action ?? null;
+  let best: { action: TurnAction; value: number } | null = null;
+  for (const c of picks) {
+    let st = applyTurn(state, c.action).state;
+    for (let t = 0; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
+      st = applyTurn(st, chooseAction(st, w, 'normal')).state;
+    }
+    // position value, with the candidate's own score as a small tie-breaker
+    const value = evaluate(st, me.side) + c.score * 0.01;
+    if (!best || value > best.value + 1e-9) best = { action: c.action, value };
+  }
+  return best?.action ?? null;
+}
+
+/** Static value of a position for `side`: material and HP, Summoners, Stones, Mana. */
+export function evaluate(st: MatchState, side: number): number {
+  if (st.winner === side) return 1e6;
+  if (st.winner !== null && st.winner !== 'draw') return -1e6;
+  let v = 0;
+  for (const u of st.units) {
+    const k = kindOf(u.kind);
+    const worth = k.isSummoner ? 40 + u.hp * 12 : unitValue(u) * (8 + u.hp * 4);
+    v += u.side === side ? worth : -worth;
+  }
+  const hoursLeft = Math.max(0, (st.timeLimit - st.clock) / 60);
+  const stoneWeight = 18 + 30 * Math.max(0, 1 - hoursLeft / 24);
+  for (const s of st.stones) if (s.owner !== null) v += (s.owner === side ? 1 : -1) * stoneWeight;
+  v += 0.15 * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
+  return v;
+}
+
 
 /**
  * An AI-built Loadout for a Summoner: four or five Summons of each Element

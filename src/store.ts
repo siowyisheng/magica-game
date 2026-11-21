@@ -48,6 +48,8 @@ export interface MatchSetup {
   /** Loadout id per Side, or 'random' (a random starter) or 'auto' (built for the Summoner). */
   loadouts: [string, string];
   ai: [boolean, boolean];
+  /** AI strength per Side (used when that Side is AI). */
+  aiLevels?: ['normal' | 'hard', 'normal' | 'hard'];
 }
 
 const SETUP_KEY = 'magica.setup';
@@ -199,6 +201,8 @@ function describe(match: MatchState, e: GameEvent): string | null {
       return match.obstacles.some((o) => o.id === e.unitId) ? `${name(e.unitId)} broke` : `${name(e.unitId)} fell`;
     case 'win':
       return `${e.side === 0 ? 'Green' : 'Red'} wins!`;
+    case 'timeUp':
+      return `Time Limit: Stones ${e.stones[0]}–${e.stones[1]}, HP ${e.hp[0]}–${e.hp[1]}${e.result === 'draw' ? ' — a draw' : ''}`;
     case 'mana':
       return e.side === 0 ? `${formatClock(e.clock)} mana: Green ${e.amount >= 0 ? '+' : ''}${e.amount}` : null;
     default:
@@ -284,7 +288,8 @@ export const useGame = create<Store>((set, get) => {
       const last = get().setup;
       const ai = setup?.ai ?? (get().match.sides.map((s) => s.ai) as [boolean, boolean]);
       const { summoners, rosters } = resolveSetup({ ...last, ...setup });
-      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners, rosters });
+      const aiLevels = setup?.aiLevels ?? last.aiLevels ?? (['normal', 'normal'] as ['normal' | 'hard', 'normal' | 'hard']);
+      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners, rosters, aiLevels });
       if (mapId) set({ mapId });
       set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
       signal({ type: 'newMatch' });

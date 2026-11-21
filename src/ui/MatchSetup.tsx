@@ -60,6 +60,27 @@ export function MatchSetupDialog() {
                     {who}
                   </button>
                 ))}
+                {setup.ai[side] && (
+                  <>
+                    <span className="spacer" />
+                    {(['normal', 'hard'] as const).map((lvl) => (
+                      <button
+                        key={lvl}
+                        className={`tool ${(setup.aiLevels?.[side] ?? 'normal') === lvl ? 'on' : ''}`}
+                        title={lvl === 'hard' ? 'Plays out its best options a few turns ahead before choosing' : 'Scores every option one turn ahead'}
+                        onClick={() =>
+                          update((s) => {
+                            const levels = [...(s.aiLevels ?? ['normal', 'normal'])] as ['normal' | 'hard', 'normal' | 'hard'];
+                            levels[side] = lvl;
+                            return { ...s, aiLevels: levels };
+                          })
+                        }
+                      >
+                        {lvl === 'hard' ? 'Hard' : 'Normal'}
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
               <div className="summoner-grid">
                 <button

@@ -56,11 +56,14 @@ export function InfoPanel() {
           <span className="muted"> day {dayOf(match.clock)} · {tod}</span>
         </div>
         <div className="muted">Water Level {match.waterLevel} (range {match.minWaterLevel}–{match.maxWaterLevel})</div>
+        <div className="muted small" title="At the Time Limit the Side with more Magic Stones wins; if level, more total HP; else a draw">
+          Time Limit {formatClock(match.timeLimit)} day {dayOf(match.timeLimit)} · {Math.max(0, Math.ceil((match.timeLimit - match.clock) / 60))} h left
+        </div>
         {([0, 1] as SideId[]).map((side) => {
           return (
             <div key={side} className="side-row">
               <div className="side-name" style={{ color: SIDE_COLORS[side] }}>
-                {SIDE_NAME[side]} {match.sides[side].ai ? '(AI)' : '(Human)'}
+                {SIDE_NAME[side]} {match.sides[side].ai ? `(AI${match.sides[side].aiLevel === 'hard' ? ', Hard' : ''})` : '(Human)'}
                 {!match.sides[side].roster && <span className="muted small"> · Test match</span>}
                 {aiThinking && activeUnit(match)?.side === side && <span className="muted"> thinking…</span>}
               </div>

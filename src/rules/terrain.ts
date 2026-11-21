@@ -157,6 +157,11 @@ export function reachable(state: MatchState, unit: Unit): Map<string, ReachNode>
 
   const flies = kind.moveTypes.includes('fly');
   const zoc = flies ? new Set<string>() : enemyZoc(state, unit.side);
+  // occupancy, built once (the search looks at every hex's neighbours)
+  const occupant = new Map<string, Unit>();
+  for (const u of state.units) if (u.hp > 0) occupant.set(hexKey(u.pos), u);
+  const blocked = new Set<string>();
+  for (const o of state.obstacles) if (o.hp > 0) blocked.add(hexKey(o.pos));
   const mov = kind.stats.mov;
   const done = new Set<string>();
   const frontier: string[] = [startKey];
@@ -179,10 +184,10 @@ export function reachable(state: MatchState, unit: Unit): Map<string, ReachNode>
       if (done.has(nk)) continue;
       const to = mapHexAt(state.map, n);
       if (!to) continue;
-      const occ = unitAt(state, n);
+      const occ = occupant.get(nk);
       if (occ && occ.side !== unit.side) continue;
       // Obstacles: Fly passes over them, nobody can stop on them.
-      const obstacle = obstacleAt(state, n);
+      const obstacle = blocked.has(nk);
       if (obstacle && !flies) continue;
       const step = stepCost(kind, from, to, state.waterLevel);
       if (!step) continue;

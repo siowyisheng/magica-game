@@ -56,7 +56,7 @@ _Avoid_: Threat range, attack range (when meaning after moving)
 One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has none.
 
 **Counter**:
-Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. A Counter does ×2 damage; being Countered does ×0.5. Opposite Elements (Fire–Earth, Air–Water) are neutral.
+Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. A Counter adds +1.0 to the damage multiplier (×2 on its own); being Countered adds −0.5 (×0.5 on its own). It adds to the Facing bonus (see Damage). Opposite Elements (Fire–Earth, Air–Water) are neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
@@ -81,6 +81,9 @@ _Avoid_: Turn order bar, queue
 **Time of Day**:
 Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
 
+**Time Limit**:
+A match ends 72 Game Clock hours after it starts if no Summoner has fallen. The Side controlling more Magic Stones then wins; if they are level, the Side with more total HP across its Units; if that is level too, the match is a draw.
+
 **Alignment**:
 Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF get a bonus; at the opposite one they get a penalty. Speed and Move are never changed by Alignment.
 
@@ -91,7 +94,7 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. Summons have one Magic Ability; Summoners have several.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 18 of the 28 Summons have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Summoners have several.
 _Avoid_: Skill, spell (as a code term)
 
 **Trajectory**:
@@ -110,11 +113,11 @@ A Unit that starts its turn on a hex none of its Move Types may enter. It takes 
 One of the six hex directions a Unit faces.
 
 **Facing Modifier**:
-A damage multiplier based on the angle between a defender's Facing and the direction the hit comes from: ×1.0 at 0°, ×1.2 at 60°, ×1.6 at 120° and ×2.0 at 180°, interpolated for angles in between. It applies to both Attack and Magic.
+A damage multiplier based on the angle between a defender's Facing and the direction the hit comes from: ×1.0 at 0°, ×1.2 at 60°, ×1.6 at 120° and ×2.0 at 180°, interpolated for angles in between. It applies to both Attack and Magic, and adds to the Element bonus rather than multiplying with it (see Damage).
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic), then multiplied by Element, Facing, cover and Alignment. Can be 0; never raised to a minimum.
+A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic) × (1 + Facing bonus + Element bonus), then multiplied by cover and Alignment. The Facing and Element bonuses add rather than multiply, with no cap: each is its modifier minus 1 (a hit from behind adds +1.0, a Counter +1.0, being Countered −0.5), so a Counter from behind deals ×3 and a Countered hit from behind ×1.5. Can be 0; never raised to a minimum.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed.
