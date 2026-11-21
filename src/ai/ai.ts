@@ -8,6 +8,7 @@ import {
   type MatchState,
   type TurnAction,
   type Unit,
+  type UnitKind,
   type Command,
   DIRS,
   canStandOn,
@@ -69,6 +70,10 @@ export const AI_WEIGHTS = {
   summonBase: 40,
   summonCostValue: 0.45,
   summonCounter: 18,
+  /** Distance (hexes) at which a Unit stops mattering to the Summon choice. */
+  summonRadius: 12,
+  /** Extra weight for countering an enemy that counters own Summons near it. */
+  summonProtect: 0.5,
   summonNegativeIncome: 35,
   manaSpend: 0.25,
   /** Save for an unaffordable Summon whose value is at least this × the best affordable one… */
@@ -347,6 +352,12 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const myMana = state.sides[me.side].mana;
   const income = manaIncome(state, me.side);
 
+  /** Element relevance by distance: 1 next door, fading to 0 at summonRadius hexes. */
+  const prox = (d: number) => Math.max(0, 1 - d / w.summonRadius);
+  const counters = (a: UnitKind['element'], b: UnitKind['element']) => {
+    const m = elementModifier(a, b);
+    return m.num > m.den;
+  };
   // Rank summon kinds once (placement-independent), affordable or not.
   const rankedKinds = kind.isSummoner
     ? SUMMONS.filter((s) => inRoster(state, me.side, s.id))
@@ -355,11 +366,23 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
           for (const u of state.units) {
             if (u.side === me.side) continue;
             const uk = kindOf(u.kind);
-            if (hexDistance(u.pos, me.pos) > 8) continue;
-            const off = elementModifier(s.element, uk.element);
-            const def = elementModifier(uk.element, s.element);
-            if (off.num > off.den) counter += 1;
-            if (def.num > def.den) counter -= 1;
+            // about 1 for an average Summon, as the old ±1 per enemy was
+            const base = prox(hexDistance(u.pos, me.pos)) * (uk.isSummoner ? 1.5 : unitValue(u) / 2);
+            if (base <= 0) continue;
+            if (counters(s.element, uk.element)) {
+              // covered: own Summons near it already counter it; threatening: it counters own Summons near it
+              let covered = 0;
+              let threatening = 0;
+              for (const a of allies) {
+                const ak = kindOf(a.kind);
+                if (ak.isSummoner) continue;
+                const p = prox(hexDistance(a.pos, u.pos));
+                if (counters(ak.element, uk.element)) covered += p;
+                if (counters(uk.element, ak.element)) threatening += p;
+              }
+              counter += (base * (1 + w.summonProtect * threatening)) / (1 + covered);
+            }
+            if (counters(uk.element, s.element)) counter -= base;
           }
           let v = w.summonBase + s.cost * w.summonCostValue + counter * w.summonCounter;
           if (income - s.cost / 8 < 0) v -= w.summonNegativeIncome;
