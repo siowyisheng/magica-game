@@ -57,3 +57,25 @@ describe('capture animation', () => {
     expect(b.steps.map((x) => x.kind)).toEqual(['move']);
   });
 });
+
+describe('flying moves', () => {
+  it('marks Fly units’ moves as flights, timed as rise + straight glide + descent, with wing sounds', async () => {
+    const { FLY_RISE_MS, FLY_LAND_MS, MS_PER_HEX, moveDurationMs } = await import('./anim');
+    const { turnCues } = await import('./audio/cues');
+    const s = createMatch(flatMap(8, 8));
+    const me = getUnit(s, s.activeUnitId!);
+    s.units = s.units.map((u) => (u.id === me.id ? { ...u, kind: 'hawk' } : u));
+    const action = { unitId: me.id, to: hex(3, 5), facing: 0 as const, command: { type: 'wait' as const } };
+    const a = planTurnAnim(s, action, 0);
+    const mv = a.steps[0];
+    expect(mv.kind === 'move' && mv.fly).toBe(true);
+    if (mv.kind !== 'move') return;
+    // straight-line distance, not route length
+    expect(mv.t1 - mv.t0).toBe(FLY_RISE_MS + FLY_LAND_MS + MS_PER_HEX * 3);
+    expect(moveDurationMs('golem', mv.path)).toBe(MS_PER_HEX * (mv.path.length - 1));
+    const cues = turnCues(s, action, a, [], 0).map((c) => c.sfx.name);
+    expect(cues[0]).toBe('step');
+    expect(cues).toContain('land');
+    expect(cues).not.toContain('impact');
+  });
+});

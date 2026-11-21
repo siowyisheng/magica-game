@@ -2,7 +2,7 @@
 // sound cues, so effects line up with what is drawn.
 
 import { type GameEvent, type MatchState, type TurnAction, type SideId, kindOf, getUnit, mapHexAt, surfaceOf, timeOfDay, hexDistance } from '../rules';
-import { MS_PER_HEX, SUMMON_PHASES, type TurnAnim } from '../anim';
+import { FLY_LAND_MS, FLY_RISE_MS, MS_PER_HEX, SUMMON_PHASES, type TurnAnim } from '../anim';
 import type { Sfx, StepKind } from './sfx';
 
 export interface Cue {
@@ -37,6 +37,13 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
   for (const s of anim?.steps ?? []) {
     switch (s.kind) {
       case 'move':
+        if (s.fly) {
+          // take off, a few wing-beats while gliding, a soft landing
+          cues.push({ at: s.t0, sfx: { name: 'step', kind: 'fly', heavy } });
+          for (let t = s.t0 + FLY_RISE_MS + 120; t < s.t1 - FLY_LAND_MS; t += 240) cues.push({ at: t, sfx: { name: 'flap', soft: true } });
+          cues.push({ at: s.t1 - 40, sfx: { name: 'land', heavy } });
+          break;
+        }
         for (let i = 1; i < s.path.length; i++) {
           cues.push({ at: s.t0 + (i - 0.5) * MS_PER_HEX, sfx: { name: 'step', kind: stepKind(before, actor.kind, s.path[i]), heavy } });
         }

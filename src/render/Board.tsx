@@ -42,10 +42,10 @@ import {
   unitOutlineTexture,
   unitTexture,
 } from './sprites';
-import { MS_PER_HEX, SUMMON_PHASES, type AnimStep } from '../anim';
+import { FLY_LAND_MS, FLY_RISE_MS, SUMMON_PHASES, fliesKind, moveDurationMs, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
-import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water } from './Terrain';
+import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
 import { themeOf, type Theme } from './themes';
 
 export { STEP, hexToWorld };
@@ -444,6 +444,48 @@ function samplePath(match: MatchState, path: Hex[], p: number): { pos: THREE.Vec
   return { pos, heading: Math.atan2(b.x - a.x, b.z - a.z) };
 }
 
+const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+const easeIn = (t: number) => t * t;
+
+/** Cruising world height for a flight from `a` to `b`: clear of the ground, Obstacles and units below. */
+function cruiseHeight(match: MatchState, a: THREE.Vector3, b: THREE.Vector3): number {
+  let top = Math.max(a.y, b.y);
+  for (let i = 0; i <= 12; i++) {
+    const x = a.x + ((b.x - a.x) * i) / 12;
+    const z = a.z + ((b.z - a.z) * i) / 12;
+    const h = worldToHex(x, z);
+    top = Math.max(top, topY(match, h) + (match.obstacles.some((o) => hexEq(o.pos, h)) ? 0.9 : 0));
+  }
+  const hop = hexDistance(worldToHex(a.x, a.z), worldToHex(b.x, b.z)) <= 1;
+  return top + (hop ? 0.75 : 1.4);
+}
+
+/**
+ * A Fly move at `elapsed` ms of `total`: rise straight up, glide in a straight
+ * line at cruising height, descend onto the destination. Also returns how
+ * high above the ground the unit is (for its shadow).
+ */
+function sampleFlight(match: MatchState, path: Hex[], elapsed: number, total: number): { pos: THREE.Vector3; heading: number | null } {
+  const a = worldAt(match, path[0]);
+  const b = worldAt(match, path[path.length - 1]);
+  const cruise = cruiseHeight(match, a, b);
+  const glide = Math.max(1, total - FLY_RISE_MS - FLY_LAND_MS);
+  const heading = Math.atan2(b.x - a.x, b.z - a.z);
+  if (elapsed <= FLY_RISE_MS) {
+    const k = easeOut(Math.max(0, elapsed) / FLY_RISE_MS);
+    return { pos: a.clone().setY(a.y + (cruise - a.y) * k), heading };
+  }
+  if (elapsed <= FLY_RISE_MS + glide) {
+    const k = easeInOut((elapsed - FLY_RISE_MS) / glide);
+    const pos = a.clone().lerp(b, k).setY(cruise + Math.sin(k * Math.PI * 3) * 0.04);
+    return { pos, heading };
+  }
+  const k = easeIn(Math.min(1, (elapsed - FLY_RISE_MS - glide) / FLY_LAND_MS));
+  return { pos: b.clone().setY(cruise + (b.y - cruise) * k), heading };
+}
+
+const shadowGeo = new THREE.CircleGeometry(0.42, 16).rotateX(-Math.PI / 2);
+
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 /** Sprite raycast that ignores transparent texels, so empty sprite corners don't steal clicks. */
@@ -501,6 +543,9 @@ function UnitView({
 }) {
   const outline = useRef<THREE.Sprite>(null);
   const outlineMat = useRef<THREE.SpriteMaterial>(null);
+  const shadow = useRef<THREE.Mesh>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const shadowMat = useRef<THREE.MeshBasicMaterial>(null);
   const match = useGame((s) => s.match);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const setHoverUnit = useGame((s) => s.setHoverUnit);
@@ -552,7 +597,7 @@ function UnitView({
       for (const st of anim.steps) {
         if (st.kind === 'move' && st.unitId === unit.id) {
           const p = (t - st.t0) / (st.t1 - st.t0);
-          if (p <= 1) ({ pos, heading } = samplePath(match, st.path, p));
+          if (p <= 1) ({ pos, heading } = st.fly ? sampleFlight(match, st.path, t - st.t0, st.t1 - st.t0) : samplePath(match, st.path, p));
         } else if (st.kind === 'melee' && st.unitId === unit.id && t >= st.t0 && t <= st.t1) {
           const a = worldAt(match, st.from);
           const b = worldAt(match, st.target);
@@ -582,8 +627,9 @@ function UnitView({
         }
       }
     } else if (previewPath && previewPath.length > 1) {
-      const p = (now - preview.current.start) / (MS_PER_HEX * (previewPath.length - 1));
-      if (p <= 1) ({ pos, heading } = samplePath(match, previewPath, p));
+      const total = moveDurationMs(unit.kind, previewPath);
+      const el = now - preview.current.start;
+      if (el <= total) ({ pos, heading } = fliesKind(unit.kind) ? sampleFlight(match, previewPath, el, total) : samplePath(match, previewPath, el / total));
     }
 
     if (pos) {
@@ -595,6 +641,23 @@ function UnitView({
       g.position.z += (tz - g.position.z) * s;
     }
     if (body.current) body.current.position.set(offset.x, lift + offset.y, offset.z);
+    // ground shadow while airborne (Fly moves): stays on the ground, shrinks with height
+    const groundY = topY(match, worldToHex(g.position.x, g.position.z));
+    // the selection ring and facing arrow stay on the ground under a flyer
+    const down = Math.min(0, groundY - g.position.y);
+    if (arrow.current) arrow.current.position.y = 0.03 + down;
+    if (ring.current) ring.current.position.y = 0.04 + down;
+    if (shadow.current && shadowMat.current) {
+      const ground = groundY;
+      const alt = g.position.y - ground;
+      shadow.current.visible = alt > 0.08;
+      if (shadow.current.visible) {
+        shadow.current.position.set(0, ground - g.position.y + 0.05, 0);
+        const sc = Math.max(0.45, 1 - alt * 0.25);
+        shadow.current.scale.set(sc, 1, sc * 0.8);
+        shadowMat.current.opacity = Math.max(0.15, 0.45 - alt * 0.12);
+      }
+    }
     if (arrow.current) arrow.current.rotation.y = heading ?? dirAngle(facing);
     if (bodyMat.current) {
       bodyMat.current.color.set(baseColor).lerp(new THREE.Color('#ff4040'), flash * 0.8);
@@ -621,11 +684,14 @@ function UnitView({
 
   return (
     <group ref={group} position={[tx, ty, tz]}>
+      <mesh ref={shadow} geometry={shadowGeo} visible={false} raycast={() => null} renderOrder={4}>
+        <meshBasicMaterial ref={shadowMat} color="#000000" transparent opacity={0.4} depthWrite={false} />
+      </mesh>
       <mesh ref={arrow} geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
         <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
       </mesh>
       {!ghost && (hovered || isActive || inspected) && (
-        <mesh geometry={ringGeo} position={[0, 0.04, 0]} raycast={() => null}>
+        <mesh ref={ring} geometry={ringGeo} position={[0, 0.04, 0]} raycast={() => null}>
           <meshBasicMaterial color={hovered ? '#ffe066' : inspected ? '#9fd0ff' : '#ffffff'} transparent opacity={0.9} />
         </mesh>
       )}

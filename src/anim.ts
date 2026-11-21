@@ -21,7 +21,8 @@ import {
 } from './rules';
 
 export type AnimStep =
-  | { kind: 'move'; unitId: number; path: Hex[]; t0: number; t1: number }
+  /** `fly`: rise, glide straight to the destination, descend (Fly units). */
+  | { kind: 'move'; unitId: number; path: Hex[]; fly: boolean; t0: number; t1: number }
   | { kind: 'melee'; unitId: number; from: Hex; target: Hex; t0: number; t1: number }
   | {
       kind: 'projectile';
@@ -54,6 +55,20 @@ export interface TurnAnim {
 }
 
 export const MS_PER_HEX = 130;
+/** Fly moves: time to rise to cruising height, and to descend onto the hex. */
+export const FLY_RISE_MS = 260;
+export const FLY_LAND_MS = 260;
+
+export function fliesKind(kindId: string): boolean {
+  return kindOf(kindId).moveTypes.includes('fly');
+}
+
+/** How long a move along `path` takes to animate (walk: per hex; fly: rise, straight glide, descend). */
+export function moveDurationMs(kindId: string, path: Hex[]): number {
+  if (path.length < 2) return 0;
+  if (!fliesKind(kindId)) return MS_PER_HEX * (path.length - 1);
+  return FLY_RISE_MS + FLY_LAND_MS + MS_PER_HEX * Math.max(1, hexDistance(path[0], path[path.length - 1]));
+}
 const MELEE_MS = 520;
 const MELEE_IMPACT = 0.55; // fraction of the melee step when the bonk lands
 const HIT_MS = 220;
@@ -74,8 +89,8 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
 
   if (!skipMove && !hexEq(unit.pos, action.to)) {
     const path = pathTo(reachable(before, unit), action.to);
-    const dur = MS_PER_HEX * Math.max(1, path.length - 1);
-    steps.push({ kind: 'move', unitId: unit.id, path, t0: t, t1: t + dur });
+    const dur = Math.max(MS_PER_HEX, moveDurationMs(unit.kind, path));
+    steps.push({ kind: 'move', unitId: unit.id, path, fly: fliesKind(unit.kind), t0: t, t1: t + dur });
     t += dur;
   }
 

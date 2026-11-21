@@ -15,6 +15,8 @@ export type Sfx =
   | { name: 'facing' }
   | { name: 'confirm' }
   | { name: 'step'; kind: StepKind; heavy: boolean }
+  | { name: 'flap'; soft: boolean }
+  | { name: 'land'; heavy: boolean }
   | { name: 'swing' }
   | { name: 'impact'; amount: number; magic: boolean }
   | { name: 'arrow' }
@@ -91,6 +93,13 @@ export function playSfx(ctx: Ctx, out: AudioNode, s: Sfx, t: number): void {
           noise(ctx, out, { t, dur: 0.08, gain: 0.16, filter: 'bandpass', freq: v(500), freqEnd: 250, q: 0.8, attack: 0.03, release: 0.06 });
           return;
       }
+      return;
+    case 'flap':
+      noise(ctx, out, { t, dur: 0.07, gain: s.soft ? 0.08 : 0.16, filter: 'bandpass', freq: v(450), freqEnd: 220, q: 0.8, attack: 0.025, release: 0.06 });
+      return;
+    case 'land':
+      drum(ctx, out, t, v(s.heavy ? 60 : 95, 0.08), s.heavy ? 0.2 : 0.1, 0.1);
+      noise(ctx, out, { t, dur: 0.05, gain: 0.06, filter: 'lowpass', freq: 900, release: 0.08 });
       return;
     case 'swing':
       noise(ctx, out, { t, dur: 0.12, gain: 0.2, filter: 'bandpass', freq: 600, freqEnd: 3000, q: 1.2, attack: 0.05, release: 0.04 });
