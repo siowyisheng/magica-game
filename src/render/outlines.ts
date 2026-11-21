@@ -178,3 +178,45 @@ export function fenceGeometry(segs: Segment[], style: LineStyle, y0: number, y1:
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   return g;
 }
+
+/**
+ * Vertical posts that join a boundary where it steps between hexes of
+ * different heights: wherever two segment ends meet (within `reach` across
+ * the ground) at different heights, a thin upright strip spans from the lower
+ * one's `y0` to the higher one's `y1`, so the outline reads as one line.
+ */
+export function cornerPosts(segs: Segment[], y0: number, y1: number, halfWidth: number, reach = 0.25): THREE.BufferGeometry {
+  const ends: THREE.Vector3[] = [];
+  for (const s of segs) ends.push(s.a, s.b);
+  const pos: number[] = [];
+  const done = new Set<string>();
+  for (let i = 0; i < ends.length; i++)
+    for (let j = i + 1; j < ends.length; j++) {
+      const a = ends[i];
+      const b = ends[j];
+      if (Math.abs(a.y - b.y) < 0.01) continue;
+      const dx = a.x - b.x;
+      const dz = a.z - b.z;
+      if (dx * dx + dz * dz > reach * reach) continue;
+      const mx = (a.x + b.x) / 2;
+      const mz = (a.z + b.z) / 2;
+      const key = `${mx.toFixed(2)},${mz.toFixed(2)},${Math.min(a.y, b.y).toFixed(2)},${Math.max(a.y, b.y).toFixed(2)}`;
+      if (done.has(key)) continue;
+      done.add(key);
+      const lo = Math.min(a.y, b.y) + y0;
+      const hi = Math.max(a.y, b.y) + y1;
+      // two crossed quads, so the post shows from any side
+      const quad = (ux: number, uz: number) => {
+        const p0 = [mx - ux, lo, mz - uz];
+        const p1 = [mx + ux, lo, mz + uz];
+        const p2 = [mx + ux, hi, mz + uz];
+        const p3 = [mx - ux, hi, mz - uz];
+        pos.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
+      };
+      quad(halfWidth, 0);
+      quad(0, halfWidth);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}

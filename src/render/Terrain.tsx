@@ -363,31 +363,27 @@ function edgeRibbons(match: MatchState, hexes: MapHex[], edgeOf: (mh: MapHex, n:
 
 /**
  * Water: Shallow is a light, clear teal (the floor shows through), Deep a
- * darker blue; white foam lines where water meets dry land, and a pale line
- * where Shallow meets Deep.
+ * darker blue, and a faint line where Shallow meets Deep. (No white shore
+ * foam: white lines are kept for Move Range outlines.)
  */
 export function Water({ match, interactive = true }: { match: MatchState; interactive?: boolean }) {
   const setHoverHex = useGame((s) => s.setHoverHex);
   const clickHex = useGame((s) => s.clickHex);
-  const { shallow, deep, foam, shelf } = useMemo(() => {
+  const { shallow, deep, shelf } = useMemo(() => {
     const wet = match.map.hexes.filter((mh) => surfaceOf(mh, match.waterLevel) !== 'land');
     const sh = wet.filter((mh) => surfaceOf(mh, match.waterLevel) === 'shallow');
     const dp = wet.filter((mh) => surfaceOf(mh, match.waterLevel) === 'deep');
-    const isWet = (n: MapHex | undefined) => !!n && surfaceOf(n, match.waterLevel) !== 'land';
     return {
       shallow: hexSurface(sh),
       deep: hexSurface(dp),
-      foam: edgeRibbons(match, wet, (_, n) => !!n && !isWet(n), 0.1),
       shelf: edgeRibbons(match, dp, (_, n) => !!n && surfaceOf(n, match.waterLevel) === 'shallow', 0.05),
     };
   }, [match.map, match.waterLevel]);
-  const foamMat = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(({ clock }, dt) => {
+  useFrame((_, dt) => {
     shallowTex.offset.x += dt * 0.03;
     shallowTex.offset.y += dt * 0.012;
     deepTex.offset.x -= dt * 0.018;
     deepTex.offset.y += dt * 0.008;
-    if (foamMat.current) foamMat.current.opacity = 0.62 + 0.18 * Math.sin(clock.elapsedTime * 1.6);
   });
   const hexAt = (e: ThreeEvent<PointerEvent | MouseEvent>) => worldToHex(e.point.x, e.point.z);
   const handlers = !interactive ? { raycast: () => null } : {
@@ -416,12 +412,7 @@ export function Water({ match, interactive = true }: { match: MatchState; intera
       )}
       {shelf && (
         <mesh geometry={shelf} position={[0, 0.004, 0]} raycast={() => null}>
-          <meshBasicMaterial color="#9fe0f0" transparent opacity={0.55} depthWrite={false} />
-        </mesh>
-      )}
-      {foam && (
-        <mesh geometry={foam} position={[0, 0.008, 0]} raycast={() => null}>
-          <meshBasicMaterial ref={foamMat} color="#f4fbff" transparent opacity={0.7} depthWrite={false} />
+          <meshBasicMaterial color="#4fb8d8" transparent opacity={0.45} depthWrite={false} />
         </mesh>
       )}
     </group>
