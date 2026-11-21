@@ -24,12 +24,10 @@ import {
   magicTargetHexes,
   manaIncome,
   mapHexAt,
-  MAX_SUMMONS,
   neighbor,
   previewEffects,
   reachable,
   SUMMONS,
-  summonCount,
   validateTurn,
   attackTargets,
   activeUnit,
@@ -229,7 +227,7 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
   const income = manaIncome(state, me.side);
 
   // Rank summon kinds once (placement-independent).
-  const summonKinds = kind.isSummoner && summonCount(state, me.side) < MAX_SUMMONS
+  const summonKinds = kind.isSummoner
     ? SUMMONS.filter((s) => s.cost <= myMana && inRoster(state, me.side, s.id))
         .map((s) => {
           let counter = 0;

@@ -284,6 +284,15 @@ describe('match flow', () => {
     expect(events.some((e) => e.type === 'summon')).toBe(true);
   });
 
+  it('has no limit on how many Summons a Side keeps on the map', () => {
+    const s = createMatch(testMap(8, 8));
+    const me = getUnit(s, s.activeUnitId!);
+    for (let i = 0; i < 8; i++) place(s, 'imp', 0, 4 + (i % 4), 1 + Math.floor(i / 4));
+    s.sides[0].mana = 120;
+    const { state } = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'summon', kind: 'imp', dir: 1 } });
+    expect(state.units.filter((u) => u.side === 0 && u.kind === 'imp').length).toBe(9);
+  });
+
   it('captures stones by ending a turn, not by being summoned', () => {
     const s = createMatch(testMap(6, 6, (q, r) => (q === 1 && r === 4 ? { terrain: 'stone' } : {})));
     const me = getUnit(s, s.activeUnitId!); // at (0,5)
