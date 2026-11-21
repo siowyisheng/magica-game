@@ -197,32 +197,29 @@ function frameBounds(kindId: string, side: SideId, view: ViewIndex, ps: number):
 const urlCache = new Map<string, string>();
 /**
  * A sprite frame as an image of exactly `boxW`×`boxH`: cropped to the figure
- * and drawn at the largest whole-number scale that fits (trying the
- * high-detail sprite first), centred and standing on the bottom edge.
+ * and drawn at the largest whole-number scale that fits (one sprite
+ * resolution per box size, so kinds keep their relative sizes), centred and
+ * standing on the bottom edge.
  */
 export function unitFrameUrl(kindId: string, side: SideId, frame: IdleFrame, facing = 5, boxW = 88, boxH = 110): string {
   const key = `${kindId}|${side}|${frame}|${facing}|${boxW}|${boxH}`;
   const hit = urlCache.get(key);
   if (hit) return hit;
   const { view, mirror } = viewForFacing(facing);
-  let pick: { ps: number; k: number; b: Box } | null = null;
-  for (const ps of [1, 2]) {
-    const b = frameBounds(kindId, side, view, ps);
-    const k = Math.floor(Math.min((boxW - 2) / (b.x1 - b.x0 + 1), (boxH - 2) / (b.y1 - b.y0 + 1)));
-    if (k >= 1 && (!pick || k * (b.y1 - b.y0 + 1) > pick.k * (pick.b.y1 - pick.b.y0 + 1))) pick = { ps, k, b };
-  }
+  // one resolution per box size, so every kind is drawn at the same scale
+  const ps = boxH >= 100 ? 1 : 2;
+  const b0 = frameBounds(kindId, side, view, ps);
+  // scale from the whole sprite canvas (same for kinds of the same size), then shrink only if the crop won't fit
+  const full = baseCanvas(kindId, side, view, 0, ps);
+  const fit = Math.min((boxW - 2) / (b0.x1 - b0.x0 + 1), (boxH - 2) / (b0.y1 - b0.y0 + 1));
+  const kFull = Math.max(1, Math.floor(Math.min(boxW / full.width, boxH / full.height)));
+  const k = kFull <= fit ? kFull : fit >= 1 ? Math.floor(fit) : fit;
+  const b = b0;
   const cv = document.createElement('canvas');
   cv.width = boxW;
   cv.height = boxH;
   const ctx = cv.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
-  if (!pick) {
-    // too big even at 1×: scale the default sprite down to fit
-    const b = frameBounds(kindId, side, view, 2);
-    const k = Math.min(boxW / (b.x1 - b.x0 + 1), boxH / (b.y1 - b.y0 + 1));
-    pick = { ps: 2, k, b };
-  }
-  const { ps, k, b } = pick;
   const src = baseCanvas(kindId, side, view, frame, ps);
   const w = (b.x1 - b.x0 + 1) * k;
   const h = (b.y1 - b.y0 + 1) * k;

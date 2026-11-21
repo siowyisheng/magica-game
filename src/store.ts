@@ -28,6 +28,7 @@ import {
   type TargetPlan,
   type MagicPlan,
   type Target,
+  SUMMONERS,
   targetAt,
   targetById,
   canPlace,
@@ -35,6 +36,29 @@ import {
 import { chooseAction } from './ai/ai';
 import { getMap } from './maps/library';
 import { planTurnAnim, type TurnAnim } from './anim';
+
+/** Match Setup: map, and per Side a Summoner ('random' allowed) and who plays it. */
+export interface MatchSetup {
+  mapId: string;
+  summoners: [string, string];
+  ai: [boolean, boolean];
+}
+
+const SETUP_KEY = 'magica.setup';
+function loadSetup(): MatchSetup {
+  const d: MatchSetup = { mapId: 'builtin:scaffold-ford', summoners: ['sigil', 'random'], ai: [false, true] };
+  try {
+    return { ...d, ...JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}') };
+  } catch {
+    return d;
+  }
+}
+
+/** Resolve 'random' Summoner choices (uses the given random source). */
+export function resolveSummoners(choice: [string, string], rand: () => number = Math.random): [string, string] {
+  const pick = (c: string) => (c === 'random' ? SUMMONERS[Math.floor(rand() * SUMMONERS.length)].id : c);
+  return [pick(choice[0]), pick(choice[1])];
+}
 
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
 export type Phase =
@@ -70,7 +94,11 @@ interface Store {
   /** Library id of the map new matches use. */
   mapId: string;
   /** Which screen is shown. */
-  screen: 'game' | 'editor';
+  screen: 'game' | 'editor' | 'dev';
+  /** The Match Setup dialog is open. */
+  setupOpen: boolean;
+  /** Last Match Setup (remembered between visits). */
+  setup: MatchSetup;
   phase: Phase;
   hoverHex: Hex | null;
   hoverUnitId: number | null;
@@ -91,9 +119,12 @@ interface Store {
 
   newMatch: () => void;
   /** Start a match on a map (e.g. from the editor). */
-  startMatch: (map: MapDef, mapId?: string) => void;
+  startMatch: (map: MapDef, mapId?: string, setup?: Partial<MatchSetup>) => void;
   setMapId: (id: string) => void;
-  setScreen: (s: 'game' | 'editor') => void;
+  setScreen: (s: 'game' | 'editor' | 'dev') => void;
+  setSetupOpen: (open: boolean) => void;
+  /** Start a match from a Match Setup (and remember it). */
+  startFromSetup: (setup: MatchSetup) => void;
   setHoverHex: (h: Hex | null) => void;
   setHoverUnit: (id: number | null) => void;
   setHoverCommand: (c: CommandHover) => void;
@@ -193,8 +224,10 @@ export const useGame = create<Store>((set, get) => {
 
   return {
     match: initial,
-    mapId: 'builtin:scaffold-ford',
+    mapId: loadSetup().mapId,
     screen: 'game',
+    setupOpen: false,
+    setup: loadSetup(),
     phase: phaseFor(initial),
     hoverHex: null,
     hoverUnitId: null,
@@ -212,9 +245,11 @@ export const useGame = create<Store>((set, get) => {
       const map = getMap(get().mapId)?.map ?? get().match.map;
       get().startMatch(map);
     },
-    startMatch: (map, mapId) => {
-      const ai = get().match.sides.map((s) => s.ai) as [boolean, boolean];
-      const m = createMatch(map, { ai, seed: Date.now() & 0xffff });
+    startMatch: (map, mapId, setup) => {
+      const last = get().setup;
+      const ai = setup?.ai ?? (get().match.sides.map((s) => s.ai) as [boolean, boolean]);
+      const summoners = resolveSummoners(setup?.summoners ?? last.summoners);
+      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners });
       if (mapId) set({ mapId });
       set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
       signal({ type: 'newMatch' });
@@ -332,6 +367,17 @@ export const useGame = create<Store>((set, get) => {
     },
 
     setMapId: (mapId) => set({ mapId }),
+    setSetupOpen: (setupOpen) => set({ setupOpen }),
+    startFromSetup: (setup) => {
+      try {
+        localStorage.setItem(SETUP_KEY, JSON.stringify(setup));
+      } catch {
+        /* storage unavailable */
+      }
+      const map = getMap(setup.mapId)?.map ?? get().match.map;
+      set({ setup, setupOpen: false, screen: 'game' });
+      get().startMatch(map, setup.mapId, setup);
+    },
     setScreen: (screen) => set({ screen, hoverHex: null, hoverUnitId: null }),
     toggleHpBars: () => set((s) => ({ showHpBars: !s.showHpBars })),
     setAi: (side, ai) => {

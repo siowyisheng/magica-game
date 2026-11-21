@@ -108,10 +108,13 @@ export function InfoPanel() {
           <input type="checkbox" checked={match.sides[0].ai} onChange={(e) => setAi(0, e.target.checked)} /> Green is AI
         </label>
         <SoundOptions />
-        <MapPicker />
         <div className="btn-row">
-          <button onClick={newMatch}>New match</button>
+          <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
+          <button onClick={newMatch} title="Same map and Summoners">Rematch</button>
+        </div>
+        <div className="btn-row">
           <button onClick={openEditor}>Map Editor</button>
+          <button onClick={() => useGame.getState().setScreen('dev')}>Dev tools</button>
         </div>
         <div className="muted small">Wheel: zoom · Right-drag: pan · Right-click: back / cancel move</div>
       </div>
@@ -205,24 +208,6 @@ function ManaBars({ side }: { side: SideId }) {
         {net}/h
       </div>
     </div>
-  );
-}
-
-function MapPicker() {
-  const mapId = useGame((s) => s.mapId);
-  const setMapId = useGame((s) => s.setMapId);
-  const maps = listMaps();
-  return (
-    <label className="slider">
-      <span>Map</span>
-      <select value={mapId} onChange={(e) => setMapId(e.target.value)}>
-        {maps.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.map.name}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

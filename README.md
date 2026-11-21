@@ -25,6 +25,7 @@ npm run build
 | `src/render/` | three.js scene: orthographic camera, themed hex columns (`themes.ts`, `Terrain.tsx`), Pits, Obstacles, water, stones, highlights, and the unit sprites, rendered from small 3D part models into cel-shaded pixel art (`spritegen/`). |
 | `src/editor/` | The map editor screen and its state (draft, tools, mirroring, undo / redo). |
 | `src/maps/` | Map library: built-in maps plus your own, saved in the browser, with JSON import / export. |
+| `src/dev/` | Dev tools: the unit balance editor and its local / repo overrides. |
 | `src/anim.ts` | Pure turn-animation plan (slide along path, melee wind-up and bonk, projectiles, hit shake). The board samples it, and the store applies the new state when it ends. |
 | `src/audio/` | Procedural music and sound effects (Web Audio; no audio files): five composed tracks with a smart shuffle, a synthesized effect for every action, and the hooks that time them to the turn animations. |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
@@ -40,7 +41,15 @@ npm run build
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.
 - While hovering a destination or command, the acting unit's icon jumps to its previewed slot on the timeline.
-- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, pick the map for New match, or open the Map Editor. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, start a **New match…** (map, each Side's Summoner or Random, Human or AI) or a **Rematch**, open the **Map Editor** or the **Dev tools**. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+
+## Summoners
+
+Ten Summoners to pick from, all walk + wade with Bolt, Rise and Ebb: **Sigil** (rune mage, balanced), **Warden** (knight-cleric, tough, Day), **Orrery** (stargazer, richest but fragile, Night), **Bramble** (druid crone, magic-proof), **Cinder** (ember noble, Fire), **Zephyr** (wind herald, fast, poor), **Sexton** (grave-keeper, rich), **Nereid** (sea priestess, Water), **Cairn** (stone hermit, tough) and **Tinker** (clockwork tinkerer, fighter). MP sets Mana Income, so a richer Summoner is weaker in a fight or slower.
+
+## Dev tools
+
+Options → Dev tools edits every Summoner's and summon's name, Cost, Element, Alignment, stats, Move Types, Attack range and Trajectory, and Magic (summons can have none or one Magic Ability). Design rules (name length, Cost steps, Summon Magic cost…) show as warnings. Edits are kept in this browser and apply to new matches; Export / Import them as JSON, reset one unit or all, or — while running `npm run dev` — **Write to repo**, which saves them into `src/rules/data/overrides.json` (commit that file to ship them).
 
 ## Maps
 

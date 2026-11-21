@@ -32,7 +32,10 @@ export function SummonDetail({ kindId, side }: { kindId: string; side: SideId })
       </div>
       <StatGrid stats={k.stats} pct={pct} size={16} />
       <div className="sc-row">Move Type: {k.moveTypes.join(' + ')}</div>
-      <div className="sc-row">Attack: range {k.attack.range}</div>
+      <div className="sc-row">
+        Attack: range {k.attack.range}
+        {k.attack.range > 1 ? ` · ${k.attack.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}
+      </div>
       {m && (
         <div className="sc-row">
           {m.name} ({m.manaCost}◆): {magicText(m)}

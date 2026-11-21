@@ -117,6 +117,7 @@ export function CommandMenu() {
         ) : (
           (() => {
             const ab = kind.magic[0];
+            if (!ab) return null; // this summon has no Magic Ability
             const usable =
               !stuck &&
               mana >= ab.manaCost &&
