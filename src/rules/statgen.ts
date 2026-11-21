@@ -124,12 +124,20 @@ export function budgetError(s: Stats, range: number, b: StatBudget = STAT_BUDGET
 const KEYS = ['atk', 'def', 'mdf', 'spd', 'mov'] as const;
 const ALL_KEYS = ['atk', 'def', 'mp', 'mdf', 'spd', 'mov'] as const;
 
-/** Bounds of the references, widened by one point on each side (MOV kept to 3–6). */
+/**
+ * Magic Defense floor for Summoners. Magic reaches further than most
+ * Attacks, so a Summoner with very low MDF would die before it could act:
+ * generated spreads stay at 7 or above (soft), and no Summoner may go below
+ * 6 (hard), with at most one at 6.
+ */
+export const MDF_FLOOR = { soft: 7, hard: 6, atHardFloor: 1 } as const;
+
+/** Bounds of the references, widened by one point on each side (MOV kept to 3–6; MDF from the soft floor). */
 export const STAT_BOUNDS: Record<keyof Stats, [number, number]> = {
   atk: [1, 18],
   def: [3, 17],
   mp: [8, 16],
-  mdf: [5, 17],
+  mdf: [7, 17], // MDF_FLOOR.soft
   spd: [10, 18],
   mov: [3, 6],
 };

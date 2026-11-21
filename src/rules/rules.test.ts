@@ -633,6 +633,9 @@ describe('summoners', () => {
     expect(SUMMONERS.filter((k) => k.element).length).toBe(4);
     expect(SUMMONERS.filter((k) => k.alignment === 'day').length).toBe(2);
     expect(SUMMONERS.filter((k) => k.alignment === 'night').length).toBe(2);
+    // MDF floor: none below 6, at most one below 7
+    expect(Math.min(...SUMMONERS.map((k) => k.stats.mdf))).toBeGreaterThanOrEqual(6);
+    expect(SUMMONERS.filter((k) => k.stats.mdf < 7).length).toBeLessThanOrEqual(1);
     const ranged = SUMMONERS.filter((k) => k.attack.range > 1);
     expect(ranged.map((k) => k.attack.range).sort()).toEqual([3, 4, 4, 5, 6]);
     expect(ranged.every((k) => k.attack.trajectory === (k.attack.range <= 4 ? 'direct' : 'high'))).toBe(true);
