@@ -141,3 +141,34 @@ export function setLocalOverrides(kinds: Record<string, KindPatch>) {
 }
 
 export { BASE_SUMMONERS, BASE_SUMMONS, DEFAULT_SUMMONER };
+
+/** Everything in force that differs from the built-in data: repo overrides with local edits on top. */
+export function activeBalance(): Balance {
+  const out: Balance = { kinds: clone(repo.kinds), abilities: { ...clone(repo.abilities), ...clone(local.abilities) } };
+  for (const [id, p] of Object.entries(local.kinds)) out.kinds[id] = { ...(out.kinds[id] ?? {}), ...clone(p) };
+  return out;
+}
+
+let suspended: { repo: Balance; local: Balance } | null = null;
+
+/**
+ * Use `b` as the whole balance for a while (watching a Replay), setting the
+ * current overrides aside until `endTemporaryBalance`.
+ */
+export function applyTemporaryBalance(b: Balance) {
+  if (!suspended) suspended = { repo, local };
+  repo = normalizeBalance(b);
+  local = { kinds: {}, abilities: {} };
+  rebuild();
+}
+
+export function endTemporaryBalance() {
+  if (!suspended) return;
+  ({ repo, local } = suspended);
+  suspended = null;
+  rebuild();
+}
+
+export function temporaryBalanceActive(): boolean {
+  return suspended !== null;
+}

@@ -22,6 +22,13 @@ A match where both Sides may Summon all 28 Summons, ignoring Loadouts. For tryin
 **Match Setup**:
 The choices made before a match: the map, whether it is a Test Match, and for each Side its Summoner, its Loadout and whether a person or the AI plays it.
 
+**Pause**:
+Stopping a match in place: no turn starts and no Command can be given until it is resumed. The map can still be looked at and Units inspected.
+
+**Replay**:
+A recorded match that can be watched back turn by turn, played forward, stepped back or jumped to any turn. Every match is recorded; the most recent ones are kept for a while and a player can save one to keep it. A Replay shows the match with the unit stats and abilities in force when it was played. From any turn of a Replay, the player can **Play from here**: the match continues live from that position, with each Side played by a person or the AI.
+_Avoid_: Recording, demo, VOD
+
 **Summon**:
 A Unit that a Summoner brings onto a hex next to it. The new Summon faces the way it was summoned, and so does the Summoner. There are 28 kinds, seven per Element. Each has exactly one Magic Ability.
 _Avoid_: Monster, minion, creature

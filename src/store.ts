@@ -33,11 +33,15 @@ import {
   targetAt,
   targetById,
   canPlace,
+  activeBalance,
+  applyTemporaryBalance,
+  endTemporaryBalance,
 } from './rules';
 import { autoLoadout, chooseAction } from './ai/ai';
 import { getLoadout } from './loadouts/library';
 import { getMap } from './maps/library';
-import { planTurnAnim, type TurnAnim } from './anim';
+import { animWallMs, planTurnAnim, type TurnAnim } from './anim';
+import { ReplayCursor, loadReplay, newReplay, storeReplay, type Replay } from './replay/replay';
 
 /** Match Setup: map, and per Side a Summoner ('random' allowed) and who plays it. */
 export interface MatchSetup {
@@ -102,6 +106,26 @@ export type Phase =
   /** Quick action on a unit where both Attack and Magic are possible. */
   | { kind: 'quickChoice'; targetId: number; attack: TargetPlan; magic: MagicPlan };
 
+/** Watching a Replay. The live match is set aside until the Replay is left. */
+export interface ReplayView {
+  replay: Replay;
+  cursor: ReplayCursor;
+  /** Turns applied to the position shown. */
+  index: number;
+  playing: boolean;
+  speed: 1 | 2 | 4;
+  /** Why playback stopped early, if a turn could not be replayed. */
+  error: string | null;
+  /** The Play from here dialog is open. */
+  takeover: boolean;
+  live: { match: MatchState; recording: Recording | null; log: string[]; paused: boolean };
+}
+
+/** The live match's Replay while it is recorded, with the position it has reached. */
+export type Recording = Replay & { head: MatchState };
+
+export type Screen = 'game' | 'editor' | 'dev' | 'loadouts' | 'replays';
+
 /** Things outside the store (sound) may want to react to. */
 export type GameSignal =
   | { type: 'turn'; before: MatchState; action: TurnAction; anim: TurnAnim | null; events: GameEvent[] }
@@ -125,7 +149,7 @@ interface Store {
   /** Library id of the map new matches use. */
   mapId: string;
   /** Which screen is shown. */
-  screen: 'game' | 'editor' | 'dev' | 'loadouts';
+  screen: Screen;
   /** The Match Setup dialog is open. */
   setupOpen: boolean;
   /** The in-match Loadouts view is open. */
@@ -155,7 +179,7 @@ interface Store {
   /** Start a match on a map (e.g. from the editor). */
   startMatch: (map: MapDef, mapId?: string, setup?: Partial<MatchSetup>) => void;
   setMapId: (id: string) => void;
-  setScreen: (s: 'game' | 'editor' | 'dev' | 'loadouts') => void;
+  setScreen: (s: Screen) => void;
   setSetupOpen: (open: boolean) => void;
   /** Start a match from a Match Setup (and remember it). */
   startFromSetup: (setup: MatchSetup) => void;
@@ -169,6 +193,24 @@ interface Store {
   toggleHpBars: () => void;
   setAi: (side: 0 | 1, ai: boolean) => void;
   tickAi: () => void;
+
+  /** The match is Paused: no turn starts and no Command can be given. */
+  paused: boolean;
+  togglePause: () => void;
+  /** The live match's Replay, recorded as it is played. */
+  recording: Recording | null;
+  replay: ReplayView | null;
+  /** Watch a stored Replay (from the start). */
+  openReplay: (id: string) => boolean;
+  exitReplay: () => void;
+  replaySeek: (index: number) => void;
+  replayStep: (delta: 1 | -1) => void;
+  replayTogglePlay: () => void;
+  replaySetSpeed: (speed: 1 | 2 | 4) => void;
+  setTakeoverOpen: (open: boolean) => void;
+  /** Continue the Replay's current position as a live match. */
+  playFromHere: (ai: [boolean, boolean]) => void;
+  tickReplay: () => void;
 }
 
 function phaseFor(match: MatchState): Phase {
@@ -211,9 +253,15 @@ function describe(match: MatchState, e: GameEvent): string | null {
 }
 
 export const useGame = create<Store>((set, get) => {
-  const commit = (action: TurnAction, alreadyMoved = true) => {
+  const commit = (action: TurnAction, alreadyMoved = true, rate = 1) => {
     const { match } = get();
     const err = validateTurn(match, action);
+    const watching = get().replay;
+    if (err && watching) {
+      watching.cursor.breakAt(watching.index, err);
+      set({ replay: { ...watching, playing: false, error: watching.cursor.errorText() } });
+      return;
+    }
     if (err) {
       set((s) => ({ log: [`Illegal: ${err}`, ...s.log].slice(0, 40) }));
       signal({ type: 'deny' });
@@ -221,25 +269,49 @@ export const useGame = create<Store>((set, get) => {
     }
     // describe with the pre-state for names of units that die
     const { state, events } = applyTurn(match, action);
+    if (!watching) record(match, action, state);
     const lines = events.map((e) => describe({ ...state, units: [...match.units, ...state.units], obstacles: [...match.obstacles, ...state.obstacles] }, e)).filter(Boolean) as string[];
     const finish = () =>
-      set((s) => ({
-        match: state,
-        anim: null,
-        phase: phaseFor(state),
-        hoverCommand: null,
-        hoverSummon: null,
-        inspected: [],
-        log: [...lines.reverse(), ...s.log].slice(0, 40),
-        version: s.version + 1,
-      }));
-    const anim = get().animate ? planTurnAnim(match, action, performance.now(), alreadyMoved) : null;
+      set((s) => {
+        // Who is AI may have changed while the turn animated: keep the current choice.
+        const next = { ...state, sides: state.sides.map((sd, i) => ({ ...sd, ai: s.match.sides[i].ai })) as MatchState['sides'] };
+        const r = s.replay;
+        return {
+          ...(r ? { replay: { ...r, index: r.index + 1 } } : { recording: s.recording && { ...s.recording, head: next } as Recording }),
+          match: next,
+          anim: null,
+          phase: phaseFor(next),
+          hoverCommand: null,
+          hoverSummon: null,
+          inspected: [],
+          log: [...lines.reverse(), ...s.log].slice(0, 40),
+          version: s.version + 1,
+        };
+      });
+    const anim = get().animate ? { ...planTurnAnim(match, action, performance.now(), alreadyMoved), rate } : null;
     signal({ type: 'turn', before: match, action, anim: anim && anim.duration > 0 ? anim : null, events });
     if (!anim || anim.duration <= 0) return finish();
     set({ anim, phase: { kind: 'idle' }, hoverCommand: null, hoverSummon: null });
     setTimeout(() => {
       if (get().anim === anim) finish();
-    }, anim.duration);
+    }, animWallMs(anim));
+  };
+
+  /** Add a turn to the live match's Replay (a fresh one if the match was replaced from outside). */
+  const record = (before: MatchState, action: TurnAction, after: MatchState) => {
+    let rec = get().recording;
+    if (!rec || rec.head !== before) rec = { ...newReplay(before, activeBalance()), head: before };
+    const next: Recording = { ...rec, actions: [...rec.actions, action], winner: after.winner, updatedAt: Date.now(), head: after };
+    persist(next);
+    set({ recording: next });
+  };
+  const persist = (rec: Recording) => {
+    const { head: _head, ...replay } = rec;
+    try {
+      storeReplay(replay);
+    } catch {
+      /* storage unavailable */
+    }
   };
 
   const toggleInspect = (id: number) =>
@@ -279,6 +351,9 @@ export const useGame = create<Store>((set, get) => {
     anim: null,
     animate: true,
     version: 0,
+    paused: false,
+    recording: null,
+    replay: null,
 
     newMatch: () => {
       const map = getMap(get().mapId)?.map ?? get().match.map;
@@ -291,7 +366,8 @@ export const useGame = create<Store>((set, get) => {
       const aiLevels = setup?.aiLevels ?? last.aiLevels ?? (['normal', 'normal'] as ['normal' | 'hard', 'normal' | 'hard']);
       const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners, rosters, aiLevels });
       if (mapId) set({ mapId });
-      set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
+      if (get().replay) endTemporaryBalance();
+      set({ match: m, recording: { ...newReplay(m, activeBalance()), head: m }, replay: null, paused: false, aiThinking: false, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
       signal({ type: 'newMatch' });
     },
     setHoverHex: (h) => {
@@ -304,6 +380,7 @@ export const useGame = create<Store>((set, get) => {
     setHoverSummon: (k) => get().hoverSummon !== k && set({ hoverSummon: k }),
 
     clickHex: (h) => {
+      if (get().paused || get().replay) return;
       const { match, phase } = get();
       const u = activeUnit(match);
       if (!u) return;
@@ -359,6 +436,13 @@ export const useGame = create<Store>((set, get) => {
     },
 
     rightClick: () => {
+      if (get().paused || get().replay) {
+        // still allowed: showing another unit's ranges
+        const { match, hoverUnitId, hoverHex } = get();
+        const o = (hoverUnitId !== null ? match.units.find((x) => x.id === hoverUnitId) : undefined) ?? (hoverHex ? unitAt(match, hoverHex) : undefined);
+        if (o) toggleInspect(o.id);
+        return;
+      }
       const { phase, match } = get();
       const u = activeUnit(match);
       if (!u || phase.kind === 'idle') return;
@@ -382,6 +466,7 @@ export const useGame = create<Store>((set, get) => {
     },
 
     choose: (c) => {
+      if (get().paused || get().replay) return;
       const { phase, match } = get();
       const u = activeUnit(match);
       if (!u) return;
@@ -418,28 +503,149 @@ export const useGame = create<Store>((set, get) => {
       set({ setup, setupOpen: false, screen: 'game' });
       get().startMatch(map, setup.mapId, setup);
     },
-    setScreen: (screen) => set({ screen, hoverHex: null, hoverUnitId: null }),
+    setScreen: (screen) => {
+      if (screen !== 'game' && get().replay) get().exitReplay();
+      set({ screen, hoverHex: null, hoverUnitId: null });
+    },
     toggleHpBars: () => set((s) => ({ showHpBars: !s.showHpBars })),
     setAi: (side, ai) => {
+      if (get().replay) return;
       const m = get().match;
       const sides = [...m.sides] as MatchState['sides'];
       sides[side] = { ...sides[side], ai };
       const match = { ...m, sides };
-      set({ match, phase: phaseFor(match) });
+      const rec = get().recording;
+      set({ match, phase: get().paused ? get().phase : phaseFor(match), recording: rec && rec.head === m ? { ...rec, head: match } : rec });
     },
 
     tickAi: () => {
-      const { match, aiThinking, anim } = get();
+      const { match, aiThinking, anim, paused, replay } = get();
       const u = activeUnit(match);
-      if (aiThinking || anim || !u || match.winner !== null || !match.sides[u.side].ai) return;
+      if (paused || replay || aiThinking || anim || !u || match.winner !== null || !match.sides[u.side].ai) return;
       set({ aiThinking: true });
       setTimeout(() => {
         const m = get().match;
-        if (m !== match || get().anim) return set({ aiThinking: false });
+        if (m !== match || get().anim || get().paused || get().replay) return set({ aiThinking: false });
         const action = chooseAction(m);
         set({ aiThinking: false });
         commit(action, false);
       }, 450);
+    },
+
+    togglePause: () => {
+      if (get().replay) return get().replayTogglePlay();
+      const paused = !get().paused;
+      // a person's turn keeps its place; it just can't be confirmed while Paused
+      set({ paused });
+    },
+
+    openReplay: (id) => {
+      const replay = loadReplay(id);
+      if (!replay) return false;
+      const cur = get().replay;
+      const live = cur ? cur.live : { match: get().match, recording: get().recording, log: get().log, paused: get().paused };
+      applyTemporaryBalance(replay.balance);
+      const cursor = new ReplayCursor(replay);
+      const pos = cursor.at(0);
+      set({
+        screen: 'game',
+        replay: { replay, cursor, index: 0, playing: false, speed: 1, error: pos.error, takeover: false, live },
+        match: pos.state,
+        anim: null,
+        aiThinking: false,
+        phase: { kind: 'idle' },
+        inspected: [],
+        log: [`Replay: ${replay.initial.map.name} — ${replay.actions.length} turns`],
+        version: get().version + 1,
+      });
+      return true;
+    },
+
+    exitReplay: () => {
+      const r = get().replay;
+      if (!r) return;
+      endTemporaryBalance();
+      const { match, recording, log, paused } = r.live;
+      set({ replay: null, match, recording, log, paused, anim: null, aiThinking: false, inspected: [], phase: phaseFor(match), version: get().version + 1 });
+    },
+
+    replaySeek: (index) => {
+      const r = get().replay;
+      if (!r) return;
+      const pos = r.cursor.at(index);
+      set({
+        replay: { ...r, index: pos.index, error: pos.error ?? r.error, playing: pos.error ? false : r.playing },
+        match: pos.state,
+        anim: null,
+        aiThinking: false,
+        log: [`Turn ${pos.index} of ${r.replay.actions.length}`, ...get().log].slice(0, 40),
+        version: get().version + 1,
+      });
+    },
+
+    replayStep: (delta) => {
+      const r = get().replay;
+      if (!r) return;
+      if (delta < 0) return set({ replay: { ...r, playing: false } }), get().replaySeek(r.index - 1);
+      if (get().anim) get().replaySeek(r.index); // finish the current turn at once
+      const cur = get().replay!;
+      set({ replay: { ...cur, playing: false } });
+      if (cur.index >= cur.cursor.playable) return;
+      commit(cur.replay.actions[cur.index], false, cur.speed);
+    },
+
+    replayTogglePlay: () => {
+      const r = get().replay;
+      if (!r) return;
+      const atEnd = r.index >= r.cursor.playable;
+      if (!r.playing && atEnd && r.cursor.playable === r.replay.actions.length) get().replaySeek(0);
+      const cur = get().replay!;
+      set({ replay: { ...cur, playing: !r.playing && cur.index < cur.cursor.playable } });
+    },
+
+    replaySetSpeed: (speed) => {
+      const r = get().replay;
+      if (r) set({ replay: { ...r, speed } });
+    },
+
+    setTakeoverOpen: (takeover) => {
+      const r = get().replay;
+      if (r) set({ replay: { ...r, takeover, playing: false } });
+    },
+
+    playFromHere: (ai) => {
+      const r = get().replay;
+      if (!r) return;
+      if (get().anim) get().replaySeek(r.index);
+      const pos = get().match;
+      endTemporaryBalance();
+      const match: MatchState = { ...pos, sides: pos.sides.map((sd, i) => ({ ...sd, ai: ai[i] })) as MatchState['sides'] };
+      set({
+        replay: null,
+        match,
+        recording: { ...newReplay(match, activeBalance()), head: match },
+        paused: false,
+        anim: null,
+        aiThinking: false,
+        inspected: [],
+        phase: phaseFor(match),
+        log: [`Playing from turn ${get().replay?.index ?? r.index} of the Replay`],
+        version: get().version + 1,
+      });
+    },
+
+    tickReplay: () => {
+      const r = get().replay;
+      if (!r || !r.playing || get().anim || get().aiThinking) return;
+      if (r.index >= r.cursor.playable) return set({ replay: { ...r, playing: false, error: r.cursor.errorText() ?? r.error } });
+      set({ aiThinking: true });
+      const match = get().match;
+      setTimeout(() => {
+        const cur = get().replay;
+        set({ aiThinking: false });
+        if (!cur || !cur.playing || get().match !== match || get().anim) return;
+        commit(cur.replay.actions[cur.index], false, cur.speed);
+      }, 450 / r.speed);
     },
   };
 });

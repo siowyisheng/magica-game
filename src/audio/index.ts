@@ -188,9 +188,10 @@ export function installAudio(): void {
     const { before, action, anim, events } = sig;
     const actor = before.units.find((u) => u.id === action.unitId);
     if (actor && !before.sides[actor.side].ai) play({ name: 'confirm' });
+    const rate = anim?.rate ?? 1;
     for (const c of turnCues(before, action, anim, events, humanViewer(before))) {
-      play(c.sfx, c.at);
-      if (c.sfx.name === 'victory' || c.sfx.name === 'defeat') setTimeout(() => engine?.music.duck(3.5), c.at);
+      play(c.sfx, c.at / rate);
+      if (c.sfx.name === 'victory' || c.sfx.name === 'defeat') setTimeout(() => engine?.music.duck(3.5), c.at / rate);
     }
   });
 

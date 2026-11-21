@@ -32,6 +32,7 @@ export function InfoPanel() {
   const showHpBars = useGame((s) => s.showHpBars);
   const toggleHpBars = useGame((s) => s.toggleHpBars);
   const setAi = useGame((s) => s.setAi);
+  const watching = useGame((s) => s.replay !== null);
   const newMatch = useGame((s) => s.newMatch);
   const log = useGame((s) => s.log);
   const aiThinking = useGame((s) => s.aiThinking);
@@ -105,12 +106,16 @@ export function InfoPanel() {
       <div className="window">
         <div className="title">Options</div>
         <label><input type="checkbox" checked={showHpBars} onChange={toggleHpBars} /> Floating HP / AV bars</label>
-        <label>
-          <input type="checkbox" checked={match.sides[1].ai} onChange={(e) => setAi(1, e.target.checked)} /> Red is AI (off = hotseat)
-        </label>
-        <label>
-          <input type="checkbox" checked={match.sides[0].ai} onChange={(e) => setAi(0, e.target.checked)} /> Green is AI
-        </label>
+        {!watching && (
+          <>
+            <label>
+              <input type="checkbox" checked={match.sides[1].ai} onChange={(e) => setAi(1, e.target.checked)} /> Red is AI (off = hotseat)
+            </label>
+            <label>
+              <input type="checkbox" checked={match.sides[0].ai} onChange={(e) => setAi(0, e.target.checked)} /> Green is AI
+            </label>
+          </>
+        )}
         <SoundOptions />
         <div className="btn-row">
           <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
@@ -123,6 +128,9 @@ export function InfoPanel() {
         <div className="btn-row">
           <button onClick={openEditor}>Map Editor</button>
           <button onClick={() => useGame.getState().setScreen('dev')}>Dev tools</button>
+        </div>
+        <div className="btn-row">
+          <button onClick={() => useGame.getState().setScreen('replays')}>Replays…</button>
         </div>
         <div className="muted small">Wheel: zoom · Right-drag: pan · Right-click: back / cancel move</div>
       </div>
