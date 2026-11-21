@@ -80,6 +80,10 @@ export const AI_WEIGHTS = {
   strandEnemy: 30,
   strandAlly: 35,
   delay: 0.15,
+  /** Value of threat removed from allies by standing in enemies' way (× threat). */
+  screen: 0.6,
+  /** How many of the best destinations are re-scored for screening. */
+  screenTop: 8,
   /** Per enemy that breaking an Obstacle would bring into this Unit's Attack Reach. */
   obstacleOpening: 25,
 };
@@ -484,6 +488,60 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   }
 
   candidates.sort((a, b) => b.score - a.score);
+
+  // Screening: ground enemies must stop in this Unit's ZOC, so where it ends can
+  // shield allies (or, by leaving, expose them). Re-score the best destinations
+  // with enemy reach recomputed around this Unit's new position.
+  if (w.screen > 0 && allies.length) {
+    const ev = (a: Unit, rs: EnemyReach[]) => {
+      let t = 0;
+      for (const e of rs) if (e.unit.av < a.av) t += maxDamage(e, a, a.pos, a.facing);
+      return Math.min(t, a.hp) * unitValue(a);
+    };
+    const baseThreat = allies.reduce((acc, a) => acc + ev(a, reaches), 0);
+    const near = (e: Unit, h: Hex) => hexDistance(e.pos, h) <= kindOf(e.kind).stats.mov + 2;
+    const done = new Map<string, number>();
+    const screened = new Set<Candidate>();
+    const screenBonus = (dest: Hex) => {
+      const key = hexKey(dest);
+      let v = done.get(key);
+      if (v !== undefined) return v;
+      const view: MatchState = { ...state, units: state.units.map((u) => (u.id === me.id ? { ...u, pos: dest } : u)) };
+      const rs = reaches.map((e) => {
+        if (!near(e.unit, dest) && !near(e.unit, me.pos)) return e;
+        const positions: Hex[] = [];
+        for (const n of reachable(view, e.unit).values()) if (n.canEnd || hexEq(n.hex, e.unit.pos)) positions.push(n.hex);
+        return { unit: e.unit, positions };
+      });
+      let after = 0;
+      for (const a of allies) {
+        let t = 0;
+        for (const e of rs) if (e.unit.av < a.av) t += maxDamageFrom(view, e, a, a.pos, a.facing);
+        after += Math.min(t, a.hp) * unitValue(a);
+      }
+      v = (baseThreat - after) * w.threat * w.screen;
+      done.set(key, v);
+      return v;
+    };
+    for (let round = 0; round < 3; round++) {
+      const dests: Hex[] = [];
+      for (const c of candidates) {
+        if (dests.length >= w.screenTop) break;
+        if (!done.has(hexKey(c.action.to)) && !dests.some((d) => hexEq(d, c.action.to))) dests.push(c.action.to);
+      }
+      if (!dests.length) break;
+      for (const d of dests) screenBonus(d);
+      for (const c of candidates) {
+        const b = done.get(hexKey(c.action.to));
+        if (b !== undefined && !screened.has(c)) {
+          c.score += b;
+          screened.add(c);
+        }
+      }
+      candidates.sort((a, b) => b.score - a.score);
+      if (done.has(hexKey(candidates[0].action.to))) break;
+    }
+  }
   return { me, candidates };
 }
 
