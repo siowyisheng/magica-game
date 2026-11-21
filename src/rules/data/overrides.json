@@ -1,1 +1,135 @@
-{ "kinds": {}, "abilities": {} }
+{
+  "kinds": {
+    "banshee": {
+      "alignment": "night"
+    },
+    "titan": {
+      "moveTypes": [
+        "walk",
+        "wade"
+      ]
+    },
+    "bubble": {
+      "alignment": "none"
+    },
+    "sprite": {
+      "alignment": "none"
+    },
+    "siren": {
+      "stats": {
+        "atk": 13,
+        "def": 14,
+        "mp": 11,
+        "mdf": 16,
+        "spd": 11,
+        "mov": 4
+      }
+    },
+    "undine": {
+      "stats": {
+        "atk": 3,
+        "def": 17,
+        "mp": 18,
+        "mdf": 11,
+        "spd": 13,
+        "mov": 7
+      },
+      "moveTypes": [
+        "slow",
+        "swim"
+      ]
+    },
+    "shark": {
+      "attack": {
+        "range": 6,
+        "trajectory": "direct"
+      }
+    },
+    "wolf": {
+      "stats": {
+        "atk": 20,
+        "def": 16,
+        "mp": 3,
+        "mdf": 14,
+        "spd": 11,
+        "mov": 6
+      },
+      "moveTypes": [
+        "slow",
+        "swim"
+      ]
+    },
+    "hawk": {
+      "stats": {
+        "atk": 9,
+        "def": 4,
+        "mp": 4,
+        "mdf": 8,
+        "spd": 11,
+        "mov": 6
+      },
+      "attack": {
+        "range": 2,
+        "trajectory": "direct"
+      },
+      "magicIds": []
+    },
+    "monk": {
+      "stats": {
+        "atk": 12,
+        "def": 9,
+        "mp": 6,
+        "mdf": 12,
+        "spd": 12,
+        "mov": 5
+      },
+      "moveTypes": [
+        "fly"
+      ],
+      "magicIds": []
+    },
+    "harpy": {
+      "stats": {
+        "atk": 14,
+        "def": 11,
+        "mp": 15,
+        "mdf": 9,
+        "spd": 8,
+        "mov": 5
+      }
+    },
+    "muse": {
+      "stats": {
+        "atk": 10,
+        "def": 12,
+        "mp": 7,
+        "mdf": 11,
+        "spd": 9,
+        "mov": 5
+      },
+      "attack": {
+        "range": 5,
+        "trajectory": "direct"
+      },
+      "magicIds": []
+    },
+    "giant": {
+      "stats": {
+        "atk": 15,
+        "def": 14,
+        "mp": 14,
+        "mdf": 15,
+        "spd": 10,
+        "mov": 6
+      },
+      "moveTypes": [
+        "slow",
+        "swim"
+      ],
+      "magicIds": [
+        "water-jet"
+      ]
+    }
+  },
+  "abilities": {}
+}
