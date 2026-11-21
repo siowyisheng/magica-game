@@ -30,6 +30,7 @@ import {
   type Target,
   SUMMONERS,
   STARTER_LOADOUTS,
+  randomLoadout,
   targetAt,
   targetById,
   canPlace,
@@ -49,7 +50,7 @@ export interface MatchSetup {
   /** Test Match: both Sides may Summon all 28 Summons. */
   test: boolean;
   summoners: [string, string];
-  /** Loadout id per Side, or 'random' (a random starter) or 'auto' (built for the Summoner). */
+  /** Loadout id per Side, or 'random' (a random starter), 'random18' (18 random Summons) or 'auto' (built for the Summoner). */
   loadouts: [string, string];
   ai: [boolean, boolean];
   /** AI strength per Side (used when that Side is AI). */
@@ -82,6 +83,7 @@ export function resolveSummoners(choice: [string, string], rand: () => number = 
 /** Resolve a Loadout choice into its Summons. */
 export function resolveLoadout(choice: string, summonerId: string, rand: () => number = Math.random): string[] {
   if (choice === 'auto') return autoLoadout(summonerId, rand);
+  if (choice === 'random18') return randomLoadout(rand);
   const l = choice === 'random' ? undefined : getLoadout(choice);
   if (l) return [...l.summons];
   return [...STARTER_LOADOUTS[Math.floor(rand() * STARTER_LOADOUTS.length)].summons];
