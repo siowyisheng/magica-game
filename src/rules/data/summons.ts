@@ -91,6 +91,11 @@ const MAGIC_TRAJECTORY: Record<string, Trajectory> = {
   'Tidal Wave': 'high',
 };
 
+/** Magic Ability id from its name: 'Fire Arrow' → 'fire-arrow'. */
+export function abilityId(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 function build(element: Element, d: Def): UnitKind {
   const [id, name, cost, alignment, role, s, moveTypes, attackRange, magic] = d;
   const stats: Stats = { atk: s[0], def: s[1], mp: s[2], mdf: s[3], spd: s[4], mov: s[5] };
@@ -108,8 +113,8 @@ function build(element: Element, d: Def): UnitKind {
       ? []
       : [
       magic.range > 1
-        ? { ...magic, id: `${id}:magic`, trajectory: MAGIC_TRAJECTORY[magic.name] ?? 'high' }
-        : { ...magic, id: `${id}:magic` },
+        ? { ...magic, id: abilityId(magic.name), trajectory: MAGIC_TRAJECTORY[magic.name] ?? 'high' }
+        : { ...magic, id: abilityId(magic.name) },
     ],
     role,
   };

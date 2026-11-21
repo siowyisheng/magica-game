@@ -20,6 +20,7 @@ import {
   pathTo,
   reachable,
   surfaceHeight,
+  surfaceOf,
   unitAt,
   DIRS,
   minAimDistance,
@@ -431,12 +432,29 @@ function worldAt(match: MatchState, h: Hex): THREE.Vector3 {
 }
 
 /** Sample a hex path at progress p ∈ [0,1]; also returns the segment's heading. */
-function samplePath(match: MatchState, path: Hex[], p: number): { pos: THREE.Vector3; heading: number | null } {
-  if (path.length < 2) return { pos: worldAt(match, path[0]), heading: null };
+/**
+ * Where a unit of `kindId` stands on `h`: swimmers float at the water
+ * surface; everyone else in water (wading, or Stranded) stands on the floor
+ * beneath it, with the water drawn over their legs.
+ */
+function standY(match: MatchState, kindId: string, h: Hex): number {
+  const mh = mapHexAt(match.map, h);
+  if (!mh) return 0;
+  if (mh.terrain !== 'pit' && surfaceOf(mh, match.waterLevel) !== 'land' && !kindOf(kindId).moveTypes.includes('swim')) return mh.height * STEP;
+  return topY(match, h);
+}
+
+function standAt(match: MatchState, kindId: string, h: Hex): THREE.Vector3 {
+  const [x, z] = hexToWorld(h);
+  return new THREE.Vector3(x, standY(match, kindId, h), z);
+}
+
+function samplePath(match: MatchState, path: Hex[], p: number, kindId: string): { pos: THREE.Vector3; heading: number | null } {
+  if (path.length < 2) return { pos: standAt(match, kindId, path[0]), heading: null };
   const f = Math.min(Math.max(p, 0), 1) * (path.length - 1);
   const i = Math.min(Math.floor(f), path.length - 2);
-  const a = worldAt(match, path[i]);
-  const b = worldAt(match, path[i + 1]);
+  const a = standAt(match, kindId, path[i]);
+  const b = standAt(match, kindId, path[i + 1]);
   const k = f - i;
   const pos = a.clone().lerp(b, k);
   // small hop per step so slides read as footsteps
@@ -556,7 +574,7 @@ function UnitView({
   const body = useRef<THREE.Sprite>(null);
   const bodyMat = useRef<THREE.SpriteMaterial>(null);
   const [tx, tz] = hexToWorld(displayPos);
-  const ty = topY(match, displayPos);
+  const ty = standY(match, unit.kind, displayPos);
   const tex = useMemo(() => unitTexture(unit.kind, unit.side), [unit.kind, unit.side]);
   const size = spriteWorldSize(unit.kind);
   const lift = size / 2 - spriteFeetOffset(unit.kind) + 0.05;
@@ -597,7 +615,7 @@ function UnitView({
       for (const st of anim.steps) {
         if (st.kind === 'move' && st.unitId === unit.id) {
           const p = (t - st.t0) / (st.t1 - st.t0);
-          if (p <= 1) ({ pos, heading } = st.fly ? sampleFlight(match, st.path, t - st.t0, st.t1 - st.t0) : samplePath(match, st.path, p));
+          if (p <= 1) ({ pos, heading } = st.fly ? sampleFlight(match, st.path, t - st.t0, st.t1 - st.t0) : samplePath(match, st.path, p, unit.kind));
         } else if (st.kind === 'melee' && st.unitId === unit.id && t >= st.t0 && t <= st.t1) {
           const a = worldAt(match, st.from);
           const b = worldAt(match, st.target);
@@ -629,7 +647,7 @@ function UnitView({
     } else if (previewPath && previewPath.length > 1) {
       const total = moveDurationMs(unit.kind, previewPath);
       const el = now - preview.current.start;
-      if (el <= total) ({ pos, heading } = fliesKind(unit.kind) ? sampleFlight(match, previewPath, el, total) : samplePath(match, previewPath, el / total));
+      if (el <= total) ({ pos, heading } = fliesKind(unit.kind) ? sampleFlight(match, previewPath, el, total) : samplePath(match, previewPath, el / total, unit.kind));
     }
 
     if (pos) {
@@ -869,7 +887,7 @@ function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
   const lightMat = useRef<THREE.SpriteMaterial>(null);
   const body = useRef<THREE.SpriteMaterial>(null);
   const bodySprite = useRef<THREE.Sprite>(null);
-  const base = useMemo(() => worldAt(match, step.target), [match, step.target]);
+  const base = useMemo(() => standAt(match, step.summonKind, step.target), [match, step.summonKind, step.target]);
   const size = spriteWorldSize(step.summonKind);
   const lift = size / 2 - spriteFeetOffset(step.summonKind) + 0.05;
   useFrame(() => {
