@@ -223,16 +223,20 @@ export const useGame = create<Store>((set, get) => {
     const { state, events } = applyTurn(match, action);
     const lines = events.map((e) => describe({ ...state, units: [...match.units, ...state.units], obstacles: [...match.obstacles, ...state.obstacles] }, e)).filter(Boolean) as string[];
     const finish = () =>
-      set((s) => ({
-        match: state,
-        anim: null,
-        phase: phaseFor(state),
-        hoverCommand: null,
-        hoverSummon: null,
-        inspected: [],
-        log: [...lines.reverse(), ...s.log].slice(0, 40),
-        version: s.version + 1,
-      }));
+      set((s) => {
+        // Who is AI may have changed while the turn animated: keep the current choice.
+        const next = { ...state, sides: state.sides.map((sd, i) => ({ ...sd, ai: s.match.sides[i].ai })) as MatchState['sides'] };
+        return {
+          match: next,
+          anim: null,
+          phase: phaseFor(next),
+          hoverCommand: null,
+          hoverSummon: null,
+          inspected: [],
+          log: [...lines.reverse(), ...s.log].slice(0, 40),
+          version: s.version + 1,
+        };
+      });
     const anim = get().animate ? planTurnAnim(match, action, performance.now(), alreadyMoved) : null;
     signal({ type: 'turn', before: match, action, anim: anim && anim.duration > 0 ? anim : null, events });
     if (!anim || anim.duration <= 0) return finish();

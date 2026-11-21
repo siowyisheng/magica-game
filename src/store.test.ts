@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { closestFacing, quickPlans, useGame } from './store';
 import { activeUnit, getUnit, hex } from './rules';
 
@@ -173,5 +173,30 @@ describe('quick action animation', () => {
     expect(mv && mv.kind === 'move' && mv.path[0]).toEqual(me.pos);
     expect(q.attack).not.toBeNull();
     useGame.setState({ animate: false, anim: null });
+  });
+});
+
+describe('handing a Side to a person', () => {
+  it('keeps an AI box unticked during a turn animation instead of re-ticking it', () => {
+    vi.useFakeTimers();
+    try {
+      useGame.setState({ animate: true, anim: null, aiThinking: false });
+      useGame.getState().startFromSetup({ mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [true, true] });
+      for (let i = 0; i < 40 && !useGame.getState().anim; i++) {
+        useGame.getState().tickAi();
+        vi.advanceTimersByTime(500);
+      }
+      expect(useGame.getState().anim).not.toBeNull();
+      useGame.getState().setAi(0, false);
+      useGame.getState().setAi(1, false);
+      vi.advanceTimersByTime(10000);
+      const s = useGame.getState();
+      expect(s.anim).toBeNull();
+      expect(s.match.sides.map((x) => x.ai)).toEqual([false, false]);
+      expect(s.phase.kind).toBe('move');
+    } finally {
+      useGame.setState({ animate: false, anim: null });
+      vi.useRealTimers();
+    }
   });
 });
