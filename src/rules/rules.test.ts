@@ -81,7 +81,7 @@ describe('facing modifier', () => {
 // ---------- turn delays ----------
 
 describe('turn delay', () => {
-  const k = (spd: number) => ({ ...kindOf('sigil'), stats: { ...kindOf('sigil').stats, spd } });
+  const k = (spd: number) => ({ ...kindOf('regent'), stats: { ...kindOf('regent').stats, spd } });
   it('matches the designer anchors', () => {
     expect(turnDelay(k(13), false, false)).toBe(25);
     expect(turnDelay(k(13), false, true)).toBe(37);
@@ -135,7 +135,7 @@ describe('roster', () => {
   });
 
   it('gives Summoners walk+wade, most Earth summons wade, and no Fire summon wade', () => {
-    expect(kindOf('sigil').moveTypes).toEqual(['walk', 'wade']);
+    expect(kindOf('regent').moveTypes).toEqual(['walk', 'wade']);
     const earth = SUMMONS.filter((x) => x.element === 'earth');
     expect(earth.filter((x) => x.moveTypes.includes('wade')).length).toBeGreaterThan(earth.length / 2);
     for (const f of SUMMONS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
@@ -183,26 +183,26 @@ describe('damage', () => {
   it('reduces damage on rough (20%) and magic stones (30%)', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
-    const a = place(state, 'sigil', 0, 1, 1);
-    const b = place(state, 'sigil', 1, 2, 1, 3);
-    // 3 × 8/10 = 2.4 ; rough → 1.92 → 2
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
+    const a = place(state, 'oni', 0, 1, 1); // ATK 18
+    const b = place(state, 'regent', 1, 2, 1, 3); // DEF 9
+    // 3 × 18/9 = 6 ; rough → 4.8 → 5
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(20);
     b.pos = hex(2, 2);
     a.pos = hex(1, 2);
-    // stone → 1.68 → 2
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
+    // stone → 4.2 → 4
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(4);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(30);
   });
 
   it('applies day/night alignment', () => {
     const state = createMatch(testMap(6, 6));
     const archer = place(state, 'archer', 0, 1, 1); // day, fire ATK 14
-    const sum = place(state, 'sigil', 1, 3, 1, 3); // DEF 10
+    const sum = place(state, 'oni', 1, 3, 1, 3); // DEF 14, no Alignment
     state.clock = 12 * 60; // day: ATK ×1.2
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(5); // 5.04
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(4); // 3.6
     state.clock = 22 * 60; // night: ×0.8
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(3); // 3.36
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(2); // 2.4
   });
 });
 
@@ -214,7 +214,7 @@ describe('movement', () => {
       testMap(8, 3, (q) => (q === 1 ? { terrain: 'rough' } : q === 2 ? { height: 2 } : q === 3 ? { height: 4 } : {})),
     );
     state.units = [];
-    const walker = place(state, 'sigil', 0, 0, 1); // MOV 4, walk
+    const walker = place(state, 'regent', 0, 0, 1); // MOV 4, walk
     const nodes = reachable(state, walker);
     expect(nodes.get(hexKey(hex(1, 1)))?.cost).toBe(2); // rough
     expect(nodes.get(hexKey(hex(2, 1)))?.cost).toBe(4); // +1 plain +1 climb
@@ -269,7 +269,7 @@ describe('movement', () => {
 describe('match flow', () => {
   it('starts both summoners with Base Delay; human first on ties', () => {
     const s = createMatch(SCAFFOLD_MAP);
-    expect(s.clock).toBe(6 * 60 + 28);
+    expect(s.clock).toBe(6 * 60 + 25); // Regent, SPD 13
     expect(getUnit(s, s.activeUnitId!).side).toBe(0);
   });
 
@@ -310,11 +310,11 @@ describe('match flow', () => {
 
   it('pays (2 + stones) × MP − upkeep at each hour mark, clamped to [0,120]', () => {
     const s = createMatch(testMap(6, 6));
-    expect(manaIncome(s, 0)).toBe(32);
+    expect(manaIncome(s, 0)).toBe(22); // Regent, MP 11
     s.stones = [{ hex: hex(3, 3), owner: 0 }];
-    expect(manaIncome(s, 0)).toBe(48);
+    expect(manaIncome(s, 0)).toBe(33);
     place(s, 'drake', 0, 2, 2); // upkeep 11
-    expect(manaIncome(s, 0)).toBe(37);
+    expect(manaIncome(s, 0)).toBe(22);
     const me = getUnit(s, s.activeUnitId!);
     const before = s.sides[0].mana;
     // waiting crosses 07:00 at some point; play turns until an hour passes
@@ -327,7 +327,7 @@ describe('match flow', () => {
       st = r.state;
     }
     expect(paid).toBe(true);
-    expect(st.sides[0].mana).toBe(Math.min(120, before + 37));
+    expect(st.sides[0].mana).toBe(Math.min(120, before + 22));
     void me;
   });
 
@@ -618,23 +618,29 @@ function withLine(): MatchState {
 // ---------- Summoners and balance overrides ----------
 
 describe('summoners', () => {
-  it('has ten Summoners with short names, all walk + wade with Bolt, Rise and Ebb', async () => {
-    const { SUMMONERS, kindWarnings } = await import('./index');
-    expect(SUMMONERS).toHaveLength(10);
-    expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(10);
+  it('has thirty Summoners with short names, all walk + wade with Bolt, Rise and Ebb, each on the Stat Budget', async () => {
+    const { SUMMONERS, kindWarnings, budgetError } = await import('./index');
+    expect(SUMMONERS).toHaveLength(30);
+    expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(30);
     for (const k of SUMMONERS) {
       expect(k.name.length).toBeLessThanOrEqual(7);
       expect(k.moveTypes).toEqual(['walk', 'wade']);
       expect(k.magic.map((m) => m.id)).toEqual(['bolt', 'rise', 'ebb']);
       expect(kindWarnings(k, SUMMONERS)).toEqual([]);
+      expect(Math.abs(budgetError(k.stats, k.attack.range))).toBeLessThanOrEqual(0.3);
     }
-    expect(SUMMONERS.filter((k) => k.element).length).toBe(2);
-    expect(SUMMONERS.filter((k) => k.alignment !== 'none').length).toBe(2);
+    expect(new Set(SUMMONERS.map((k) => k.element).filter(Boolean)).size).toBe(4);
+    expect(SUMMONERS.filter((k) => k.element).length).toBe(4);
+    expect(SUMMONERS.filter((k) => k.alignment === 'day').length).toBe(2);
+    expect(SUMMONERS.filter((k) => k.alignment === 'night').length).toBe(2);
+    const ranged = SUMMONERS.filter((k) => k.attack.range > 1);
+    expect(ranged.map((k) => k.attack.range).sort()).toEqual([3, 4, 4, 5, 6]);
+    expect(ranged.every((k) => k.attack.trajectory === (k.attack.range <= 4 ? 'direct' : 'high'))).toBe(true);
   });
 
   it('lets each Side start with its chosen Summoner', () => {
-    const s = createMatch(SCAFFOLD_MAP, { summoners: ['cinder', 'orrery'] });
-    expect(s.units.map((u) => u.kind)).toEqual(['cinder', 'orrery']);
+    const s = createMatch(SCAFFOLD_MAP, { summoners: ['efreet', 'lich'] });
+    expect(s.units.map((u) => u.kind)).toEqual(['efreet', 'lich']);
   });
 
   it('applies local overrides to the live roster and can reset them', async () => {

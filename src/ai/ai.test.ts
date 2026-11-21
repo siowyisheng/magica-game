@@ -14,7 +14,7 @@ describe('AI', () => {
       st = applyTurn(st, a).state;
       turns++;
     }
-    const summons = st.units.filter((u) => u.kind !== 'sigil').length;
+    const summons = st.units.filter((u) => u.kind !== 'regent').length;
     console.log(`turns=${turns} winner=${st.winner} summons=${summons} clock=${st.clock} ms/turn=${((Date.now() - t0) / turns).toFixed(1)} stones=${st.stones.map((s) => s.owner).join(',')}`);
     expect(turns).toBeGreaterThan(10);
   }, 120000);
@@ -48,7 +48,7 @@ describe('AI', () => {
   });
 
   it('builds valid Auto Loadouts and only summons from its Loadout', () => {
-    for (const id of ['sigil', 'cinder', 'nereid']) {
+    for (const id of ['regent', 'efreet', 'selkie']) {
       const l = autoLoadout(id, () => 0.3);
       expect(loadoutProblems(l)).toEqual([]);
       const own = kindOf(id).element;

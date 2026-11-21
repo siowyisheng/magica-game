@@ -15,7 +15,7 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   if (k.stats.spd < 1 || k.stats.spd > 20) w.push('SPD outside 1–20 has no Base Delay of its own');
   if (!k.moveTypes.length) w.push('needs at least one Move Type');
   if (k.moveTypes.includes('slow') && !k.moveTypes.includes('swim')) w.push('Slow should always come with Swim');
-  if (k.moveTypes.includes('walk') && k.stats.mov < 4) w.push('walkers should have MOV 4 or more');
+  if (!k.isSummoner && k.moveTypes.includes('walk') && k.stats.mov < 4) w.push('walking Summons should have MOV 4 or more');
   if (k.isSummoner && (k.moveTypes.length !== 2 || !k.moveTypes.includes('walk') || !k.moveTypes.includes('wade'))) w.push('Summoners walk + wade');
   if (k.attack.range < 1) w.push('Attack range must be at least 1');
   if (k.attack.range > 1 && !k.attack.trajectory) w.push('a ranged Attack needs a Trajectory');
