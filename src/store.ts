@@ -199,6 +199,8 @@ function describe(match: MatchState, e: GameEvent): string | null {
       return match.obstacles.some((o) => o.id === e.unitId) ? `${name(e.unitId)} broke` : `${name(e.unitId)} fell`;
     case 'win':
       return `${e.side === 0 ? 'Green' : 'Red'} wins!`;
+    case 'timeUp':
+      return `Time Limit: Stones ${e.stones[0]}–${e.stones[1]}, HP ${e.hp[0]}–${e.hp[1]}${e.result === 'draw' ? ' — a draw' : ''}`;
     case 'mana':
       return e.side === 0 ? `${formatClock(e.clock)} mana: Green ${e.amount >= 0 ? '+' : ''}${e.amount}` : null;
     default:

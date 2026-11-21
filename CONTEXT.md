@@ -81,6 +81,9 @@ _Avoid_: Turn order bar, queue
 **Time of Day**:
 Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
 
+**Time Limit**:
+A match ends 72 Game Clock hours after it starts if no Summoner has fallen. The Side controlling more Magic Stones then wins; if they are level, the Side with more total HP across its Units; if that is level too, the match is a draw.
+
 **Alignment**:
 Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF get a bonus; at the opposite one they get a penalty. Speed and Move are never changed by Alignment.
 
@@ -91,7 +94,7 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. Summons have one Magic Ability; Summoners have several.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 18 of the 28 Summons have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Summoners have several.
 _Avoid_: Skill, spell (as a code term)
 
 **Trajectory**:

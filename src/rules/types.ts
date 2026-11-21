@@ -138,6 +138,8 @@ export interface Stone {
 export interface SideState {
   mana: number;
   ai: boolean;
+  /** AI strength when `ai` is set (default Normal). */
+  aiLevel?: 'normal' | 'hard';
   /** Summon kinds this Side may Summon (its Loadout); absent = all (Test Match). */
   roster?: string[];
 }
@@ -156,7 +158,10 @@ export interface MatchState {
   sides: [SideState, SideState];
   nextUnitId: number;
   activeUnitId: number | null;
-  winner: SideId | null;
+  /** The winning Side, 'draw' if the Time Limit ended it level, or null while the match goes on. */
+  winner: SideId | 'draw' | null;
+  /** Game Clock at which the Time Limit ends the match. */
+  timeLimit: number;
   turnNumber: number;
   rngState: number;
 }
@@ -185,4 +190,5 @@ export type GameEvent =
   | { type: 'mana'; side: SideId; amount: number; clock: number }
   | { type: 'water'; level: number }
   | { type: 'death'; unitId: number }
-  | { type: 'win'; side: SideId };
+  | { type: 'win'; side: SideId }
+  | { type: 'timeUp'; result: SideId | 'draw'; stones: [number, number]; hp: [number, number] };

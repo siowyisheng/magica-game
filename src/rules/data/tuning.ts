@@ -41,3 +41,6 @@ export const MINUTES_PER_DAY = 24 * 60;
 export const DAMAGE_K = 3;
 /** Heal = MP / HEAL_DIVISOR (rounded). */
 export const HEAL_DIVISOR = 3;
+
+/** The match ends this many Game Clock hours after it starts (Time Limit). */
+export const TIME_LIMIT_HOURS = 72;
