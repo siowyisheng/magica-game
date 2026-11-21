@@ -58,8 +58,8 @@ export const AI_WEIGHTS = {
   postureHits: 4,
   /** How strongly a durable, hard-hitting Summoner is pulled toward objectives (× approach). */
   summonerAggression: 1,
-  /** Share of an enemy's damage counted as threat when it has a better target than this unit. */
-  threatShare: 0.7,
+  /** Least share of an enemy's damage a Summon is charged with, however many other targets it has. */
+  threatShareMin: 0.25,
   /** Weight of second-round threat to the Summoner (enemies acting before its turn after next). */
   summonerSecondRound: 1,
   /** Bonus (× kill) for damage that leaves a target finishable by allies before it acts. */
@@ -201,13 +201,13 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   };
   const allies = state.units.filter((u) => u.side === me.side && u.id !== me.id);
 
-  // Each enemy's best damage against my other units: an enemy with a better
-  // target elsewhere is unlikely to spend its turn on this unit.
-  const otherBest = new Map<number, number>();
+  // How each enemy's attack would split across my other units: it hits one
+  // target, most likely where it does the most damage (weights: damage²).
+  const otherSq = new Map<number, number>();
   for (const e of reaches) {
-    let best = 0;
-    for (const a of allies) best = Math.max(best, maxDamage(e, a, a.pos, a.facing));
-    otherBest.set(e.unit.id, best);
+    let sq = 0;
+    for (const a of allies) sq += maxDamage(e, a, a.pos, a.facing) ** 2;
+    otherSq.set(e.unit.id, sq);
   }
   // The Summoner also looks one enemy round further ahead.
   const secondWindow = kind.isSummoner ? turnDelay(kind, true, true) : 0;
@@ -231,8 +231,8 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         const reach = ek.stats.mov * turnsBefore + Math.max(ek.attack.range, ...ek.magic.map((m) => (m.kind === 'water' ? 0 : m.range + m.radius)));
         if (hexDistance(e.unit.pos, h) <= reach) d = approxDamage(state, e.unit, me, h, f);
       }
-      // enemies go for the Summoner; otherwise only part of the threat is real when they have a better target
-      if (!kind.isSummoner && d < (otherBest.get(e.unit.id) ?? 0)) d *= w.threatShare;
+      // enemies go for the Summoner; a Summon only bears its share of an enemy that has other targets
+      if (!kind.isSummoner && d > 0) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
       total += second ? d * w.summonerSecondRound : d;
     }
     threatCache.set(key, total);
