@@ -13,7 +13,7 @@ The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Ris
 _Avoid_: Master, hero, commander
 
 **Loadout**:
-A set of exactly 18 of the 28 Summons: the only Summons a Side may Summon in a match. It is chosen separately from the Summoner. Players save Loadouts in the browser; the game also ships a few starter Loadouts. Both Sides' Loadouts, and the Summons each one leaves out, are visible to both players during the match.
+A set of exactly 18 of the 28 Summons: the only Summons a Side may Summon in a match. It is chosen separately from the Summoner. Players save Loadouts in the browser; the game also ships a few starter Loadouts. A Side may also take a **random Loadout**: 18 Summons drawn at random, at least two of them an Element's cheapest Summon. Both Sides' Loadouts, and the Summons each one leaves out, are visible to both players during the match.
 _Avoid_: Deck, army, roster (as a player-facing term)
 
 **Test Match**:

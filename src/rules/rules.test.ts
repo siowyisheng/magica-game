@@ -766,3 +766,24 @@ describe('Burst and area Magic', () => {
     expect(magicHitOrigin(direct, caster, aim, splashed)).toEqual(caster);
   });
 });
+
+describe('random Loadouts', () => {
+  it('draws 18 valid Summons with at least 2 of the Elements’ cheapest, and varies', async () => {
+    const { randomLoadout, cheapestPerElement, loadoutProblems, mulberry32, SUMMONS: roster, kindOf: k } = await import('./index');
+    const cheap = cheapestPerElement();
+    expect(cheap).toHaveLength(4);
+    for (const id of cheap) {
+      const el = k(id).element;
+      expect(Math.min(...roster.filter((x) => x.element === el).map((x) => x.cost))).toBe(k(id).cost);
+    }
+    const rng = mulberry32(7);
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      const l = randomLoadout(rng);
+      expect(loadoutProblems(l)).toEqual([]);
+      expect(l.filter((id) => cheap.includes(id)).length).toBeGreaterThanOrEqual(2);
+      seen.add([...l].sort().join());
+    }
+    expect(seen.size).toBeGreaterThan(150);
+  });
+});
