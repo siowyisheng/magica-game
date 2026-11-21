@@ -12,8 +12,12 @@ _Avoid_: Piece, character, monster
 The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon, keeping at most 7 Summons on the map. When it dies, its Side loses. Each Side picks one of ten Summoners before the match (Sigil, Warden, Orrery, Bramble, Cinder, Zephyr, Sexton, Nereid, Cairn, Tinker); they differ in stats, and a few in Element or Alignment. Both Sides may pick the same one.
 _Avoid_: Master, hero, commander
 
+**Loadout**:
+A Summoner together with exactly 18 of the 28 Summons: the only Summons that Side may Summon in a match. Players save Loadouts and pick one per Side in the Match Setup.
+_Avoid_: Deck, army, roster (as a player-facing term)
+
 **Match Setup**:
-The choices made before a match: the map, and for each Side its Summoner (or a random one) and whether a person or the AI plays it.
+The choices made before a match: the map, and for each Side its Loadout and whether a person or the AI plays it.
 
 **Summon**:
 A Unit that a Summoner brings onto a hex next to it. The new Summon faces the way it was summoned, and so does the Summoner. There are 28 kinds, seven per Element. Each has exactly one Magic Ability.
