@@ -63,7 +63,7 @@ export function InfoPanel() {
           return (
             <div key={side} className="side-row">
               <div className="side-name" style={{ color: SIDE_COLORS[side] }}>
-                {SIDE_NAME[side]} {match.sides[side].ai ? '(AI)' : '(Human)'}
+                {SIDE_NAME[side]} {match.sides[side].ai ? `(AI${match.sides[side].aiLevel === 'hard' ? ', Hard' : ''})` : '(Human)'}
                 {!match.sides[side].roster && <span className="muted small"> · Test match</span>}
                 {aiThinking && activeUnit(match)?.side === side && <span className="muted"> thinking…</span>}
               </div>

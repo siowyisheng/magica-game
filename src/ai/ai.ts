@@ -40,6 +40,7 @@ import {
   trajectoryOf,
   turnDelay,
   MANA_MAX,
+  applyTurn,
 } from '../rules';
 
 export const AI_WEIGHTS = {
@@ -172,7 +173,7 @@ interface Candidate {
   score: number;
 }
 
-export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAction {
+function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
   const me = activeUnit(state);
   if (!me) throw new Error('no active unit');
   const kind = kindOf(me.kind);
@@ -439,8 +440,23 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
     }
   }
 
-  // Validate best-first (validation re-runs path-finding, so only check what could be chosen).
   candidates.sort((a, b) => b.score - a.score);
+  return { me, candidates };
+}
+
+/**
+ * Choose the active Unit's turn. Normal: the best-scoring candidate. Hard:
+ * the top candidates are each played out — every Unit then plays Normal
+ * until this Unit's next turn — and the resulting positions are compared.
+ */
+export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?: 'normal' | 'hard'): TurnAction {
+  const { me, candidates } = rankCandidates(state, weights);
+  const lvl = level ?? state.sides[me.side].aiLevel ?? 'normal';
+  if (lvl === 'hard') {
+    const pick = lookahead(state, me, candidates, weights);
+    if (pick) return pick;
+  }
+  // Validate best-first (validation re-runs path-finding, so only check what could be chosen).
   let best = -Infinity;
   const top: Candidate[] = [];
   for (const c of candidates) {
@@ -455,6 +471,50 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
   const rng = mulberry32(state.rngState ^ (state.turnNumber * 2654435761));
   return top[Math.floor(rng() * top.length)].action;
 }
+
+export const LOOKAHEAD = { candidates: 5, maxTurns: 6 };
+
+function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): TurnAction | null {
+  const picks: Candidate[] = [];
+  const seen = new Set<string>();
+  for (const c of ranked) {
+    if (picks.length >= LOOKAHEAD.candidates) break;
+    const key = JSON.stringify(c.action);
+    if (seen.has(key) || validateTurn(state, c.action) !== null) continue;
+    seen.add(key);
+    picks.push(c);
+  }
+  if (picks.length < 2) return picks[0]?.action ?? null;
+  let best: { action: TurnAction; value: number } | null = null;
+  for (const c of picks) {
+    let st = applyTurn(state, c.action).state;
+    for (let t = 0; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
+      st = applyTurn(st, chooseAction(st, w, 'normal')).state;
+    }
+    // position value, with the candidate's own score as a small tie-breaker
+    const value = evaluate(st, me.side) + c.score * 0.01;
+    if (!best || value > best.value + 1e-9) best = { action: c.action, value };
+  }
+  return best?.action ?? null;
+}
+
+/** Static value of a position for `side`: material and HP, Summoners, Stones, Mana. */
+export function evaluate(st: MatchState, side: number): number {
+  if (st.winner === side) return 1e6;
+  if (st.winner !== null && st.winner !== 'draw') return -1e6;
+  let v = 0;
+  for (const u of st.units) {
+    const k = kindOf(u.kind);
+    const worth = k.isSummoner ? 40 + u.hp * 12 : unitValue(u) * (8 + u.hp * 4);
+    v += u.side === side ? worth : -worth;
+  }
+  const hoursLeft = Math.max(0, (st.timeLimit - st.clock) / 60);
+  const stoneWeight = 18 + 30 * Math.max(0, 1 - hoursLeft / 24);
+  for (const s of st.stones) if (s.owner !== null) v += (s.owner === side ? 1 : -1) * stoneWeight;
+  v += 0.15 * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
+  return v;
+}
+
 
 /**
  * An AI-built Loadout for a Summoner: four or five Summons of each Element
