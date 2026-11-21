@@ -34,5 +34,6 @@ import type { MagicAbility } from '../rules';
 /** Short rules text for a Magic Ability (no minimum range, no power). */
 export function magicText(m: MagicAbility): string {
   if (m.kind === 'water') return `${m.delta > 0 ? 'raise' : 'lower'} the Water Level`;
-  return `${m.kind}, range ${m.range}${m.radius ? ', area 1' : ''}`;
+  if (m.kind === 'damage' && m.burst) return `Burst: hits everything within ${m.radius} (allies too)`;
+  return `${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}`;
 }

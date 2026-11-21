@@ -109,8 +109,10 @@ describe('roster', () => {
         expect(c).toBeGreaterThanOrEqual(16);
         expect(c).toBeLessThanOrEqual(96);
       }
-      expect(s.filter((x) => x.alignment === 'day')).toHaveLength(2);
-      expect(s.filter((x) => x.alignment === 'night')).toHaveLength(2);
+      // 3 aligned and 4 unaligned: Fire and Earth lean Day, Water and Air lean Night
+      const [day, night] = e === 'fire' || e === 'earth' ? [2, 1] : [1, 2];
+      expect(s.filter((x) => x.alignment === 'day')).toHaveLength(day);
+      expect(s.filter((x) => x.alignment === 'night')).toHaveLength(night);
     }
   });
 
@@ -148,25 +150,25 @@ describe('damage', () => {
   it('applies ATK/DEF ratio, element counter and facing; can be 0', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60; // neutral time
-    const hound = place(state, 'hound', 0, 1, 1); // fire, ATK 15
-    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air, DEF 9, faces W toward hound
+    const hound = place(state, 'hound', 0, 1, 1); // fire, ATK 9
+    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air, DEF 2, faces W toward hound
     const front = computeDamage(state, hound, hound.pos, hawk, 'physical');
-    // 3 × 15/9 × 2 (fire counters air) × 1.0 = 10
+    // 3 × 9/2 × 2 (fire counters air) × 1.0 = 27 → capped at the target's 10 HP
     expect(front.amount).toBe(10);
     expect(front.lethal).toBe(true);
 
-    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 14
+    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 11
     const weak = computeDamage(state, hound, hex(2, 3), crab, 'physical');
-    // bonuses add: 3 × 15/14 × (1 − 0.5 (water counters fire) + 1.0 (from behind)) = 4.82 → 5
-    expect(weak.amount).toBe(5);
+    // bonuses add: 3 × 9/11 × (1 − 0.5 (water counters fire) + 1.0 (from behind)) = 3.68 → 4
+    expect(weak.amount).toBe(4);
 
-    // a Counter from behind: 3 × 15/9 × (1 + 1.0 + 1.0) = 15 → capped at the target's 10 HP
+    // a Counter from behind: 3 × 9/2 × (1 + 1.0 + 1.0) = 40.5 → capped at the target's 10 HP
     const hawk2 = place(state, 'hawk', 1, 4, 1, 0); // faces E, away from a hound at (3,1)
     const back = computeDamage(state, hound, hex(3, 1), hawk2, 'physical');
     expect(back.breakdown!.facing).toBe(2);
     expect(back.amount).toBe(10);
-    const golem = place(state, 'golem', 1, 1, 5, 0); // fire, no counter: 3 × 15/17 × (1 + 1.0) = 5.29 → 5
-    expect(computeDamage(state, hound, hex(0, 5), golem, 'physical').amount).toBe(5);
+    const golem = place(state, 'golem', 1, 1, 5, 0); // fire DEF 15, no counter: 3 × 9/15 × (1 + 1.0) = 3.6 → 4
+    expect(computeDamage(state, hound, hex(0, 5), golem, 'physical').amount).toBe(4);
 
   });
 
@@ -200,9 +202,9 @@ describe('damage', () => {
     const archer = place(state, 'archer', 0, 1, 1); // day, fire ATK 14
     const sum = place(state, 'oni', 1, 3, 1, 3); // DEF 15, no Alignment
     state.clock = 12 * 60; // day: ATK ×1.2
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(3); // 3.36
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(4); // 3 × 15/15 × 1.2 = 3.6
     state.clock = 22 * 60; // night: ×0.8
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(2); // 2.24
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(2); // × 0.8 = 2.4
   });
 });
 
@@ -434,12 +436,18 @@ describe('targeting without minimum range', () => {
     const archer = place(s, 'archer', 0, 2, 2);
     place(s, 'imp', 1, 3, 2);
     expect(attackTargets(s, archer, archer.pos).map((u) => ('kind' in u ? u.kind : 'obstacle'))).toContain('imp');
-    // Newt's Steam Burst is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
-    const newt = place(s, 'newt', 0, 2, 4);
+    // Dryad's Boulder is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
+    const dryad = place(s, 'dryad', 0, 2, 4);
     place(s, 'imp', 1, 3, 4);
-    const ab = kindOf('newt').magic[0];
+    const ab = kindOf('dryad').magic[0];
     if (ab.kind === 'water') throw new Error('unexpected');
-    expect(magicTargetHexes(s, newt, ab, newt.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
+    expect(magicTargetHexes(s, dryad, ab, dryad.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
+    // a Burst is aimed at the caster's own hex, and only there
+    const newt = place(s, 'newt', 0, 4, 4);
+    place(s, 'imp', 1, 5, 4);
+    const burst = kindOf('newt').magic[0];
+    if (burst.kind === 'water') throw new Error('unexpected');
+    expect(magicTargetHexes(s, newt, burst, newt.pos)).toEqual([newt.pos]);
     const undine = place(s, 'undine', 0, 0, 2);
     undine.hp = 6;
     const heal = kindOf('undine').magic[0];
@@ -647,12 +655,13 @@ describe('summoners', () => {
   });
 
   it('applies local overrides to the live roster and can reset them', async () => {
-    const { setLocalOverrides, kindOf: k, SUMMONS: roster } = await import('./index');
+    const { setLocalOverrides, kindOf: k, SUMMONS: roster, shippedKind } = await import('./index');
+    const shipped = shippedKind('imp').stats.atk;
     setLocalOverrides({ imp: { stats: { ...k('imp').stats, atk: 20 } } });
     expect(k('imp').stats.atk).toBe(20);
     expect(roster.find((x) => x.id === 'imp')!.stats.atk).toBe(20);
     setLocalOverrides({});
-    expect(k('imp').stats.atk).toBe(13);
+    expect(k('imp').stats.atk).toBe(shipped);
   });
 
   it('summon kinds pass the design checks', async () => {
@@ -708,5 +717,52 @@ describe('time limit', () => {
     advanceForTest(s);
     expect(s.winner).toBe('draw');
     expect(s.clock).toBe(s.timeLimit);
+  });
+});
+
+// ---------- Burst and area Facing ----------
+
+describe('Burst and area Magic', () => {
+  it('a Burst hits every Unit within its radius, allies included, but not the caster', async () => {
+    const { getLocalBalance, setLocalBalance } = await import('./index');
+    const before = getLocalBalance();
+    try {
+      setLocalBalance({
+        kinds: { golem: { magicIds: ['test-burst'] } },
+        abilities: { 'test-burst': { id: 'test-burst', name: 'Test Burst', kind: 'damage', range: 0, radius: 2, manaCost: 4, burst: true } },
+      });
+      const state = createMatch(testMap(8, 8));
+      state.units = state.units.filter((u) => kindOf(u.kind).isSummoner);
+      for (const u of state.units) u.pos = u.side === 0 ? hex(0, 7) : hex(7, 0);
+      const caster = place(state, 'golem', 0, 3, 3);
+      const ally = place(state, 'clod', 0, 5, 3); // 2 away
+      const foe = place(state, 'imp', 1, 3, 4); // 1 away
+      const far = place(state, 'imp', 1, 6, 3); // 3 away
+      state.sides[0].mana = 50;
+      activate(state, caster);
+      const action = { unitId: caster.id, to: caster.pos, facing: 0 as const, command: { type: 'magic' as const, ability: 'test-burst', target: caster.pos } };
+      expect(validateTurn(state, action)).toBeNull();
+      const { state: after } = applyTurn(state, action);
+      const hp = (id: number) => after.units.find((u) => u.id === id)?.hp ?? 0;
+      expect(hp(caster.id)).toBe(10);
+      expect(hp(ally.id)).toBeLessThan(10);
+      expect(hp(foe.id)).toBeLessThan(10);
+      expect(hp(far.id)).toBe(10);
+    } finally {
+      setLocalBalance(before);
+    }
+  });
+
+  it('a High area spell splashes with Facing measured from the hex it landed on', async () => {
+    const { magicHitOrigin } = await import('./index');
+    const lob = { id: 'lob', name: 'Lob', kind: 'damage', range: 4, radius: 1, manaCost: 6, trajectory: 'high' } as const;
+    const direct = { ...lob, trajectory: 'direct' } as const;
+    const caster = hex(0, 0);
+    const aim = hex(3, 0);
+    const splashed = { pos: hex(4, 0) } as Unit;
+    const centre = { pos: aim } as Unit;
+    expect(magicHitOrigin(lob, caster, aim, splashed)).toEqual(aim);
+    expect(magicHitOrigin(lob, caster, aim, centre)).toEqual(caster);
+    expect(magicHitOrigin(direct, caster, aim, splashed)).toEqual(caster);
   });
 });

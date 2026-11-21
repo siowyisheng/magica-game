@@ -85,7 +85,7 @@ export function atkReach(s: Stats, range: number): number {
 const FEATURES = (s: Stats, range: number): number[] => [s.spd, s.mov, s.def, s.mdf, s.atk * atkReach(s, range)];
 
 /** Solve the least-squares problem A·x ≈ b (normal equations, Gaussian elimination). */
-function leastSquares(A: number[][], b: number[]): number[] {
+export function leastSquares(A: number[][], b: number[]): number[] {
   const n = A[0].length;
   const M = Array.from({ length: n }, (_, i) => [...Array.from({ length: n }, (_, j) => A.reduce((s, row) => s + row[i] * row[j], 0)), A.reduce((s, row, k) => s + row[i] * b[k], 0)]);
   for (let c = 0; c < n; c++) {
