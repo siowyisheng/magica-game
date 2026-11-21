@@ -115,3 +115,33 @@ Every decision is a pure function of the match state. There is no `Math.random`,
 - `scripts/bench.run.ts` profiles `chooseAction` on mid-game positions if it gets slow.
 
 Run the scripts with the commands given in each file's header comment.
+
+## Known gaps
+
+These are places where the AI's behaviour doesn't match what a good human player would do. Each was checked against the code as it is now.
+
+### 1. It doesn't save Mana for a later Summon
+
+Summon ranking only considers Summons the Summoner can afford *right now* (`s.cost <= myMana`). Nothing reserves Mana for a stronger Summon that becomes affordable a turn or two later, so the AI will spend Mana on a cheap Summon or Magic ability and leave itself short for the key Summon.
+
+It's also worse than that for Summons specifically. Casting a Magic ability pays `manaSpend` (0.25 per point of Mana). Summoning doesn't pay that cost at all: the summon branch only adds the Summon's ranked value, which favours more expensive Summons (`cost × 0.45`). So from the AI's point of view, spending Mana on a Summon is free. The only deterrent is the income check (`summonNegativeIncome`), which fires only when the Summon would drive income negative.
+
+The Hard lookahead doesn't fix this. It plays out six turns using the same Normal policy, which also has no concept of saving.
+
+### 2. The Summon choice only looks at enemies within 8 hexes of the Summoner
+
+The element-counter term in Summon ranking only counts enemies within 8 hexes of the Summoner's current position (`hexDistance(u.pos, me.pos) > 8`). Enemies further away are ignored entirely, even if they are about to arrive. Within that radius, each enemy counts the same (±1), regardless of distance or whether it's a real threat. The ranking is also decided before any placement, so it doesn't consider where the Summon will actually stand.
+
+### 3. Threat is counted per Unit, not per group
+
+When the AI scores a position, it totals up every enemy that could act before this Unit's next turn and could reach it, each counted once at its maximum damage against this Unit. That matches the rule that an enemy attacks once per turn, so the idea that each enemy can only strike one Unit is partly built in.
+
+What's missing is the joint view. The AI scores each Unit's end position on its own, so it doesn't see that if its whole group advances, the enemy's attacks are split across all of those Units and each Unit faces less than the sum it's charged for. The only adjustment for this is `threatShare` (0.7), which applies when an enemy has a better target elsewhere. That's a fixed discount, not a calculation of how the enemy would actually spread its attacks.
+
+The result is that the AI treats an advance as more dangerous than it is, and tends to hold back. The exception is the Summoner, which gets full threat and no discount, because enemies always go for it.
+
+### 4. It doesn't use Zone of Control to screen fragile Units
+
+The rules have Zone of Control: ground units must stop when they enter an enemy's ZOC (`enemyZoc` in `src/rules/terrain.ts`). The AI respects this when it works out its own movement and when it works out where enemies can reach.
+
+But the threat calculation uses enemy reach computed from the board *before* the AI's turn. A screen the AI sets up this turn doesn't reduce the threat to fragile Units that move later, or to the unit that moves into the screen. So the AI can't see that a tank in front can protect an artillery or Summoner behind it, and it won't deliberately advance several Units to cover each other. Its positioning is driven by per-Unit scores, so coordinated screening only happens by accident.
