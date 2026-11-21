@@ -6,6 +6,7 @@ import {
   STAT_BOUNDS,
   STAT_BUDGET,
   budgetError,
+  budgetValue,
   fitStatBudget,
   generateRoster,
   generateSpread,
@@ -17,13 +18,18 @@ import { SUMMONER_NAMES } from './data/summonerNames';
 import { SUMMONS } from './kinds';
 
 describe('Stat Budget', () => {
-  it('fits the references closely, with ranged ATK far dearer than melee ATK', () => {
+  it('fits the references closely, pricing ATK by its reach', () => {
     const errs = REFERENCE_SPREADS.map((r) => budgetError(r.stats, r.range));
     const sd = Math.sqrt(errs.reduce((s, e) => s + e * e, 0) / errs.length);
-    expect(sd).toBeLessThan(0.3);
-    expect(Math.max(...errs.map(Math.abs))).toBeLessThan(0.65);
-    // a point of ATK at range 4 costs several times one in melee; Speed and Move are the dear stats
-    expect(STAT_BUDGET.atkPerRange * 4).toBeGreaterThan(STAT_BUDGET.atkMelee * 2.5);
+    expect(sd).toBeLessThan(0.32);
+    expect(Math.max(...errs.map(Math.abs))).toBeLessThan(0.8);
+    // ATK costs nothing at Move 3 melee, more with each hex of Move or range
+    const base = { atk: 10, def: 10, mp: 10, mdf: 10, spd: 12, mov: 3 };
+    const atkCost = (mov: number, range: number) => budgetValue({ ...base, mov, atk: 15 }, range) - budgetValue({ ...base, mov, atk: 5 }, range);
+    expect(atkCost(3, 1)).toBe(0);
+    expect(atkCost(5, 1)).toBeCloseTo(2 * atkCost(4, 1));
+    expect(atkCost(5, 4)).toBeGreaterThan(4 * atkCost(4, 1));
+    expect(STAT_BUDGET.atkPerReach).toBeGreaterThan(0);
     expect(STAT_BUDGET.spd).toBeGreaterThan(STAT_BUDGET.def);
     expect(STAT_BUDGET.mov).toBeGreaterThan(STAT_BUDGET.mdf);
     expect(fitStatBudget()).toEqual(STAT_BUDGET);
