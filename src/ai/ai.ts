@@ -14,6 +14,7 @@ import {
   canStandOn,
   canCastWater,
   computeDamage,
+  computeHeal,
   delayForAction,
   elementModifier,
   facingToward,
@@ -78,6 +79,14 @@ export const AI_WEIGHTS = {
   hurtCurve: 0.5,
   /** Share of a Summon's pull that goes to the side's shared target (the rest to its nearest objective). */
   focus: 0.5,
+  /** Value of hitting a healer, per point of its heal × the best patient it can reach (÷ 4). */
+  support: 0.5,
+  /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
+  healedDamage: 0.15,
+  /** Damage to an enemy Summoner that healing is reaching and that can't be finished this round (× normal). */
+  pokeSummoner: 0.35,
+  /** Value of heal blocked by standing in a healer's way (× damage of the same amount). */
+  healBlock: 0.5,
   /** Lead above which the shared target is the enemy Summoner. */
   focusLead: 0.15,
   summonBase: 40,
@@ -277,6 +286,33 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
     followUp.set(e.id, sum);
   }
 
+  // Enemy healing (1, 3): how much each enemy can be healed before my side's next
+  // hits land, and how much a healer's work is worth (its support value).
+  const healWindow = turnDelay(kind, true, true);
+  const enemyMana = state.sides[1 - me.side].mana;
+  /** Heal a healer would give, ignoring the target's missing HP. */
+  const rawHeal = (h: Unit) => computeHeal(state, h, { ...h, hp: 1 }).amount;
+  const healers = reaches.filter((e) => {
+    const k = kindOf(e.unit.kind);
+    return e.unit.av < healWindow && k.magic.some((m) => m.kind === 'heal' && m.manaCost <= enemyMana);
+  });
+  const healReach = (e: EnemyReach, at: Hex) => {
+    const m = kindOf(e.unit.kind).magic.find((x) => x.kind === 'heal')!;
+    if (m.kind === 'water') return false;
+    return e.positions.some((p) => hexDistance(p, at) <= m.range + m.radius) || hexDistance(e.unit.pos, at) <= m.range + m.radius;
+  };
+  const incomingHealFrom = (hs: EnemyReach[], t: Unit) => hs.reduce((a, h) => a + (healReach(h, t.pos) ? rawHeal(h.unit) : 0), 0);
+  const healIn = new Map<number, number>();
+  const support = new Map<number, number>();
+  for (const t of state.units) if (t.side !== me.side) healIn.set(t.id, incomingHealFrom(healers, t));
+  for (const h of healers) {
+    let best = 0;
+    for (const p of state.units) if (p.side === h.unit.side && p.id !== h.unit.id && healReach(h, p.pos)) best = Math.max(best, unitValue(p));
+    support.set(h.unit.id, (w.support * rawHeal(h.unit) * best) / 4);
+  }
+  /** What hitting an enemy is worth: its own value plus the healing it keeps doing. */
+  const targetValue = (t: Unit) => unitValue(t) + (support.get(t.id) ?? 0);
+
   // Pressure: a lead in material and Stones (and the clock running out while behind) pulls units forward.
   const sideValue = (s: number) => state.units.filter((u) => u.side === s).reduce((a, u) => a + unitValue(u) * u.hp, 0);
   const myStones = state.stones.filter((x) => x.owner === me.side).length;
@@ -320,6 +356,11 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const focusTarget: Hex | null = (() => {
     if (!enemySummoner) return null;
     const near = mySummons.some((u) => hexDistance(u.pos, enemySummoner.pos) <= kindOf(u.kind).stats.mov * 2 + kindOf(u.kind).attack.range);
+    // peel: while a healer keeps the enemy Summoner up, the healer is the target
+    const medic = healers
+      .filter((h) => healReach(h, enemySummoner.pos))
+      .sort((a, b) => hexDistance(a.unit.pos, enemySummoner.pos) - hexDistance(b.unit.pos, enemySummoner.pos) || a.unit.id - b.unit.id)[0];
+    if (medic && (lead > w.focusLead || near)) return medic.unit.pos;
     if (lead > w.focusLead || near || !mySummons.length) return enemySummoner.pos;
     const open = state.stones.filter((st) => st.owner !== me.side);
     if (!open.length) return enemySummoner.pos;
@@ -495,16 +536,23 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
               continue;
             }
             const t = state.units.find((u) => u.id === e.unitId)!;
-            const v = unitValue(t);
+            const v = t.side === me.side ? unitValue(t) : targetValue(t);
             if (e.kind === 'damage') {
               if (t.side === me.side) score -= e.amount * w.friendlyFire * v;
               else {
-                score += e.amount * w.damage * v;
+                const heal = healIn.get(t.id) ?? 0;
+                // only damage that outlasts the healing coming its way counts in full
+                const net = e.lethal ? e.amount : Math.max(0, e.amount - heal);
+                const canFinish = !e.lethal && t.hp - e.amount + heal <= (followUp.get(t.id) ?? 0);
+                let dmgValue = (net + (e.amount - net) * w.healedDamage) * w.damage * v;
+                // a Summoner that can't be finished this round just gets healed up: don't pour the lead into it
+                if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeSummoner;
+                score += dmgValue;
                 if (e.lethal) {
                   killed.add(t.id);
                   score += kindOf(t.kind).isSummoner ? w.killSummoner : w.kill * v;
-                } else if (t.hp - e.amount <= (followUp.get(t.id) ?? 0)) {
-                  // allies can finish it before it acts
+                } else if (canFinish) {
+                  // allies can finish it before it acts, healing included
                   score += w.kill * v * w.setupKill;
                 }
               }
@@ -582,6 +630,15 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         after += Math.min(t, a.hp) * unitValue(a);
       }
       v = (baseThreat - after) * w.threat * w.screen;
+      // cutting the heal line: healing the enemy Summoner (or a hurt enemy) can no longer receive
+      if (healers.length) {
+        const hs = rs.filter((e) => healers.some((h) => h.unit.id === e.unit.id));
+        for (const t of state.units) {
+          if (t.side === me.side || (t.hp >= 10 && !kindOf(t.kind).isSummoner)) continue;
+          const lost = (healIn.get(t.id) ?? 0) - incomingHealFrom(hs, t);
+          if (lost > 0) v += lost * w.damage * unitValue(t) * w.healBlock;
+        }
+      }
       done.set(key, v);
       return v;
     };

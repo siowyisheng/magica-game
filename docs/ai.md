@@ -29,6 +29,10 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 **Good things**
 
 - **Damage** to enemies, scaled by the target's value. Units are valued by cost and HP. Summoners are worth more. Each point of damage is worth `damage` (10) × the target's value.
+- **Healing it will undo.** The AI works out how much each enemy can be healed before its own side's next hits land: every enemy healer that acts first and can reach it, at the healer's real heal amount. Damage only counts in full for what outlasts that healing; the rest is worth `healedDamage` (15%).
+  - Damage to the enemy **Summoner** that healing is reaching, and that can't be finished this round net of that healing, is worth only `pokeSummoner` (35%). Without a healer in reach, chip damage on a Summoner counts in full. The lead goes into lining up a kill instead of being poured into a target that gets healed back up.
+  - The "set up a kill" check below counts that healing too.
+- **Support value.** Hitting an enemy healer is worth more than its Cost says. It adds `support` (0.5) × its heal amount × the value of the best patient it can reach (÷ 4), so a Mender beside a hurt Summoner is a priority target.
 - **Kills** get a large bonus on top of the damage. Killing an enemy Summon is worth `kill` (60) × its value. Killing an enemy Summoner is worth `killSummoner` (100,000), which is effectively "win the game."
 - **Setting up a kill.** If the hit doesn't kill but leaves the target low enough that an ally can finish it before it acts again, that counts for part of a kill (`setupKill`, 0.3).
 - **Healing** allies is valued a little less than damage (`heal`, 7).
@@ -59,7 +63,7 @@ The threat estimate is smarter than "worst-case damage":
 Every candidate also gets a position score for where it ends up. This is not about the Command itself:
 
 - **Push from a lead.** The side's lead is its share of HP-weighted material, plus 0.08 per Stone ahead, plus a little for Mana. The push is 1 + `leadPush` (3) × lead, between 1 and `maxPush` (2.5). It multiplies every Summon's pull toward objectives and divides its fear of damage, so a side that is ahead attacks rather than sits.
-- **A shared target.** Each turn the side picks one target: the enemy Summoner, when ahead by more than `focusLead` (0.15) or when any Summon could reach it within two moves; otherwise the enemy-held or free Stone nearest the Summons as a group. Summons converge on it instead of each drifting to its own nearest objective.
+- **A shared target.** Each turn the side picks one target. If an enemy healer keeps the enemy Summoner up (it can reach it), and the side is ahead or close, that healer is the target: **peel, then kill**. Otherwise it is the enemy Summoner, when ahead by more than `focusLead` (0.15) or when any Summon could reach it within two moves; otherwise the enemy-held or free Stone nearest the Summons as a group. Summons converge on it instead of each drifting to its own nearest objective.
 - **Summons** are pulled by `approach` (3) × push × distance. Half of that pull goes toward the nearest objective (enemy Units and Stones not held), and half (`focus`), doubled, goes toward the shared target.
 - **Summoners** set their posture from the matchup:
   - **Fragility.** The AI works out how many hits from the three strongest enemies would kill the Summoner, using the real damage formula. It then scales the keep-away bonus, `summonerSafety` (8) per hex of distance to the nearest enemy up to 7 hexes, by `postureHits` (4) ÷ that number, clamped to ×0.35–1.5. A Summoner that takes 4 hits to kill keeps the standard distance, a glass cannon keeps further back, and a tank stands closer.
@@ -67,7 +71,7 @@ Every candidate also gets a position score for where it ends up. This is not abo
 
 **Screening (Zone of Control)**
 
-After all candidates are scored, the best 8 destinations (`screenTop`) are re-scored with ZOC in mind. Ground enemies must stop when they enter this Unit's ZOC, so the AI recomputes the reach of every enemy near the destination, or near the Unit's current hex, with the Unit standing at the destination. It then recomputes the threat to each ally. Threat removed from allies, weighted by their value (the Summoner counts most), is a bonus of `screen` (0.6) × `threat`. A screen given up by moving away is a cost. If the re-sorted best destination hasn't been re-scored yet, it is re-scored too (up to 3 rounds).
+After all candidates are scored, the best 8 destinations (`screenTop`) are re-scored with ZOC in mind. Ground enemies must stop when they enter this Unit's ZOC, so the AI recomputes the reach of every enemy near the destination, or near the Unit's current hex, with the Unit standing at the destination. It then recomputes the threat to each ally. Threat removed from allies, weighted by their value (the Summoner counts most), is a bonus of `screen` (0.6) × `threat`. A screen given up by moving away is a cost. Cutting a **heal line** counts too: healing the enemy Summoner or a hurt enemy can no longer receive, because a healer can't get past this Unit, is worth `healBlock` (0.5) × the damage it equals. If the re-sorted best destination hasn't been re-scored yet, it is re-scored too (up to 3 rounds).
 
 **Facing**
 
