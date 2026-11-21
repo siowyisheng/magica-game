@@ -31,6 +31,7 @@ import {
   validateTurn,
   attackTargets,
   activeUnit,
+  alignmentPercent,
   resultingFacing,
   canPlace,
   inRoster,
@@ -70,6 +71,9 @@ export const AI_WEIGHTS = {
   summonBase: 40,
   summonCostValue: 0.45,
   summonCounter: 18,
+  /** Hours ahead over which an aligned Summon's Time of Day is judged, and the most it moves the Summon's value. */
+  alignmentHours: 8,
+  alignmentValue: 0.15,
   /** Distance (hexes) at which a Unit stops mattering to the Summon choice. */
   summonRadius: 12,
   /** Extra weight for countering an enemy that counters own Summons near it. */
@@ -385,6 +389,12 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
             if (counters(uk.element, s.element)) counter -= base;
           }
           let v = w.summonBase + s.cost * w.summonCostValue + counter * w.summonCounter;
+          if (s.alignment !== 'none') {
+            // how its Alignment will treat it over its working life: +1 all aligned, −1 all opposed
+            let sum = 0;
+            for (let hr = 0; hr < w.alignmentHours; hr++) sum += (alignmentPercent(s.alignment, state.clock + hr * 60) - 100) / 20;
+            v *= 1 + w.alignmentValue * Math.max(-1, Math.min(1, sum / w.alignmentHours));
+          }
           if (income - s.cost / 8 < 0) v -= w.summonNegativeIncome;
           return { kind: s, value: v };
         })
