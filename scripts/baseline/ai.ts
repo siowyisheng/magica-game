@@ -1,4 +1,4 @@
-// Frozen copy of the AI after the positioning / Mana-saving / ZOC work, before the aggression batch; used as the arena baseline. Do not edit.
+// Frozen copy of the AI after the aggression batch, before the healing-aware changes; used as the arena baseline. Do not edit.
 // One-ply, timeline-aware AI. Enumerates every reachable hex × Command ×
 // target and scores the outcome, including how much damage enemies who act
 // before this Unit's next turn could deal to it. Pure and deterministic.
@@ -69,6 +69,18 @@ export const AI_WEIGHTS = {
   setupKill: 0.3,
   /** How much a material / Stone lead raises the pull toward the enemy. */
   pressure: 0,
+  /** How strongly a lead (≈ −1..1) raises the push: pull toward objectives up, fear of damage down. */
+  leadPush: 3,
+  /** Most the push multiplies the pull (and divides the fear) by. */
+  maxPush: 2.5,
+  /** Share of an enemy's threat cancelled when my side can finish it before it acts again. */
+  tradeCredit: 0.5,
+  /** 0: damage penalty linear in HP lost; 1: quadratic (scrapes cheap, near-deaths dear). */
+  hurtCurve: 0.5,
+  /** Share of a Summon's pull that goes to the side's shared target (the rest to its nearest objective). */
+  focus: 0.5,
+  /** Lead above which the shared target is the enemy Summoner. */
+  focusLead: 0.15,
   summonBase: 40,
   summonCostValue: 0.45,
   summonCounter: 18,
@@ -243,6 +255,8 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
       }
       // enemies go for the Summoner; a Summon only bears its share of an enemy that has other targets
       if (!kind.isSummoner && d > 0) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
+      // a trade, not just a loss: an enemy my side can finish before it acts again pays for its hit
+      if (!kind.isSummoner && d > 0) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
       total += second ? d * w.summonerSecondRound : d;
     }
     threatCache.set(key, total);
@@ -268,10 +282,12 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const sideValue = (s: number) => state.units.filter((u) => u.side === s).reduce((a, u) => a + unitValue(u) * u.hp, 0);
   const myStones = state.stones.filter((x) => x.owner === me.side).length;
   const theirStones = state.stones.filter((x) => x.owner !== null && x.owner !== me.side).length;
-  const lead = (sideValue(me.side) - sideValue(1 - me.side)) / Math.max(10, sideValue(me.side) + sideValue(1 - me.side)) + 0.08 * (myStones - theirStones);
-  const hoursLeft = (state.timeLimit - state.clock) / 60;
-  const behindLate = hoursLeft < 24 && myStones <= theirStones;
-  const pressure = Math.max(0.8, Math.min(3, 1 + w.pressure * lead * 4 + (behindLate ? 1 : 0)));
+  // The AI never plays for the Time Limit: a lead (material, Stones, Mana) is a reason to attack.
+  const manaLead = (state.sides[me.side].mana - state.sides[1 - me.side].mana) / MANA_MAX;
+  const lead = (sideValue(me.side) - sideValue(1 - me.side)) / Math.max(10, sideValue(me.side) + sideValue(1 - me.side)) + 0.08 * (myStones - theirStones) + 0.2 * manaLead;
+  const pressure = Math.max(1, Math.min(w.maxPush, 1 + w.leadPush * lead));
+  /** Boldness: how much less a Summon minds taking damage when its side is ahead. */
+  const boldness = 1 / pressure;
 
   const bestFacing = (h: Hex, delay: number, killed: Set<number>): { facing: Dir; threat: number } => {
     let bestF: Dir = me.facing;
@@ -299,6 +315,18 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   };
   const objs = objectives();
   const enemySummoner = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isSummoner);
+  // One shared target for the whole side: the enemy Summoner when ahead or when it's within
+  // reach of our army, otherwise the enemy-held (or free) Stone nearest our Summons.
+  const mySummons = state.units.filter((u) => u.side === me.side && !kindOf(u.kind).isSummoner);
+  const focusTarget: Hex | null = (() => {
+    if (!enemySummoner) return null;
+    const near = mySummons.some((u) => hexDistance(u.pos, enemySummoner.pos) <= kindOf(u.kind).stats.mov * 2 + kindOf(u.kind).attack.range);
+    if (lead > w.focusLead || near || !mySummons.length) return enemySummoner.pos;
+    const open = state.stones.filter((st) => st.owner !== me.side);
+    if (!open.length) return enemySummoner.pos;
+    const dist = (st: (typeof open)[number]) => mySummons.reduce((a, u) => a + hexDistance(u.pos, st.hex), 0);
+    return open.reduce((a, b) => (dist(b) < dist(a) || (dist(b) === dist(a) && hexKey(b.hex) < hexKey(a.hex)) ? b : a)).hex;
+  })();
 
   // Summoner posture from the matchup: how many hits the strongest enemies need
   // to kill it (fragile ones keep away), and how hard it hits back (durable
@@ -319,16 +347,14 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   }
 
   // Stones decide the Time Limit: they matter more over the last day, most when not ahead.
-  const lateness = Math.max(0, Math.min(1, 1 - hoursLeft / 24));
-  const stoneUrgency = 1 + lateness * (myStones > theirStones ? 1 : 3);
+  // Stones are worth their Mana, the same at any hour.
+  const stoneUrgency = 1;
   const positionalScore = (h: Hex): number => {
     let s = 0;
     const stone = state.stones.find((st) => hexEq(st.hex, h));
     if (stone) {
       if (stone.owner !== me.side) s += w.capture * stoneUrgency * (stone.owner === null ? 1 : 1.5);
       s += w.onStone * (10 - me.hp + 1) * 0.3;
-      // late on, standing on one of our Stones keeps the enemy from taking it
-      if (stone.owner === me.side) s += w.capture * 0.4 * lateness;
     }
     if (kind.isSummoner) {
       // Keep distance from enemies (but not infinitely).
@@ -343,8 +369,8 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
     } else if (objs.length) {
       let minD = 99;
       for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
-      s -= w.approach * pressure * minD;
-      if (enemySummoner) s -= w.approach * 0.3 * pressure * hexDistance(enemySummoner.pos, h);
+      s -= w.approach * pressure * minD * (1 - w.focus);
+      if (focusTarget) s -= w.approach * pressure * w.focus * 2 * hexDistance(focusTarget, h);
     }
     return s;
   };
@@ -514,7 +540,10 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         }
       }
       const v = unitValue(me);
-      score -= Math.min(threat, me.hp) * w.threat * v;
+      // scrapes a Unit can absorb cost little; damage that nearly kills it costs the most
+      const x = Math.min(threat, me.hp) / me.hp;
+      const hurt = kind.isSummoner ? x : (1 - w.hurtCurve) * x + w.hurtCurve * x * x;
+      score -= hurt * me.hp * w.threat * v * (kind.isSummoner ? 1 : boldness);
       if (threat >= me.hp) score -= kind.isSummoner ? w.summonerDeathRisk : w.deathRisk * v;
 
       candidates.push({ action: { ...draft, facing }, score });
@@ -644,8 +673,8 @@ export function evaluate(st: MatchState, side: number): number {
     const worth = k.isSummoner ? 40 + u.hp * 12 : unitValue(u) * (8 + u.hp * 4);
     v += u.side === side ? worth : -worth;
   }
-  const hoursLeft = Math.max(0, (st.timeLimit - st.clock) / 60);
-  const stoneWeight = 18 + 30 * Math.max(0, 1 - hoursLeft / 24);
+  // Stones count for their Mana, not for the Time Limit: the AI never plays for time.
+  const stoneWeight = 18;
   for (const s of st.stones) if (s.owner !== null) v += (s.owner === side ? 1 : -1) * stoneWeight;
   v += 0.15 * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
   return v;
