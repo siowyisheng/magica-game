@@ -26,6 +26,7 @@ npm run build
 | `src/editor/` | The map editor screen and its state (draft, tools, mirroring, undo / redo). |
 | `src/maps/` | Map library: built-in maps plus your own, saved in the browser, with JSON import / export. |
 | `src/dev/` | Dev tools: the unit balance editor and its local / repo overrides. |
+| `src/loadouts/` | Saved Loadouts (browser storage, JSON import / export). |
 | `src/anim.ts` | Pure turn-animation plan (slide along path, melee wind-up and bonk, projectiles, hit shake). The board samples it, and the store applies the new state when it ends. |
 | `src/audio/` | Procedural music and sound effects (Web Audio; no audio files): five composed tracks with a smart shuffle, a synthesized effect for every action, and the hooks that time them to the turn animations. |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
@@ -41,11 +42,15 @@ npm run build
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.
 - While hovering a destination or command, the acting unit's icon jumps to its previewed slot on the timeline.
-- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, start a **New match…** (map, each Side's Summoner or Random, Human or AI) or a **Rematch**, open the **Map Editor** or the **Dev tools**. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, start a **New match…** (map, Test match, and per Side a Summoner, a Loadout and Human or AI) or a **Rematch**, **View Loadouts** (both Sides, omitted Summons darkened), **Edit Loadouts**, open the **Map Editor** or the **Dev tools**. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
 
 ## Summoners
 
 Ten Summoners to pick from, all walk + wade with Bolt, Rise and Ebb: **Sigil** (rune mage, balanced), **Warden** (knight-cleric, tough, Day), **Orrery** (stargazer, richest but fragile, Night), **Bramble** (druid crone, magic-proof), **Cinder** (ember noble, Fire), **Zephyr** (wind herald, fast, poor), **Sexton** (grave-keeper, rich), **Nereid** (sea priestess, Water), **Cairn** (stone hermit, tough) and **Tinker** (clockwork tinkerer, fighter). MP sets Mana Income, so a richer Summoner is weaker in a fight or slower.
+
+## Loadouts
+
+A Loadout is exactly 18 of the 28 Summons: the only Summons a Side may summon. It is picked separately from the Summoner in **New match…**, where each Side chooses one of your Loadouts, a starter (Balanced, Fire & Air, Earth & Water, Swarm, Heavy Hitters), a random starter, or **Auto** (built for the Summoner: four or five of each Element, cheapest two always in). **Test match** ignores Loadouts and gives both Sides all 28. **Edit Loadouts** builds and saves them in this browser (click Summons to add or remove; Save, Save as new, Delete, Export / Import). During a match, **View Loadouts** shows both Sides' Loadouts, with the Summons each leaves out darkened.
 
 ## Dev tools
 

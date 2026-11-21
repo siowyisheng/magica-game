@@ -627,3 +627,29 @@ describe('summoners', () => {
     for (const kind of roster) expect(kindWarnings(kind, roster), kind.id).toEqual([]);
   });
 });
+
+describe('loadouts', () => {
+  it('ships valid starter Loadouts of exactly 18 Summons', async () => {
+    const { STARTER_LOADOUTS, loadoutProblems } = await import('./index');
+    expect(STARTER_LOADOUTS.length).toBeGreaterThanOrEqual(5);
+    for (const l of STARTER_LOADOUTS) expect(loadoutProblems(l.summons), l.name).toEqual([]);
+    expect(loadoutProblems(['imp'])).not.toEqual([]);
+  });
+
+  it('only lets a Side Summon what is in its Loadout; no Loadout means all', async () => {
+    const { STARTER_LOADOUTS, activeUnit } = await import('./index');
+    const swarm = STARTER_LOADOUTS.find((l) => l.id === 'starter:swarm')!.summons;
+    const s = createMatch(SCAFFOLD_MAP, { rosters: [swarm, null] });
+    const me = activeUnit(s)!;
+    s.sides[me.side].mana = 120;
+    const dir = ([0, 1, 2, 3, 4, 5] as const).find((d) => validateTurn(s, { unitId: me.id, to: me.pos, facing: d, command: { type: 'summon', kind: 'imp', dir: d } }) === null)!;
+    const kraken = { unitId: me.id, to: me.pos, facing: dir, command: { type: 'summon' as const, kind: 'kraken', dir } };
+    const imp = { ...kraken, command: { ...kraken.command, kind: 'imp' } };
+    if (me.side === 0) {
+      expect(validateTurn(s, kraken)).toMatch(/Loadout/);
+      expect(validateTurn(s, imp)).toBeNull();
+    } else {
+      expect(validateTurn(s, kraken)).toBeNull();
+    }
+  });
+});

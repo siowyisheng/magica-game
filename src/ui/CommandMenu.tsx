@@ -12,6 +12,7 @@ import {
   MAX_SUMMONS,
   neighbor,
   summonCount,
+  inRoster,
   SUMMONS,
   unitAt,
   type MatchState,
@@ -73,7 +74,7 @@ export function CommandMenu() {
           <div className="summon-grid">
             {ELEMENTS.map((e) => (
               <div key={e} className="summon-row">
-                {SUMMONS.filter((s) => s.element === e)
+                {SUMMONS.filter((s) => s.element === e && inRoster(match, u.side, s.id))
                   .slice()
                   .sort((a, b) => a.cost - b.cost)
                   .map((s) => {

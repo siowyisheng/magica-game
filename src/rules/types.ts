@@ -138,6 +138,8 @@ export interface Stone {
 export interface SideState {
   mana: number;
   ai: boolean;
+  /** Summon kinds this Side may Summon (its Loadout); absent = all (Test Match). */
+  roster?: string[];
 }
 
 export interface MatchState {

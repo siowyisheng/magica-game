@@ -8,6 +8,8 @@ import { activeUnit, kindOf } from './rules';
 import { MapEditor } from './editor/MapEditor';
 import { DevTool } from './dev/DevTool';
 import { MatchSetupDialog } from './ui/MatchSetup';
+import { LoadoutEditor } from './ui/LoadoutEditor';
+import { LoadoutsModal } from './ui/LoadoutView';
 
 function PhaseHint() {
   const phase = useGame((s) => s.phase);
@@ -56,6 +58,13 @@ export function App() {
     if (screen === 'game') tickAi();
   }, [version, match, tickAi, screen]);
   if (screen === 'editor') return <MapEditor />;
+  if (screen === 'loadouts')
+    return (
+      <>
+        <LoadoutEditor />
+        <MatchSetupDialog />
+      </>
+    );
   if (screen === 'dev')
     return (
       <>
@@ -76,6 +85,7 @@ export function App() {
         <InfoPanel />
       </div>
       <MatchSetupDialog />
+      <LoadoutsModal />
     </div>
   );
 }

@@ -29,24 +29,36 @@ import {
   type MagicPlan,
   type Target,
   SUMMONERS,
+  STARTER_LOADOUTS,
   targetAt,
   targetById,
   canPlace,
 } from './rules';
-import { chooseAction } from './ai/ai';
+import { autoLoadout, chooseAction } from './ai/ai';
+import { getLoadout } from './loadouts/library';
 import { getMap } from './maps/library';
 import { planTurnAnim, type TurnAnim } from './anim';
 
 /** Match Setup: map, and per Side a Summoner ('random' allowed) and who plays it. */
 export interface MatchSetup {
   mapId: string;
+  /** Test Match: both Sides may Summon all 28 Summons. */
+  test: boolean;
   summoners: [string, string];
+  /** Loadout id per Side, or 'random' (a random starter) or 'auto' (built for the Summoner). */
+  loadouts: [string, string];
   ai: [boolean, boolean];
 }
 
 const SETUP_KEY = 'magica.setup';
 function loadSetup(): MatchSetup {
-  const d: MatchSetup = { mapId: 'builtin:scaffold-ford', summoners: ['sigil', 'random'], ai: [false, true] };
+  const d: MatchSetup = {
+    mapId: 'builtin:scaffold-ford',
+    test: false,
+    summoners: ['sigil', 'random'],
+    loadouts: ['starter:balanced', 'random'],
+    ai: [false, true],
+  };
   try {
     return { ...d, ...JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}') };
   } catch {
@@ -58,6 +70,23 @@ function loadSetup(): MatchSetup {
 export function resolveSummoners(choice: [string, string], rand: () => number = Math.random): [string, string] {
   const pick = (c: string) => (c === 'random' ? SUMMONERS[Math.floor(rand() * SUMMONERS.length)].id : c);
   return [pick(choice[0]), pick(choice[1])];
+}
+
+/** Resolve a Loadout choice into its Summons. */
+export function resolveLoadout(choice: string, summonerId: string, rand: () => number = Math.random): string[] {
+  if (choice === 'auto') return autoLoadout(summonerId, rand);
+  const l = choice === 'random' ? undefined : getLoadout(choice);
+  if (l) return [...l.summons];
+  return [...STARTER_LOADOUTS[Math.floor(rand() * STARTER_LOADOUTS.length)].summons];
+}
+
+/** Summoners and Loadouts for a Match Setup ('random' / 'auto' resolved). */
+export function resolveSetup(setup: Pick<MatchSetup, 'test' | 'summoners' | 'loadouts'>, rand: () => number = Math.random) {
+  const summoners = resolveSummoners(setup.summoners, rand);
+  const rosters: [string[] | null, string[] | null] = setup.test
+    ? [null, null]
+    : [resolveLoadout(setup.loadouts[0], summoners[0], rand), resolveLoadout(setup.loadouts[1], summoners[1], rand)];
+  return { summoners, rosters };
 }
 
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
@@ -94,9 +123,12 @@ interface Store {
   /** Library id of the map new matches use. */
   mapId: string;
   /** Which screen is shown. */
-  screen: 'game' | 'editor' | 'dev';
+  screen: 'game' | 'editor' | 'dev' | 'loadouts';
   /** The Match Setup dialog is open. */
   setupOpen: boolean;
+  /** The in-match Loadouts view is open. */
+  loadoutsOpen: boolean;
+  setLoadoutsOpen: (open: boolean) => void;
   /** Last Match Setup (remembered between visits). */
   setup: MatchSetup;
   phase: Phase;
@@ -121,7 +153,7 @@ interface Store {
   /** Start a match on a map (e.g. from the editor). */
   startMatch: (map: MapDef, mapId?: string, setup?: Partial<MatchSetup>) => void;
   setMapId: (id: string) => void;
-  setScreen: (s: 'game' | 'editor' | 'dev') => void;
+  setScreen: (s: 'game' | 'editor' | 'dev' | 'loadouts') => void;
   setSetupOpen: (open: boolean) => void;
   /** Start a match from a Match Setup (and remember it). */
   startFromSetup: (setup: MatchSetup) => void;
@@ -220,13 +252,16 @@ export const useGame = create<Store>((set, get) => {
     return u && u.id !== match.activeUnitId ? u : undefined;
   };
 
-  const initial = createMatch(SCAFFOLD_MAP, { ai: [false, true], seed: Date.now() & 0xffff });
+  const initialSetup = loadSetup();
+  const initial = createMatch(getMap(initialSetup.mapId)?.map ?? SCAFFOLD_MAP, { ai: initialSetup.ai, seed: Date.now() & 0xffff, ...resolveSetup(initialSetup) });
 
   return {
     match: initial,
     mapId: loadSetup().mapId,
     screen: 'game',
     setupOpen: false,
+    loadoutsOpen: false,
+    setLoadoutsOpen: (loadoutsOpen) => set({ loadoutsOpen }),
     setup: loadSetup(),
     phase: phaseFor(initial),
     hoverHex: null,
@@ -248,8 +283,8 @@ export const useGame = create<Store>((set, get) => {
     startMatch: (map, mapId, setup) => {
       const last = get().setup;
       const ai = setup?.ai ?? (get().match.sides.map((s) => s.ai) as [boolean, boolean]);
-      const summoners = resolveSummoners(setup?.summoners ?? last.summoners);
-      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners });
+      const { summoners, rosters } = resolveSetup({ ...last, ...setup });
+      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners, rosters });
       if (mapId) set({ mapId });
       set({ match: m, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
       signal({ type: 'newMatch' });

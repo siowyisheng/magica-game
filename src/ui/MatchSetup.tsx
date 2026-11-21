@@ -4,6 +4,8 @@
 import { useState } from 'react';
 import { SUMMONERS, type SideId } from '../rules';
 import { listMaps } from '../maps/library';
+import { listLoadouts } from '../loadouts/library';
+import { LoadoutStrip } from './LoadoutView';
 import { useGame, type MatchSetup as Setup } from '../store';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { StatGrid } from './Stats';
@@ -17,10 +19,13 @@ export function MatchSetupDialog() {
   const setOpen = useGame((s) => s.setSetupOpen);
   const start = useGame((s) => s.startFromSetup);
   const [setup, setSetup] = useState<Setup>(saved);
+  const setScreen = useGame((s) => s.setScreen);
   const maps = listMaps();
+  const loadouts = listLoadouts();
   if (!open) return null;
   const mapId = maps.some((m) => m.id === setup.mapId) ? setup.mapId : maps[0].id;
-  const update = (f: (s: Setup) => Setup) => setSetup((s) => f({ ...s, summoners: [...s.summoners] as [string, string], ai: [...s.ai] as [boolean, boolean] }));
+  const update = (f: (s: Setup) => Setup) =>
+    setSetup((s) => f({ ...s, summoners: [...s.summoners] as [string, string], loadouts: [...s.loadouts] as [string, string], ai: [...s.ai] as [boolean, boolean] }));
   return (
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}>
       <div className="window match-setup">
@@ -35,6 +40,9 @@ export function MatchSetupDialog() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="dev-check" title="Both Sides may Summon all 28 Summons, ignoring Loadouts">
+          <input type="checkbox" checked={setup.test} onChange={(e) => update((s) => ({ ...s, test: e.target.checked }))} /> Test match (all 28 Summons for both Sides)
         </label>
         <div className="setup-sides">
           {([0, 1] as SideId[]).map((side) => (
@@ -74,10 +82,40 @@ export function MatchSetupDialog() {
                 ))}
               </div>
               <SummonerInfo id={setup.summoners[side]} />
+              {!setup.test && (
+                <>
+                  <label className="slider">
+                    <span>Loadout</span>
+                    <select value={setup.loadouts[side]} onChange={(e) => update((s) => ((s.loadouts[side] = e.target.value), s))}>
+                      <option value="random">Random starter</option>
+                      <option value="auto">Auto (built for the Summoner)</option>
+                      {loadouts.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                          {l.starter ? ' (starter)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {(() => {
+                    const l = loadouts.find((x) => x.id === setup.loadouts[side]);
+                    return l ? <LoadoutStrip summons={l.summons} side={side} /> : <div className="muted small">Chosen when the match starts.</div>;
+                  })()}
+                </>
+              )}
             </div>
           ))}
         </div>
         <div className="btn-row end">
+          <button
+            onClick={() => {
+              setOpen(false);
+              setScreen('loadouts');
+            }}
+          >
+            Edit Loadouts…
+          </button>
+          <span className="spacer" />
           <button onClick={() => setOpen(false)}>Cancel</button>
           <button className="play" onClick={() => start({ ...setup, mapId })}>
             Start

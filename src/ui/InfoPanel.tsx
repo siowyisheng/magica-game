@@ -61,6 +61,7 @@ export function InfoPanel() {
             <div key={side} className="side-row">
               <div className="side-name" style={{ color: SIDE_COLORS[side] }}>
                 {SIDE_NAME[side]} {match.sides[side].ai ? '(AI)' : '(Human)'}
+                {!match.sides[side].roster && <span className="muted small"> · Test match</span>}
                 {aiThinking && activeUnit(match)?.side === side && <span className="muted"> thinking…</span>}
               </div>
               <ManaBars side={side} />
@@ -111,6 +112,10 @@ export function InfoPanel() {
         <div className="btn-row">
           <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
           <button onClick={newMatch} title="Same map and Summoners">Rematch</button>
+        </div>
+        <div className="btn-row">
+          <button onClick={() => useGame.getState().setLoadoutsOpen(true)} title="Both Sides' Summoner and Loadout">View Loadouts</button>
+          <button onClick={() => useGame.getState().setScreen('loadouts')}>Edit Loadouts</button>
         </div>
         <div className="btn-row">
           <button onClick={openEditor}>Map Editor</button>

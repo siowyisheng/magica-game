@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyTurn, createMatch, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex } from '../rules';
-import { chooseAction } from './ai';
+import { autoLoadout, chooseAction } from './ai';
+import { STARTER_LOADOUTS, loadoutProblems, kindOf } from '../rules';
 
 describe('AI', () => {
   it('plays legal turns in a headless AI-vs-AI match', () => {
@@ -45,4 +46,20 @@ describe('AI', () => {
     const a = chooseAction(st);
     expect(a.command).toEqual({ type: 'attack', target: hex(4, 1) });
   });
+
+  it('builds valid Auto Loadouts and only summons from its Loadout', () => {
+    for (const id of ['sigil', 'cinder', 'nereid']) {
+      const l = autoLoadout(id, () => 0.3);
+      expect(loadoutProblems(l)).toEqual([]);
+      const own = kindOf(id).element;
+      if (own) expect(l.filter((k) => kindOf(k).element === own).length).toBe(5);
+    }
+    const heavy = STARTER_LOADOUTS.find((x) => x.id === 'starter:heavy')!.summons;
+    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy] });
+    for (let i = 0; i < 80 && st.winner === null; i++) {
+      const a = chooseAction(st);
+      if (a.command.type === 'summon') expect(heavy).toContain(a.command.kind);
+      st = applyTurn(st, a).state;
+    }
+  }, 60000);
 });

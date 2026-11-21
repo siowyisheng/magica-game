@@ -93,6 +93,17 @@ export interface MatchOptions {
   seed?: number;
   /** Summoner kind for each Side (default Sigil). */
   summoners?: [string, string];
+  /** Each Side's Loadout (Summon kind ids); null = all Summons (Test Match). */
+  rosters?: [string[] | null, string[] | null];
+}
+
+/** Number of Summons in a Loadout. */
+export const LOADOUT_SIZE = 18;
+
+/** Whether `side` may Summon `kind` (it is in the Side's Loadout, or there is none). */
+export function inRoster(state: MatchState, side: SideId, kind: string): boolean {
+  const r = state.sides[side].roster;
+  return !r || r.includes(kind);
 }
 
 export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
@@ -113,8 +124,8 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
     obstacles: [],
     stones: map.hexes.filter((h) => h.terrain === 'stone').map((h) => ({ hex: h.hex, owner: null })),
     sides: [
-      { mana: MANA_START, ai: opts.ai?.[0] ?? false },
-      { mana: MANA_START, ai: opts.ai?.[1] ?? true },
+      { mana: MANA_START, ai: opts.ai?.[0] ?? false, ...(opts.rosters?.[0] ? { roster: [...opts.rosters[0]] } : {}) },
+      { mana: MANA_START, ai: opts.ai?.[1] ?? true, ...(opts.rosters?.[1] ? { roster: [...opts.rosters[1]] } : {}) },
     ],
     nextUnitId: 1,
     activeUnitId: null,
@@ -184,6 +195,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
       if (!kind.isSummoner) return 'only Summoners can Summon';
       const sk = kindOf(cmd.kind);
       if (sk.isSummoner) return 'cannot summon a Summoner';
+      if (!inRoster(state, unit.side, sk.id)) return 'not in this Side’s Loadout';
       if (state.sides[unit.side].mana < sk.cost) return 'not enough mana';
       if (summonCount(state, unit.side) >= MAX_SUMMONS) return 'summon limit reached';
       const h = neighbor(action.to, cmd.dir);

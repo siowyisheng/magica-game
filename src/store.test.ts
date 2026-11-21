@@ -15,7 +15,7 @@ describe('closestFacing', () => {
 
 describe('facing is set while the command menu is open', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', summoners: ['sigil', 'sigil'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
   });
 
@@ -52,7 +52,7 @@ describe('facing is set while the command menu is open', () => {
 
 describe('selection, quick actions and range toggles', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', summoners: ['sigil', 'sigil'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
   });
 
@@ -138,7 +138,7 @@ describe('selection, quick actions and range toggles', () => {
 describe('choosing a summon hex', () => {
   it('selects the valid adjacent hex closest in angle to the cursor, even through crowded hexes', async () => {
     const { summonDirToward, validSummonDirs } = await import('./store');
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', summoners: ['sigil', 'sigil'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['sigil', 'sigil'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
     const m = useGame.getState().match;
     const me = activeUnit(m)!;

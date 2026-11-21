@@ -34,6 +34,7 @@ import {
   activeUnit,
   resultingFacing,
   canPlace,
+  inRoster,
   planAttack,
   shotAllowed,
   trajectoryOf,
@@ -228,7 +229,7 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
 
   // Rank summon kinds once (placement-independent).
   const summonKinds = kind.isSummoner && summonCount(state, me.side) < MAX_SUMMONS
-    ? SUMMONS.filter((s) => s.cost <= myMana)
+    ? SUMMONS.filter((s) => s.cost <= myMana && inRoster(state, me.side, s.id))
         .map((s) => {
           let counter = 0;
           for (const u of state.units) {
@@ -355,4 +356,26 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS): TurnAc
   const top = legal.filter((c) => c.score >= best - 1e-9);
   const rng = mulberry32(state.rngState ^ (state.turnNumber * 2654435761));
   return top[Math.floor(rng() * top.length)].action;
+}
+
+/**
+ * An AI-built Loadout for a Summoner: four or five Summons of each Element
+ * (five of the Summoner's own Element if it has one), always including the
+ * two cheapest of each so it can summon early, the rest spread over cost.
+ */
+export function autoLoadout(summonerId: string, rand: () => number = Math.random): string[] {
+  const own = kindOf(summonerId).element;
+  const elements = ['fire', 'air', 'earth', 'water'] as const;
+  const order = [...elements].sort(() => rand() - 0.5);
+  if (own) order.sort((a, b) => (a === own ? -1 : b === own ? 1 : 0));
+  const counts = new Map(order.map((e, i) => [e, i < 2 ? 5 : 4] as const));
+  const out: string[] = [];
+  for (const e of elements) {
+    const byCost = SUMMONS.filter((s) => s.element === e).sort((a, b) => a.cost - b.cost);
+    const picked = byCost.slice(0, 2);
+    const rest = byCost.slice(2).sort(() => rand() - 0.5);
+    picked.push(...rest.slice(0, counts.get(e)! - 2));
+    out.push(...picked.map((k) => k.id));
+  }
+  return out;
 }
