@@ -7,11 +7,12 @@ describe('balance edits', () => {
 
   it('keeps only fields that differ from what ships, and drops edits that are reverted', () => {
     const imp = JSON.parse(JSON.stringify(kindOf('imp')));
+    const shipped = imp.stats.atk;
     imp.stats.atk = 19;
     saveKind(imp);
     expect(kindOf('imp').stats.atk).toBe(19);
     expect(Object.keys(getLocalBalance().kinds.imp)).toEqual(['stats']);
-    imp.stats.atk = 13;
+    imp.stats.atk = shipped;
     saveKind(imp);
     expect(isEdited('imp')).toBe(false);
   });
@@ -23,14 +24,14 @@ describe('balance edits', () => {
     saveAbility({ ...bolt, manaCost: 16 });
     expect(kindOf('regent').magic[0].manaCost).toBe(16);
     expect(kindOf('oni').magic[0].manaCost).toBe(16);
-    // give the Hound the Imp's Spark: both use the same record
+    // give the Hound the Wisp's Rekindle: both use the same record
     const hound = JSON.parse(JSON.stringify(kindOf('hound')));
-    hound.magic = [abilityOf('spark')!];
+    hound.magic = [abilityOf('rekindle')!];
     saveKind(hound);
-    expect(abilityUsers('spark').map((k) => k.id).sort()).toEqual(['hound', 'imp']);
-    saveAbility({ ...abilityOf('spark')!, manaCost: 12 });
+    expect(abilityUsers('rekindle').map((k) => k.id).sort()).toEqual(['hound', 'wisp']);
+    saveAbility({ ...abilityOf('rekindle')!, manaCost: 12 });
     expect(kindOf('hound').magic[0].manaCost).toBe(12);
-    expect(kindOf('imp').magic[0].manaCost).toBe(12);
+    expect(kindOf('wisp').magic[0].manaCost).toBe(12);
     // a new ability can be created and assigned
     const id = createAbility('Ember Rain');
     expect(abilityOf(id)?.name).toBe('Ember Rain');

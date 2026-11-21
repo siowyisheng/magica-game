@@ -405,7 +405,8 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
 
 function magicSummary(m: MagicAbility): string {
   if (m.kind === 'water') return `${m.delta > 0 ? 'raises' : 'lowers'} the Water Level`;
-  return `${m.kind}, range ${m.range}${m.radius ? ', area' : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
+  if (m.kind === 'damage' && m.burst) return `Burst, radius ${m.radius} around the caster (hits allies)`;
+  return `${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
 }
 
 /** A shared Magic Ability, with the units that use it. */
@@ -469,11 +470,35 @@ function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicA
           />
           <label className="dev-field">
             <span>Area</span>
-            <select value={m.radius} onChange={(e) => onChange((x) => void (x.kind !== 'water' && (x.radius = Number(e.target.value) as 0 | 1)))}>
+            <select value={m.radius} onChange={(e) => onChange((x) => void (x.kind !== 'water' && (x.radius = Number(e.target.value) as 0 | 1 | 2)))}>
               <option value={0}>Single hex</option>
               <option value={1}>Hex + neighbours</option>
+              <option value={2}>Two rings (Burst)</option>
             </select>
           </label>
+          {m.kind === 'damage' && (
+            <label className="dev-check" title="Centred on the caster (range 0); hits every Unit around it, allies included, but not the caster">
+              <input
+                type="checkbox"
+                checked={!!m.burst}
+                onChange={(e) =>
+                  onChange((x) => {
+                    if (x.kind !== 'damage') return;
+                    if (e.target.checked) {
+                      x.burst = true;
+                      x.range = 0;
+                      delete x.trajectory;
+                      if (x.radius === 0) x.radius = 1;
+                    } else {
+                      delete x.burst;
+                      if (x.radius === 2) x.radius = 1;
+                    }
+                  })
+                }
+              />{' '}
+              Burst
+            </label>
+          )}
           {m.range > 1 && <TrajectorySelect value={m.trajectory} onChange={(t) => onChange((x) => void (x.kind !== 'water' && (x.trajectory = t)))} />}
         </>
       )}

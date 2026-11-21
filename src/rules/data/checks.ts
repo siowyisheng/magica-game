@@ -24,6 +24,12 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   }
   if (k.isSummoner && (k.moveTypes.length !== 2 || !k.moveTypes.includes('walk') || !k.moveTypes.includes('wade'))) w.push('Summoners walk + wade');
   if (k.attack.range < 1) w.push('Attack range must be at least 1');
+  for (const m of k.magic) {
+    if (m.kind === 'water') continue;
+    if (m.kind === 'damage' && m.burst && m.range !== 0) w.push(`${m.name}: a Burst has range 0 (it is centred on the caster)`);
+    if (m.kind === 'damage' && m.burst && m.radius === 0) w.push(`${m.name}: a Burst needs an area (radius 1 or 2)`);
+    if (m.radius === 2 && !(m.kind === 'damage' && m.burst)) w.push(`${m.name}: only a Burst may have radius 2`);
+  }
   if (k.attack.range > 1 && !k.attack.trajectory) w.push('a ranged Attack needs a Trajectory');
   if (!k.isSummoner) {
     if (k.cost % 8 !== 0 || k.cost < 16 || k.cost > 96) w.push('Cost should be a multiple of 8 from 16 to 96');
@@ -38,7 +44,7 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
       continue;
     }
     if (!k.isSummoner && (m.manaCost < 4 || m.manaCost > 16)) w.push(`${m.name}: Summon Magic should cost 4–16`);
-    if (m.range < (m.kind === 'damage' ? 1 : 0)) w.push(`${m.name}: range too short to aim`);
+    if (m.range < (m.kind === 'damage' && !m.burst ? 1 : 0)) w.push(`${m.name}: range too short to aim`);
     if (m.range > 1 && !m.trajectory) w.push(`${m.name}: a ranged spell needs a Trajectory`);
   }
   return w;

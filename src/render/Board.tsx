@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
+  previewEffects,
   type Hex,
   type MapHex,
   type MatchState,
@@ -32,6 +33,7 @@ import {
 import { hoverQuick, quickPlans, summonDirToward, useGame } from '../store';
 import { FENCE_HEIGHT, cornerPosts, fenceGeometry, regionSegments, ribbonGeometry, type LineStyle } from './outlines';
 import {
+  ELEMENT_COLORS,
   SIDE_COLORS,
   facingForHeading,
   idleFrameAt,
@@ -270,8 +272,10 @@ function useOutlines(): OutlineLayer[] {
       const isAttack = phase.command === 'attack';
       const ab = isAttack ? null : magicAbility(kind, (phase.command as { magic: string }).magic);
       if (isAttack || (ab && ab.kind !== 'water')) {
-        const range = isAttack ? kind.attack.range : (ab as { range: number }).range;
-        const min = isAttack ? 1 : minAimDistance(ab as Parameters<typeof minAimDistance>[0]);
+        // a Burst shows the area it will hit around the caster
+        const burst = !!ab && ab.kind === 'damage' && !!ab.burst;
+        const range = isAttack ? kind.attack.range : burst ? (ab as { radius: number }).radius : (ab as { range: number }).range;
+        const min = isAttack ? 1 : burst ? 1 : minAimDistance(ab as Parameters<typeof minAimDistance>[0]);
         const hexes = hexesInRange(phase.to, range).filter((h) => hexDistance(h, phase.to) >= min && mapHexAt(match.map, h));
         layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(isAttack ? LINE_COLORS.attack : LINE_COLORS.magic, 0) });
       }
@@ -388,6 +392,13 @@ function useTargetMarks(): Map<number, TargetMark> {
         else if (m) out.set(t.id, q.magic!.ability.kind === 'heal' ? 'heal' : 'magic');
       }
     } else if (phase.kind === 'target') {
+      const ab = phase.command === 'attack' ? null : magicAbility(kindOf(u.kind), phase.command.magic);
+      if (ab && ab.kind === 'damage' && ab.burst) {
+        // a Burst hits everything around the caster, allies too
+        const action = { unitId: u.id, to: phase.to, facing: phase.facing, command: { type: 'magic' as const, ability: ab.id, target: phase.to } };
+        for (const e of previewEffects(match, action)) if (!e.obstacle) out.set(e.unitId, 'magic');
+        return out;
+      }
       for (const t of match.units) {
         const command: Command =
           phase.command === 'attack' ? { type: 'attack', target: t.pos } : { type: 'magic', ability: phase.command.magic, target: t.pos };
@@ -924,6 +935,44 @@ function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
   );
 }
 
+/** A Burst: a glowing ring sweeping out over the ground, with a flash at the caster. */
+function BurstFx({ step }: { step: Extract<AnimStep, { kind: 'burst' }> }) {
+  const match = useGame((s) => s.match);
+  const ring = useRef<THREE.Mesh>(null);
+  const flash = useRef<THREE.Mesh>(null);
+  const centre = useMemo(() => worldAt(match, step.at), [match, step.at]);
+  const color = useMemo(() => new THREE.Color(step.element ? ELEMENT_COLORS[step.element] : '#c9b8f0').lerp(new THREE.Color('#ffffff'), 0.25), [step.element]);
+  // hex centres are √3 apart: the wave reaches the far edge of the outer ring
+  const maxR = (step.radius + 0.5) * Math.sqrt(3);
+  useFrame(() => {
+    const anim = useGame.getState().anim;
+    if (!anim || !ring.current || !flash.current) return;
+    const p = (animElapsed(anim) - step.t0) / (step.t1 - step.t0);
+    const on = p >= 0 && p <= 1;
+    ring.current.visible = flash.current.visible = on;
+    if (!on) return;
+    const e = 1 - (1 - p) * (1 - p); // ease out
+    const r = Math.max(0.05, e * maxR);
+    ring.current.scale.set(r, r, r);
+    (ring.current.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - p);
+    const f = Math.max(0, 1 - p * 3);
+    flash.current.scale.set(0.3 + f * 0.6, 0.3 + f * 0.6, 0.3 + f * 0.6);
+    (flash.current.material as THREE.MeshBasicMaterial).opacity = f;
+  });
+  return (
+    <group position={[centre.x, centre.y + 0.08, centre.z]}>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} visible={false} raycast={() => null} renderOrder={20}>
+        <ringGeometry args={[0.82, 1, 48]} />
+        <meshBasicMaterial color={color} transparent depthTest={false} side={THREE.DoubleSide} toneMapped={false} />
+      </mesh>
+      <mesh ref={flash} position={[0, 0.5, 0]} visible={false} raycast={() => null} renderOrder={20}>
+        <sphereGeometry args={[1, 16, 12]} />
+        <meshBasicMaterial color={color} transparent depthTest={false} toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
 function Projectiles() {
   const anim = useGame((s) => s.anim);
   if (!anim) return null;
@@ -934,6 +983,8 @@ function Projectiles() {
           <Projectile key={`${anim.start}:${i}`} step={st} />
         ) : st.kind === 'summon' ? (
           <SummonFx key={`${anim.start}:${i}`} step={st} />
+        ) : st.kind === 'burst' ? (
+          <BurstFx key={`${anim.start}:${i}`} step={st} />
         ) : null,
       )}
     </>

@@ -55,6 +55,9 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
         cues.push({ at: s.t0, sfx: s.style === 'arrow' ? { name: 'arrow' } : { name: 'cast', element: s.element, heal: s.heal } });
         if (s.heal) cues.push({ at: s.t1, sfx: { name: 'heal', stone: false } });
         break;
+      case 'burst':
+        cues.push({ at: s.t0, sfx: { name: 'cast', element: s.element, heal: false } });
+        break;
       case 'hit': {
         const magic = action.command.type === 'magic';
         const amount = Math.max(...s.unitIds.map((id) => damageTo.get(id) ?? 0));

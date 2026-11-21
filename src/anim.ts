@@ -37,6 +37,8 @@ export type AnimStep =
       t1: number;
     }
   | { kind: 'hit'; unitIds: number[]; t0: number; t1: number }
+  /** A Burst: a shockwave ring expanding from the caster to `radius` hexes. */
+  | { kind: 'burst'; at: Hex; radius: number; element: Element | null; t0: number; t1: number }
   /** Summoner glows and approaches, a light blooms on the hex, the summon fades in, the Summoner backs off. */
   /** A light swells on the Magic Stone (ease in/out); the stone changes colour at the peak. */
   | { kind: 'capture'; hex: Hex; side: SideId; t0: number; t1: number }
@@ -132,7 +134,11 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       const view = { ...before, units: before.units.map((u) => (u.id === unit.id ? { ...u, pos: action.to } : u)) };
       const hitIds = affectedUnits(view, getUnit(view, unit.id), ab, cmd.target).map((u) => u.id);
       const d = hexDistance(action.to, cmd.target);
-      if (d > 0) {
+      if (ab.kind === 'damage' && ab.burst) {
+        const ms = 320 + 120 * ab.radius;
+        steps.push({ kind: 'burst', at: action.to, radius: ab.radius, element: kind.element, t0: t, t1: t + ms });
+        t += Math.round(ms * 0.6); // units are hit as the wave passes
+      } else if (d > 0) {
         const high = trajectoryOf(ab) === 'high';
         const fly = 200 + 80 * d + (high ? 140 : 0);
         steps.push({
