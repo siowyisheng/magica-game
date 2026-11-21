@@ -30,7 +30,7 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 
 - **Damage** to enemies, scaled by the target's value. Units are valued by cost and HP. Summoners are worth more. Each point of damage is worth `damage` (10) × the target's value.
 - **Healing it will undo.** The AI works out how much each enemy can be healed before its own side's next hits land: every enemy healer that acts first and can reach it, at the healer's real heal amount. Damage only counts in full for what outlasts that healing; the rest is worth `healedDamage` (15%).
-  - Damage to the enemy **Summoner** that can't be finished this round, net of that healing, is worth only `pokeSummoner` (35%). The lead goes into lining up a kill instead of being poured into a target that gets healed back up.
+  - Damage to the enemy **Summoner** that healing is reaching, and that can't be finished this round net of that healing, is worth only `pokeSummoner` (35%). Without a healer in reach, chip damage on a Summoner counts in full. The lead goes into lining up a kill instead of being poured into a target that gets healed back up.
   - The "set up a kill" check below counts that healing too.
 - **Support value.** Hitting an enemy healer is worth more than its Cost says. It adds `support` (0.5) × its heal amount × the value of the best patient it can reach (÷ 4), so a Mender beside a hurt Summoner is a priority target.
 - **Kills** get a large bonus on top of the damage. Killing an enemy Summon is worth `kill` (60) × its value. Killing an enemy Summoner is worth `killSummoner` (100,000), which is effectively "win the game."

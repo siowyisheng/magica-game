@@ -83,7 +83,7 @@ export const AI_WEIGHTS = {
   support: 0.5,
   /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
   healedDamage: 0.15,
-  /** Damage to an enemy Summoner that can't be finished this round, net of healing (× normal). */
+  /** Damage to an enemy Summoner that healing is reaching and that can't be finished this round (× normal). */
   pokeSummoner: 0.35,
   /** Value of heal blocked by standing in a healer's way (× damage of the same amount). */
   healBlock: 0.5,
@@ -546,7 +546,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
                 const canFinish = !e.lethal && t.hp - e.amount + heal <= (followUp.get(t.id) ?? 0);
                 let dmgValue = (net + (e.amount - net) * w.healedDamage) * w.damage * v;
                 // a Summoner that can't be finished this round just gets healed up: don't pour the lead into it
-                if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish) dmgValue *= w.pokeSummoner;
+                if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeSummoner;
                 score += dmgValue;
                 if (e.lethal) {
                   killed.add(t.id);
