@@ -6,7 +6,7 @@ import { it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import {
   SCAFFOLD_MAP,
-  STARTER_LOADOUTS,
+  randomLoadout,
   SUMMONERS,
   applyTurn,
   createMatch,
@@ -79,8 +79,7 @@ it('self-play', () => {
     const lo = (i: number) => {
       const x = r();
       if (x < 0.4) return { name: 'auto', summons: autoLoadout(summoners[i], r) };
-      const s = STARTER_LOADOUTS[Math.floor(r() * STARTER_LOADOUTS.length)];
-      return { name: s.name, summons: s.summons };
+      return { name: 'random', summons: randomLoadout(r) };
     };
     const l0 = lo(0);
     const l1 = lo(1);

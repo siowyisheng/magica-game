@@ -1,4 +1,4 @@
-// A Loadout shown as all 28 Summons in Element rows (cheapest first), the
+// A Loadout shown as all the Summons in Element rows (cheapest first), the
 // ones it leaves out darkened. Used in the Match Setup, the in-match
 // Loadouts view and the Loadout builder.
 

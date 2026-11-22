@@ -13,4 +13,4 @@ export * from './statgen';
 export * from './summongen';
 export { validateMapWater, validateMap, MAX_FLOOD_SHARE } from './maps/validate';
 export { kindWarnings } from './data/checks';
-export { STARTER_LOADOUTS, RANDOM_LOADOUT_CHEAP_MIN, cheapestPerElement, loadoutProblems, randomLoadout, type Loadout } from './data/loadouts';
+export { RANDOM_LOADOUT_CHEAP_MIN, cheapestPerElement, loadoutProblems, randomLoadout, type Loadout } from './data/loadouts';

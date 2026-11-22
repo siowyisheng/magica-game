@@ -2,11 +2,11 @@
 import { it } from 'vitest';
 import { Session } from 'node:inspector/promises';
 import { writeFileSync } from 'node:fs';
-import { SCAFFOLD_MAP, STARTER_LOADOUTS, applyTurn, createMatch } from '../src/rules';
-import { chooseAction } from '../src/ai/ai';
+import { SCAFFOLD_MAP, applyTurn, createMatch } from '../src/rules';
+import { autoLoadout, chooseAction } from '../src/ai/ai';
 
 it('bench', async () => {
-  const lo = STARTER_LOADOUTS[0].summons;
+  const lo = autoLoadout('regent', () => 0.3);
   let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 9, summoners: ['regent', 'templar'], rosters: [lo, lo] });
   for (let i = 0; i < 60 && st.winner === null; i++) st = applyTurn(st, chooseAction(st)).state;
   const session = new Session();

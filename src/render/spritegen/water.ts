@@ -310,3 +310,108 @@ WATER.kraken = {
     m.ball(add(cc, [-0.04, 0.02, 0.07]), 0.015, 'stone');
   },
 };
+
+// Kappa: a river imp with a turtle shell on its back, a beak and webbed hands.
+// Wild: the dish of water on its head is a spring, bubbling over.
+WATER.kappa = {
+  palette: { iris: '#2c2836', beak: '#f0c040', shellK: '#6a8a4a' },
+  build(m, p) {
+    const { swell, lift } = breathe(p);
+    // short legs, webbed feet
+    both((s) => {
+      const g = m.group();
+      m.tube([[s * 0.07, 0.18, 0], [s * 0.08, 0.06, 0.02]], [0.04, 0.035], 'side', g);
+      m.ell([s * 0.085, 0.02, 0.05], [0.045, 0.015, 0.06], 'side2');
+    });
+    // round body and turtle shell on the back
+    const body = m.group();
+    m.ell([0, 0.28, 0.01], [0.12 * swell, 0.13, 0.1 * swell], 'side', [0, 0, 0], body);
+    m.ell([0, 0.27, 0.07], [0.08, 0.1, 0.04], 'sideL', [0, 0, 0], body); // belly plate
+    m.ell([0, 0.3, -0.08], [0.15, 0.16, 0.08], 'shellK', [0.1, 0, 0]);
+    for (const [x, y] of [[0, 0.36], [-0.07, 0.27], [0.07, 0.27], [0, 0.2]] as [number, number][]) m.ell([x, y, -0.155], [0.035, 0.03, 0.01], 'side2');
+    // arms with webbed hands
+    arm(m, [-0.11, 0.33 + lift, 0.01], [-0.17, 0.25 + lift, 0.06], [-0.15, 0.18 + lift, 0.1], 0.025, 'side', 'side2', 0.035);
+    arm(m, [0.11, 0.33 + lift, 0.01], [0.17, 0.27 + lift, 0.07], [0.14, 0.22 + lift, 0.12], 0.025, 'side', 'side2', 0.035);
+    // head: round, with a beak and a fringe of hair round the dish
+    const hc: V3 = [0, 0.5 + lift, 0.03];
+    m.ball(hc, 0.12, 'side');
+    m.ell(add(hc, [0, -0.04, 0.1]), [0.05, 0.03, 0.05], 'beak');
+    eyes(m, hc, 0.12, 'anime', 'iris', 0.42, 0.05);
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      m.spike(add(hc, [Math.cos(a) * 0.1, 0.06, Math.sin(a) * 0.1]), add(hc, [Math.cos(a) * 0.14, 0.02, Math.sin(a) * 0.14]), 0.02, 'side2');
+    }
+    // wild: the dish is a bubbling spring
+    const dish: V3 = add(hc, [0, 0.1, 0]);
+    m.ell(dish, [0.08, 0.02, 0.08], 'bone');
+    m.ell(add(dish, [0, 0.012, 0]), [0.065, 0.012, 0.065], 'water*');
+    for (let i = 0; i < 4; i++) {
+      const a = p.frame * 1.1 + i * 1.6;
+      m.ball(add(dish, [Math.cos(a) * 0.04, 0.03 + ((p.frame + i) % 3) * 0.03, Math.sin(a) * 0.04]), 0.014 + (i % 2) * 0.006, 'ice');
+    }
+  },
+};
+
+// Tide Priestess: a robed priestess with a conch-topped staff.
+// Wild: a ring of living water flows round her, a fish leaping through it.
+WATER.priestess = {
+  palette: { iris: '#2c9fd8', hair: '#2a4a8a', fish: '#ff9a3c' },
+  build(m, p) {
+    const f = figure(m, p, {
+      top: 'side',
+      skirt: { mat: 'side', len: 0.24, flare: 0.7, hem: 'pearl' },
+      sleeve: 'white',
+      arms: (s) => (s > 0 ? [[0.05, -0.05, 0.05], [0.07, -0.04, 0.12]] : [[-0.04, -0.08, 0.05], [-0.03, -0.15, 0.08]]),
+    });
+    const { hc, r, waistY, lift } = f;
+    eyes(m, hc, r, 'anime', 'iris', 0.38, -0.1);
+    mouthAt(m, hc, r, -0.45);
+    // long hair and a shell tiara
+    m.ell(add(hc, [0, 0.04, -0.03]), [r * 1.04, r * 0.75, r * 0.96], 'hair');
+    m.tube([add(hc, [0, 0.0, -0.09]), add(hc, [0, -0.15, -0.12]), add(hc, [0, -0.26, -0.1])], [0.08, 0.06, 0.03], 'hair');
+    m.ell(add(hc, [0, 0.1, 0.06]), [0.04, 0.03, 0.015], 'pearl');
+    // staff with a conch on top
+    const st0: V3 = [0.17, 0.02, 0.12];
+    const st1: V3 = [0.17, waistY + 0.4 + lift, 0.12];
+    m.tube([st0, st1], [0.013, 0.013], 'wood');
+    m.tube([add(st1, [0, -0.02, 0]), add(st1, [0.02, 0.05, 0]), add(st1, [0, 0.09, 0])], [0.04, 0.025, 0.006], 'shell');
+    // wild: a ring of water flowing round her waist, a fish leaping
+    const ring: V3[] = [];
+    for (let i = 0; i <= 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      ring.push([Math.cos(a) * 0.22, waistY + 0.02 + 0.025 * Math.sin(a * 2 + p.frame), Math.sin(a) * 0.17]);
+    }
+    m.tube(ring, ring.map(() => 0.018), 'water');
+    const a = p.frame * 0.8;
+    const fp: V3 = [Math.cos(a) * 0.22, waistY + 0.08, Math.sin(a) * 0.17];
+    m.ell(fp, [0.035, 0.022, 0.02], 'fish');
+  },
+};
+
+// Hydra: a three-headed sea serpent rising from coils.
+// Wild: each head wears a crest of ice, and frost-mist trails from its jaws.
+WATER.hydra = {
+  palette: { iris: '#ffe46a', belly: '#e8e0b0' },
+  build(m, p) {
+    const { swell, lift } = breathe(p);
+    // coils on the ground
+    const coil = m.group();
+    m.ell([0, 0.12, -0.02], [0.2 * swell, 0.1, 0.17 * swell], 'side', [0, 0, 0], coil);
+    m.tube([[0.18, 0.08, -0.04], [0.22, 0.06, -0.16], [0.12, 0.05, -0.25], [-0.02, 0.06, -0.27], [-0.12, 0.1, -0.23]], [0.07, 0.06, 0.05, 0.035, 0.015], 'side', coil);
+    m.ell([0, 0.1, 0.12], [0.13, 0.06, 0.05], 'belly');
+    // three necks with heads
+    const heads: [number, number, number][] = [[-0.23, 0.44, 0.05], [0, 0.6, 0.12], [0.23, 0.44, 0.05]];
+    heads.forEach(([x, y, z], i) => {
+      const w = flick(p, i, 0.015);
+      const hc: V3 = [x + w, y + lift, z];
+      m.tube([[x * 0.4, 0.16, 0.02], [x * 0.8, (y + 0.16) / 2, z * 0.5 - 0.02], add(hc, [0, -0.05, -0.04])], [0.065, 0.055, 0.05], 'side');
+      m.ell(hc, [0.08, 0.065, 0.09], 'side');
+      m.ell(add(hc, [0, -0.02, 0.07]), [0.05, 0.03, 0.05], 'side');
+      eyes(m, hc, 0.07, 'beast', 'iris', 0.6, 0.2);
+      mouthAt(m, add(hc, [0, -0.01, 0.04]), 0.07, -0.3, 'fang');
+      // wild: ice crest and frost mist
+      for (let k = 0; k < 3; k++) m.spike(add(hc, [0, 0.04, -0.02 - k * 0.03]), add(hc, [0, 0.11 - k * 0.02, -0.06 - k * 0.04]), 0.016, 'ice');
+      m.ball(add(hc, [0, -0.04, 0.14 + 0.02 * p.breath]), 0.02, 'cloud');
+    });
+  },
+};

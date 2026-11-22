@@ -1,28 +1,28 @@
-// Loadout builder: pick exactly 18 of the 28 Summons, name the Loadout and
-// save it in this browser. Starter Loadouts can be copied but not changed.
+// Loadout builder: pick exactly LOADOUT_SIZE of the Summons, name the Loadout
+// and save it in this browser.
 
 import { useRef, useState } from 'react';
-import { ELEMENTS, LOADOUT_SIZE, SUMMONS, kindOf, loadoutProblems } from '../rules';
+import { ELEMENTS, LOADOUT_SIZE, SUMMONS, kindOf } from '../rules';
 import { ELEMENT_COLORS } from '../render/sprites';
 import { useGame } from '../store';
-import { deleteLoadout, exportLoadoutsJson, importLoadoutsJson, listLoadouts, saveLoadout, saveProblems, type StoredLoadout } from '../loadouts/library';
+import { deleteLoadout, exportLoadoutsJson, importLoadoutsJson, isPlayable, listLoadouts, nameProblems, saveLoadout, saveProblems, type StoredLoadout } from '../loadouts/library';
 import { LoadoutStrip } from './LoadoutView';
 import { SummonDetail } from './SummonCard';
 
 interface Draft {
   id: string | null;
-  starter: boolean;
   name: string;
   summons: string[];
 }
 
-const fromStored = (l: StoredLoadout): Draft => ({ id: l.id, starter: l.starter, name: l.name, summons: [...l.summons] });
+const fromStored = (l: StoredLoadout): Draft => ({ id: l.id, name: l.name, summons: [...l.summons] });
+const blank = (): Draft => ({ id: null, name: uniqueName('New Loadout'), summons: [] });
 
 export function LoadoutEditor() {
   const setScreen = useGame((s) => s.setScreen);
   const setSetupOpen = useGame((s) => s.setSetupOpen);
   const [list, setList] = useState(() => listLoadouts());
-  const [draft, setDraft] = useState<Draft>(() => fromStored(list[0]));
+  const [draft, setDraft] = useState<Draft>(() => (list[0] ? fromStored(list[0]) : blank()));
   const [dirty, setDirty] = useState(false);
   const [hover, setHover] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,15 +36,14 @@ export function LoadoutEditor() {
     setDraft((d) => f({ ...d, summons: [...d.summons] }));
     setDirty(true);
   };
-  // a starter's own name is taken by the starter itself: only its Summons matter until it's copied
-  const problems = draft.starter ? loadoutProblems(draft.summons) : saveProblems(draft.name, draft.summons, draft.id);
-  const canSave = !draft.starter && problems.length === 0;
+  const problems = saveProblems(draft.name, draft.summons, draft.id);
+  const canSave = problems.length === 0;
 
   const save = (asNew: boolean) => {
-    const name = asNew || draft.starter ? uniqueName(`${draft.name} (copy)`, draft.summons) : draft.name;
-    const p = saveProblems(name, draft.summons, asNew || draft.starter ? null : draft.id);
+    const name = asNew ? uniqueName(`${draft.name} (copy)`) : draft.name;
+    const p = saveProblems(name, draft.summons, asNew ? null : draft.id);
     if (p.length) return flash(p[0]);
-    const saved = saveLoadout(asNew || draft.starter ? null : draft.id, name, draft.summons);
+    const saved = saveLoadout(asNew ? null : draft.id, name, draft.summons);
     setList(listLoadouts());
     setDraft(fromStored(saved));
     setDirty(false);
@@ -57,7 +56,7 @@ export function LoadoutEditor() {
     <div className="devtool">
       <div className="editor-top window">
         <b>Loadouts</b>
-        <span className="muted small">Pick exactly {LOADOUT_SIZE} of the 28 Summons. Loadouts are kept in this browser.</span>
+        <span className="muted small">Pick exactly {LOADOUT_SIZE} of the {SUMMONS.length} Summons. Loadouts are kept in this browser.</span>
         <span className="spacer" />
         {message && <span className="flash">{message}</span>}
         <button onClick={() => setSetupOpen(true)}>New match…</button>
@@ -68,19 +67,15 @@ export function LoadoutEditor() {
           <button
             onClick={() => {
               if (!confirmDiscard()) return;
-              setDraft({ id: null, starter: false, name: uniqueName('New Loadout', []), summons: [] });
+              setDraft(blank());
               setDirty(true);
             }}
           >
             + New Loadout
           </button>
-          <div className="title">Starters</div>
-          {list.filter((l) => l.starter).map((l) => (
-            <LoadoutItem key={l.id} l={l} on={l.id === draft.id} pick={() => confirmDiscard() && (setDraft(fromStored(l)), setDirty(false))} />
-          ))}
           <div className="title">Mine</div>
-          {list.filter((l) => !l.starter).length === 0 && <div className="muted small">None yet. Edit a starter and Save as new, or start a new one.</div>}
-          {list.filter((l) => !l.starter).map((l) => (
+          {list.length === 0 && <div className="muted small">None yet. Start a new one.</div>}
+          {list.map((l) => (
             <LoadoutItem key={l.id} l={l} on={l.id === draft.id} pick={() => confirmDiscard() && (setDraft(fromStored(l)), setDirty(false))} />
           ))}
         </div>
@@ -88,8 +83,7 @@ export function LoadoutEditor() {
         <div className="window dev-form">
           <label className="dev-field">
             <span>Name</span>
-            <input value={draft.name} maxLength={24} disabled={draft.starter} onChange={(e) => change((d) => ({ ...d, name: e.target.value }))} />
-            {draft.starter && <span className="muted small">Starter Loadout: Save as new to make your own copy</span>}
+            <input value={draft.name} maxLength={24} onChange={(e) => change((d) => ({ ...d, name: e.target.value }))} />
           </label>
           <div className="loadout-count">
             <b className={draft.summons.length === LOADOUT_SIZE ? 'good' : 'bad'}>
@@ -129,13 +123,13 @@ export function LoadoutEditor() {
             </button>
           </div>
           <button
-            disabled={!draft.id || draft.starter}
+            disabled={!draft.id}
             onClick={() => {
               if (!draft.id || !window.confirm(`Delete “${draft.name}”?`)) return;
               deleteLoadout(draft.id);
               const l = listLoadouts();
               setList(l);
-              setDraft(fromStored(l[0]));
+              setDraft(l[0] ? fromStored(l[0]) : blank());
               setDirty(false);
               flash('Deleted');
             }}
@@ -184,18 +178,17 @@ export function LoadoutEditor() {
 
 function LoadoutItem({ l, on, pick }: { l: StoredLoadout; on: boolean; pick: () => void }) {
   return (
-    <button className={`map-item ${on ? 'on' : ''}`} onClick={pick}>
+    <button className={`map-item ${on ? 'on' : ''}`} onClick={pick} title={isPlayable(l) ? undefined : `Has ${l.summons.length} Summons: add or remove to make ${LOADOUT_SIZE}`}>
       {l.name}
+      {!isPlayable(l) && <span className="bad small"> · needs {LOADOUT_SIZE}</span>}
     </button>
   );
 }
 
 const loadoutProblemsOnly = (summons: string[]) => new Set(summons).size !== LOADOUT_SIZE;
 
-function uniqueName(base: string, summons: string[]): string {
+function uniqueName(base: string): string {
   let name = base.slice(0, 24);
-  for (let k = 2; saveProblems(name, summons.length === LOADOUT_SIZE ? summons : SUMMONS.slice(0, LOADOUT_SIZE).map((s) => s.id), null).some((p) => p.includes('already exists')); k++) {
-    name = `${base.slice(0, 19)} ${k}`;
-  }
+  for (let k = 2; nameProblems(name, null).length; k++) name = `${base.slice(0, 19)} ${k}`;
   return name;
 }

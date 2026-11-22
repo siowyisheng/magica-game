@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { STARTER_LOADOUTS } from '../rules';
+import { SUMMONS } from '../rules';
 
 // in-memory localStorage for node
 const mem = new Map<string, string>();
@@ -14,13 +14,14 @@ const lib = await import('./library');
 describe('loadout library', () => {
   beforeEach(() => mem.clear());
 
-  it('lists the starters, saves, renames-on-import and deletes', () => {
-    expect(lib.listLoadouts().filter((l) => l.starter)).toHaveLength(STARTER_LOADOUTS.length);
-    const summons = STARTER_LOADOUTS[0].summons;
+  it('starts empty, saves, renames-on-import and deletes', () => {
+    expect(lib.listLoadouts()).toEqual([]);
+    const summons = SUMMONS.slice(0, 20).map((k) => k.id);
     const saved = lib.saveLoadout(null, 'Mine', summons);
     expect(lib.getLoadout(saved.id)?.name).toBe('Mine');
+    expect(lib.isPlayable(saved)).toBe(true);
     expect(lib.saveProblems('mine', summons, null)).toContain('a Loadout called “mine” already exists');
-    expect(lib.saveProblems('Other', summons.slice(1), null).some((p) => p.includes('exactly 18'))).toBe(true);
+    expect(lib.saveProblems('Other', summons.slice(1), null).some((p) => p.includes('exactly 20'))).toBe(true);
     const json = lib.exportLoadoutsJson();
     expect(lib.importLoadoutsJson(json)).toBe(1);
     expect(lib.listLoadouts().map((l) => l.name)).toContain('Mine (2)');
@@ -28,9 +29,14 @@ describe('loadout library', () => {
     expect(lib.getLoadout(saved.id)).toBeUndefined();
   });
 
-  it('never overwrites a starter', () => {
-    const s = STARTER_LOADOUTS[0];
-    const saved = lib.saveLoadout(s.id, 'Copy', s.summons);
-    expect(saved.id).not.toBe(s.id);
+  it('keeps an older 18-Summon Loadout, listed but not playable until edited', () => {
+    const old = SUMMONS.slice(0, 18).map((k) => k.id);
+    mem.set('magica.loadouts', JSON.stringify([{ id: 'old', name: 'Old', summons: old }]));
+    const l = lib.getLoadout('old')!;
+    expect(l.summons).toHaveLength(18);
+    expect(lib.isPlayable(l)).toBe(false);
+    // an older export imports too, still incomplete
+    expect(lib.importLoadoutsJson(JSON.stringify({ loadouts: [{ name: 'Old', summons: old }] }))).toBe(1);
+    expect(lib.listLoadouts().map((x) => x.name)).toContain('Old (2)');
   });
 });

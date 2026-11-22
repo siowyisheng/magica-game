@@ -93,28 +93,27 @@ describe('turn delay', () => {
 // ---------- roster ----------
 
 describe('roster', () => {
-  it('has 7 summons per element with unique costs in multiples of 8 from 16..96', () => {
-    expect(SUMMONS).toHaveLength(28);
+  it('gives every Summoner and Summon its own id (ids also key the sprites)', async () => {
+    const ids = [...(await import('./index')).SUMMONERS, ...SUMMONS].map((k) => k.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('has 10 summons per element, one at each Cost from 16 to 88 in steps of 8', () => {
+    expect(SUMMONS).toHaveLength(40);
     for (const e of ELEMENTS) {
       const s = SUMMONS.filter((x) => x.element === e);
-      expect(s).toHaveLength(7);
-      const costs = s.map((x) => x.cost);
-      expect(new Set(costs).size).toBe(7);
-      for (const c of costs) {
-        expect(c % 8).toBe(0);
-        expect(c).toBeGreaterThanOrEqual(16);
-        expect(c).toBeLessThanOrEqual(96);
-      }
-      // 3 aligned and 4 unaligned: Fire and Earth lean Day, Water and Air lean Night
+      expect(s.map((x) => x.cost).sort((a, b) => a - b)).toEqual([16, 24, 32, 40, 48, 56, 64, 72, 80, 88]);
+      // 3 aligned and 7 unaligned: Fire and Earth lean Day, Water and Air lean Night
       const [day, night] = e === 'fire' || e === 'earth' ? [2, 1] : [1, 2];
       expect(s.filter((x) => x.alignment === 'day')).toHaveLength(day);
       expect(s.filter((x) => x.alignment === 'night')).toHaveLength(night);
     }
   });
 
-  it('gives exactly 18 of the 28 summons a Magic Ability, and none to ranged attackers', () => {
-    expect(SUMMONS.filter((k) => k.magic.length === 1)).toHaveLength(18);
+  it('gives a Magic Ability to at least 4 summons of each Element, none to ranged attackers, and MP 0 to the rest', () => {
+    for (const e of ELEMENTS) expect(SUMMONS.filter((k) => k.element === e && k.magic.length === 1).length, e).toBeGreaterThanOrEqual(4);
     for (const k of SUMMONS) if (k.attack.range > 1) expect(k.magic, k.id).toEqual([]);
+    for (const k of SUMMONS) if (!k.magic.length) expect(k.stats.mp, k.id).toBe(0);
   });
 
   it('uses short names, max-only ranges, and Summon Magic costs of 4–16', () => {
@@ -684,16 +683,18 @@ describe('summoners', () => {
 });
 
 describe('loadouts', () => {
-  it('ships valid starter Loadouts of exactly 18 Summons', async () => {
-    const { STARTER_LOADOUTS, loadoutProblems } = await import('./index');
-    expect(STARTER_LOADOUTS.length).toBeGreaterThanOrEqual(5);
-    for (const l of STARTER_LOADOUTS) expect(loadoutProblems(l.summons), l.name).toEqual([]);
+  it('needs exactly 20 distinct Summons', async () => {
+    const { LOADOUT_SIZE, loadoutProblems } = await import('./index');
+    expect(LOADOUT_SIZE).toBe(20);
+    const twenty = SUMMONS.slice(0, 20).map((k) => k.id);
+    expect(loadoutProblems(twenty)).toEqual([]);
+    expect(loadoutProblems(twenty.slice(0, 18))).not.toEqual([]);
     expect(loadoutProblems(['imp'])).not.toEqual([]);
   });
 
   it('only lets a Side Summon what is in its Loadout; no Loadout means all', async () => {
-    const { STARTER_LOADOUTS, activeUnit } = await import('./index');
-    const swarm = STARTER_LOADOUTS.find((l) => l.id === 'starter:swarm')!.summons;
+    const { activeUnit } = await import('./index');
+    const swarm = SUMMONS.filter((k) => k.cost <= 56).map((k) => k.id).slice(0, 20);
     const s = createMatch(SCAFFOLD_MAP, { rosters: [swarm, null] });
     const me = activeUnit(s)!;
     s.sides[me.side].mana = 120;
@@ -781,7 +782,7 @@ describe('Burst and area Magic', () => {
 });
 
 describe('random Loadouts', () => {
-  it('draws 18 valid Summons with at least 2 of the Elements’ cheapest, and varies', async () => {
+  it('draws 20 valid Summons with at least 2 of the Elements’ cheapest, and varies', async () => {
     const { randomLoadout, cheapestPerElement, loadoutProblems, mulberry32, SUMMONS: roster, kindOf: k } = await import('./index');
     const cheap = cheapestPerElement();
     expect(cheap).toHaveLength(4);

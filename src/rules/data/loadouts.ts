@@ -1,4 +1,4 @@
-// Loadout rules and the starter Loadouts that ship with the game.
+// Loadout rules, and random Loadouts. (No Loadouts ship with the game.)
 
 import { SUMMONS, kindOf } from '../kinds';
 import { LOADOUT_SIZE } from '../match';
@@ -6,7 +6,7 @@ import { LOADOUT_SIZE } from '../match';
 export interface Loadout {
   id: string;
   name: string;
-  /** Exactly 18 Summon kind ids. */
+  /** Exactly LOADOUT_SIZE Summon kind ids. */
   summons: string[];
 }
 
@@ -40,7 +40,7 @@ export function cheapestPerElement(): string[] {
 export const RANDOM_LOADOUT_CHEAP_MIN = 2;
 
 /**
- * A random Loadout: 18 Summons drawn at random, with at least
+ * A random Loadout: LOADOUT_SIZE Summons drawn at random, with at least
  * RANDOM_LOADOUT_CHEAP_MIN of the Elements' cheapest Summons among them, so a
  * Side always has something cheap to open with.
  */
@@ -58,31 +58,3 @@ export function randomLoadout(rand: () => number = Math.random): string[] {
   const rest = shuffle(SUMMONS.map((k) => k.id).filter((id) => !must.includes(id))).slice(0, LOADOUT_SIZE - must.length);
   return [...must, ...rest];
 }
-
-export const STARTER_LOADOUTS: Loadout[] = [
-  {
-    id: 'starter:balanced',
-    name: 'Balanced',
-    summons: ['imp', 'archer', 'wisp', 'golem', 'drake', 'sprite', 'hawk', 'monk', 'giant', 'clod', 'sling', 'dryad', 'titan', 'bubble', 'siren', 'undine', 'shark', 'kraken'],
-  },
-  {
-    id: 'starter:fire-air',
-    name: 'Fire & Air',
-    summons: ['imp', 'hound', 'archer', 'wisp', 'newt', 'golem', 'drake', 'sprite', 'hawk', 'monk', 'muse', 'harpy', 'giant', 'djinn', 'clod', 'sling', 'bubble', 'siren'],
-  },
-  {
-    id: 'starter:earth-water',
-    name: 'Earth & Water',
-    summons: ['clod', 'thorn', 'sling', 'dryad', 'turtle', 'wyrm', 'titan', 'bubble', 'crab', 'siren', 'undine', 'shark', 'wolf', 'kraken', 'imp', 'archer', 'sprite', 'monk'],
-  },
-  {
-    id: 'starter:swarm',
-    name: 'Swarm',
-    summons: ['imp', 'hound', 'archer', 'wisp', 'newt', 'sprite', 'hawk', 'monk', 'muse', 'harpy', 'clod', 'thorn', 'sling', 'dryad', 'bubble', 'crab', 'siren', 'undine'],
-  },
-  {
-    id: 'starter:heavy',
-    name: 'Heavy Hitters',
-    summons: ['archer', 'wisp', 'newt', 'golem', 'drake', 'muse', 'harpy', 'giant', 'djinn', 'dryad', 'turtle', 'wyrm', 'titan', 'siren', 'undine', 'shark', 'wolf', 'kraken'],
-  },
-];

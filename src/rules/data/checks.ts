@@ -34,7 +34,7 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   }
   if (k.attack.range > 1 && !k.attack.trajectory) w.push('a ranged Attack needs a Trajectory');
   if (!k.isSummoner) {
-    if (k.cost % 8 !== 0 || k.cost < 16 || k.cost > 96) w.push('Cost should be a multiple of 8 from 16 to 96');
+    if (k.cost % 8 !== 0 || k.cost < 16 || k.cost > 88) w.push('Cost should be a multiple of 8 from 16 to 88');
     const clash = roster.find((o) => o.id !== k.id && !o.isSummoner && o.element === k.element && o.cost === k.cost);
     if (clash) w.push(`Cost ${k.cost} is also ${clash.name}'s (costs are unique within an Element)`);
     if (k.magic.length > 1) w.push('summons have at most one Magic Ability');
