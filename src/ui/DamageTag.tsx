@@ -11,7 +11,7 @@ export function DamageNumber({ kind, amount, lethal }: { kind: 'damage' | 'heal'
   const cls = kind === 'heal' ? 'heal' : amount === 0 ? 'zero' : lethal ? 'lethal' : '';
   return (
     <div className={`dmg-num ${cls}`} style={{ fontSize: damageNumberSize(amount, lethal && kind === 'damage') }}>
-      {kind === 'heal' ? `+${amount}` : `${amount}`}
+      {amount}
       {lethal && kind === 'damage' && <span className="ko">KO</span>}
     </div>
   );
