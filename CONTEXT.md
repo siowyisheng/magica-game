@@ -158,7 +158,7 @@ The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slo
 Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. It takes 1 off every Attack and Magic hit.
 
 **Magic Stone**:
-A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 2 less damage from every hit. The Side that controls it gains more Mana.
+A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 1 less damage from every hit. The Side that controls it gains more Mana.
 _Avoid_: Crystal, pedestal
 
 **Stone Heal**:
