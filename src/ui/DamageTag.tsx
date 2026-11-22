@@ -1,42 +1,29 @@
 import type { Effect } from '../rules';
+import { MAX_HP } from '../rules';
 
-const pct = (n: number) => `${n >= 0 ? '+' : ''}${n}%`;
+/** Font size of a Damage Number: grows with the amount (square root), capped so all stay readable. */
+export function damageNumberSize(amount: number, lethal: boolean): number {
+  return Math.round(18 + 10 * Math.sqrt(Math.min(amount, MAX_HP) / MAX_HP)) + (lethal ? 2 : 0);
+}
 
-export function DamageTag({ effect, label, note }: { effect: Effect; label?: string; note?: string }) {
-  if (effect.kind === 'heal') {
-    return (
-      <div className="dmg-tag heal">
-        {label && <div className="lbl">{label}</div>}+{effect.amount} HP
-        {note && <div className="row bad">{note}</div>}
-      </div>
-    );
-  }
-  const b = effect.breakdown!;
+/** The floating number shown in the Damage Preview and again at impact. */
+export function DamageNumber({ kind, amount, lethal }: { kind: 'damage' | 'heal'; amount: number; lethal: boolean }) {
+  const cls = kind === 'heal' ? 'heal' : amount === 0 ? 'zero' : lethal ? 'lethal' : '';
   return (
-    <div className={`dmg-tag ${effect.lethal ? 'lethal' : ''}`}>
+    <div className={`dmg-num ${cls}`} style={{ fontSize: damageNumberSize(amount, lethal && kind === 'damage') }}>
+      {amount}
+      {lethal && kind === 'damage' && <span className="ko">KO</span>}
+    </div>
+  );
+}
+
+/** Damage Preview: the Damage Number, plus which Command it is when two are shown, and why it can't be cast. */
+export function DamageTag({ effect, label, note }: { effect: Effect; label?: string; note?: string }) {
+  return (
+    <div className="dmg-tag">
       {label && <div className="lbl">{label}</div>}
-      {note && <div className="row bad">{note}</div>}
-      <div className="big">
-        {effect.amount === 0 ? '0' : `−${effect.amount}`}
-        {effect.lethal && <span className="ko"> KO</span>}
-        <span className="after"> → {effect.hpBefore - effect.amount}/10</span>
-      </div>
-      {effect.amount === 0 && <div className="row muted">no effect</div>}
-      <div className="row">base {b.base.toFixed(2)}</div>
-      {/* Facing and Element bonuses add together */}
-      {b.element !== 1 && (
-        <div className={`row ${b.element > 1 ? 'good' : 'bad'}`}>
-          element {b.element > 1 ? '+' : '−'}
-          {Math.abs(b.element - 1).toFixed(1)}
-        </div>
-      )}
-      <div className={`row ${b.facing > 1 ? 'good' : ''}`}>
-        facing +{(b.facing - 1).toFixed(2)} ({Math.round(b.facingAngle)}°)
-      </div>
-      {(b.element !== 1 || b.facing !== 1) && <div className="row">total ×{(b.facing + b.element - 1).toFixed(2)}</div>}
-      {b.cover > 0 && <div className="row bad">cover −{b.cover}%</div>}
-      {b.attackerAlign !== 100 && <div className="row">attacker {pct(b.attackerAlign - 100)}</div>}
-      {b.defenderAlign !== 100 && <div className="row">defender {pct(b.defenderAlign - 100)}</div>}
+      <DamageNumber kind={effect.kind} amount={effect.amount} lethal={effect.lethal} />
+      {note && <div className="note">{note}</div>}
     </div>
   );
 }
