@@ -193,7 +193,7 @@ describe('damage', () => {
     expect(computeDamage(state, sprite, sprite.pos, golem, 'physical').amount).toBe(0);
   });
 
-  it('takes 1 off on rough and 2 off on magic stones', () => {
+  it('takes 1 off on rough and on magic stones', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
     const a = place(state, 'oni', 0, 1, 1); // Summoner ATK 9
@@ -203,9 +203,9 @@ describe('damage', () => {
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
     b.pos = hex(2, 2);
     a.pos = hex(1, 2);
-    // stone → 8
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(8);
-    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(2);
+    // stone → 9
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(9);
+    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
   });
 
   it('applies day/night alignment as +1 / −1 to the stats', () => {

@@ -20,8 +20,8 @@ export const STONE_BASE = 2;
 export const INCOME_MULTIPLIER = 2;
 export const UPKEEP_DIVISOR = 8;
 
-/** Damage taken less by terrain: Rough −1, Magic Stone −2. */
-export const COVER = { plain: 0, rough: 1, stone: 2, pit: 0 } as const;
+/** Damage taken less by terrain: Rough −1, Magic Stone −1. */
+export const COVER = { plain: 0, rough: 1, stone: 1, pit: 0 } as const;
 
 /** Alignment: added to ATK, DEF, MP and MDF at the aligned Time of Day, subtracted at the opposite one. */
 export const ALIGN_STAT = 1;
