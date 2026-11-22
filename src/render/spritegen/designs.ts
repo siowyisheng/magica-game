@@ -3,7 +3,7 @@
 // main colour, 'elem' a shade of the Element, plus natural materials.
 
 import { Model, type Pose, type V3, add } from './model';
-import { arm, beast, both, breathe, eyes, figure, flame, flick, legs, membrane, mouthAt } from './kit';
+import { arm, beast, both, breathe, eyes, flame, flick, legs, membrane, mouthAt } from './kit';
 import { FIRE } from './fire';
 import { AIR } from './air';
 import { EARTH } from './earth';
@@ -17,60 +17,6 @@ export interface Design {
 }
 
 const D: Record<string, Design> = {};
-
-// ---------------------------------------------------------------- Sigil
-// Sigil — accent violet. A young mage in a long Side-coloured robe and cape, with a wide-brimmed
-// hat and a staff. Wild: a halo of floating rune shards behind the head, and
-// a spark of magic held in the free hand.
-D.sigil = {
-  palette: { hair: '#e9e4f5', iris: '#8a5cff', glow: '#b98cff' },
-  build(m, p) {
-    const f = figure(m, p, {
-      top: 'side',
-      sleeve: 'side',
-      skirt: { mat: 'side', len: 0.27, flare: 1.0, hem: 'gold' },
-      shoulders: 0.1,
-      waistY: 0.28,
-      headR: 0.125,
-      arms: (s) =>
-        s > 0
-          ? [[0.05, -0.08, 0.05], [0.07, -0.12, 0.12]]
-          : [[-0.07, -0.05, 0.06], [-0.11, 0.0, 0.12]],
-    });
-    const { hc, r, waistY, lift } = f;
-    // belt and collar
-    m.ell([0, waistY + 0.03, 0.0], [0.068, 0.018, 0.055], 'gold');
-    m.ell([0, waistY + 0.18 + lift, 0.0], [0.07, 0.025, 0.06], 'side2');
-    // cape hanging from the shoulders
-    m.poly([[-0.1, waistY + 0.17 + lift, -0.05], [0.1, waistY + 0.17 + lift, -0.05], [0.15, 0.03, -0.12], [0, 0.01, -0.14], [-0.15, 0.03, -0.12]], 'side2');
-    // face
-    eyes(m, hc, r, 'anime', 'iris', 0.4, -0.18);
-    mouthAt(m, hc, r, -0.55);
-    // short silver hair with side locks and a fringe
-    const hair = m.group();
-    m.ell(add(hc, [0, 0.03, -0.035]), [r * 1.06, r * 0.9, r * 0.95], 'hair', [0, 0, 0], hair);
-    m.ell(add(hc, [0, 0.055, 0.065]), [r * 0.9, r * 0.32, r * 0.42], 'hair', [0.45, 0, 0], hair);
-    both((s) => m.ell(add(hc, [s * r * 0.85, -0.05, 0.02]), [0.03, 0.075, 0.035], 'hair', [0, 0, s * 0.12], hair));
-    // hat: brim tilted back so the face shows, and a bent cone
-    const hat = m.group();
-    m.ell(add(hc, [0, 0.085, -0.03]), [0.21, 0.02, 0.18], 'side2', [-0.35, 0, 0], hat);
-    m.tube([add(hc, [0, 0.09, -0.04]), add(hc, [0, 0.2, -0.07]), add(hc, [0.0, 0.3, -0.13]), add(hc, [0.05, 0.34, -0.21])], [0.105, 0.07, 0.037, 0.012], 'side2', hat);
-    m.ell(add(hc, [0, 0.11, -0.04]), [0.108, 0.02, 0.1], 'gold', [-0.35, 0, 0]);
-    m.ball(add(hc, [0.05, 0.34, -0.21]), 0.018, 'glow*');
-    // staff in the right hand
-    const hand: V3 = [0.17, waistY + 0.02 + lift, 0.12];
-    m.tube([[0.18, 0.02, 0.13], add(hand, [0, 0.3, -0.01]), add(hand, [-0.01, 0.48, -0.02])], [0.015, 0.016, 0.019], 'wood');
-    m.tube([add(hand, [-0.01, 0.48, -0.02]), add(hand, [0.04, 0.55, -0.02]), add(hand, [0.06, 0.52, -0.02])], [0.019, 0.016, 0.01], 'wood');
-    m.ball(add(hand, [-0.01, 0.55 + flick(p, 1, 0.006), -0.02]), 0.045, 'glow*');
-    // spark in the left hand
-    m.ball([-0.21, waistY + 0.16 + lift + flick(p, 2, 0.008), 0.13], 0.025, 'glow*');
-    // wild: rune halo
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + p.frame * 0.25;
-      m.ell(add(hc, [Math.cos(a) * 0.2, 0.0 + Math.sin(a) * 0.2, -0.17]), [0.02, 0.032, 0.01], 'glow*', [0, 0, a]);
-    }
-  },
-};
 
 // ---------------------------------------------------------------- Fire
 // Imp: a grinning little devil with bat wings and a pointed tail.

@@ -82,7 +82,7 @@ describe('facing modifier', () => {
 // ---------- turn delays ----------
 
 describe('turn delay', () => {
-  const k = (spd: number) => ({ ...kindOf('sigil'), stats: { ...kindOf('sigil').stats, spd } });
+  const k = (spd: number) => ({ ...kindOf('regent'), stats: { ...kindOf('regent').stats, spd } });
   it('matches the designer anchors', () => {
     expect(turnDelay(k(13), false, false)).toBe(25);
     expect(turnDelay(k(13), false, true)).toBe(37);
@@ -110,8 +110,10 @@ describe('roster', () => {
         expect(c).toBeGreaterThanOrEqual(16);
         expect(c).toBeLessThanOrEqual(96);
       }
-      expect(s.filter((x) => x.alignment === 'day')).toHaveLength(2);
-      expect(s.filter((x) => x.alignment === 'night')).toHaveLength(2);
+      // 3 aligned and 4 unaligned: Fire and Earth lean Day, Water and Air lean Night
+      const [day, night] = e === 'fire' || e === 'earth' ? [2, 1] : [1, 2];
+      expect(s.filter((x) => x.alignment === 'day')).toHaveLength(day);
+      expect(s.filter((x) => x.alignment === 'night')).toHaveLength(night);
     }
   });
 
@@ -136,7 +138,7 @@ describe('roster', () => {
   });
 
   it('gives Summoners walk+wade, most Earth summons wade, and no Fire summon wade', () => {
-    expect(kindOf('sigil').moveTypes).toEqual(['walk', 'wade']);
+    expect(kindOf('regent').moveTypes).toEqual(['walk', 'wade']);
     const earth = SUMMONS.filter((x) => x.element === 'earth');
     expect(earth.filter((x) => x.moveTypes.includes('wade')).length).toBeGreaterThan(earth.length / 2);
     for (const f of SUMMONS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
@@ -149,25 +151,25 @@ describe('damage', () => {
   it('applies ATK/DEF ratio, element counter and facing; can be 0', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60; // neutral time
-    const hound = place(state, 'hound', 0, 1, 1); // fire, ATK 15
-    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air, DEF 9, faces W toward hound
+    const hound = place(state, 'hound', 0, 1, 1); // fire, ATK 9
+    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air, DEF 2, faces W toward hound
     const front = computeDamage(state, hound, hound.pos, hawk, 'physical');
-    // 3 × 15/9 × 2 (fire counters air) × 1.0 = 10
+    // 3 × 9/2 × 2 (fire counters air) × 1.0 = 27 → capped at the target's 10 HP
     expect(front.amount).toBe(10);
     expect(front.lethal).toBe(true);
 
-    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 14
+    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 11
     const weak = computeDamage(state, hound, hex(2, 3), crab, 'physical');
-    // bonuses add: 3 × 15/14 × (1 − 0.5 (water counters fire) + 1.0 (from behind)) = 4.82 → 5
-    expect(weak.amount).toBe(5);
+    // bonuses add: 3 × 9/11 × (1 − 0.5 (water counters fire) + 1.0 (from behind)) = 3.68 → 4
+    expect(weak.amount).toBe(4);
 
-    // a Counter from behind: 3 × 15/9 × (1 + 1.0 + 1.0) = 15 → capped at the target's 10 HP
+    // a Counter from behind: 3 × 9/2 × (1 + 1.0 + 1.0) = 40.5 → capped at the target's 10 HP
     const hawk2 = place(state, 'hawk', 1, 4, 1, 0); // faces E, away from a hound at (3,1)
     const back = computeDamage(state, hound, hex(3, 1), hawk2, 'physical');
     expect(back.breakdown!.facing).toBe(2);
     expect(back.amount).toBe(10);
-    const golem = place(state, 'golem', 1, 1, 5, 0); // fire, no counter: 3 × 15/17 × (1 + 1.0) = 5.29 → 5
-    expect(computeDamage(state, hound, hex(0, 5), golem, 'physical').amount).toBe(5);
+    const golem = place(state, 'golem', 1, 1, 5, 0); // fire DEF 15, no counter: 3 × 9/15 × (1 + 1.0) = 3.6 → 4
+    expect(computeDamage(state, hound, hex(0, 5), golem, 'physical').amount).toBe(4);
 
   });
 
@@ -184,26 +186,26 @@ describe('damage', () => {
   it('reduces damage on rough (20%) and magic stones (30%)', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
-    const a = place(state, 'sigil', 0, 1, 1);
-    const b = place(state, 'sigil', 1, 2, 1, 3);
-    // 3 × 8/10 = 2.4 ; rough → 1.92 → 2
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
+    const a = place(state, 'oni', 0, 1, 1); // ATK 18
+    const b = place(state, 'regent', 1, 2, 1, 3); // DEF 9
+    // 3 × 18/9 = 6 ; rough → 4.8 → 5
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(20);
     b.pos = hex(2, 2);
     a.pos = hex(1, 2);
-    // stone → 1.68 → 2
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(2);
+    // stone → 4.2 → 4
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(4);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(30);
   });
 
   it('applies day/night alignment', () => {
     const state = createMatch(testMap(6, 6));
     const archer = place(state, 'archer', 0, 1, 1); // day, fire ATK 14
-    const sum = place(state, 'sigil', 1, 3, 1, 3); // DEF 10
+    const sum = place(state, 'oni', 1, 3, 1, 3); // DEF 15, no Alignment
     state.clock = 12 * 60; // day: ATK ×1.2
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(5); // 5.04
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(4); // 3 × 15/15 × 1.2 = 3.6
     state.clock = 22 * 60; // night: ×0.8
-    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(3); // 3.36
+    expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(2); // × 0.8 = 2.4
   });
 });
 
@@ -215,7 +217,7 @@ describe('movement', () => {
       testMap(8, 3, (q) => (q === 1 ? { terrain: 'rough' } : q === 2 ? { height: 2 } : q === 3 ? { height: 4 } : {})),
     );
     state.units = [];
-    const walker = place(state, 'sigil', 0, 0, 1); // MOV 4, walk
+    const walker = place(state, 'regent', 0, 0, 1); // MOV 4, walk
     const nodes = reachable(state, walker);
     expect(nodes.get(hexKey(hex(1, 1)))?.cost).toBe(2); // rough
     expect(nodes.get(hexKey(hex(2, 1)))?.cost).toBe(4); // +1 plain +1 climb
@@ -270,7 +272,7 @@ describe('movement', () => {
 describe('match flow', () => {
   it('starts both summoners with Base Delay; human first on ties', () => {
     const s = createMatch(SCAFFOLD_MAP);
-    expect(s.clock).toBe(6 * 60 + 28);
+    expect(s.clock).toBe(6 * 60 + 25); // Regent, SPD 13
     expect(getUnit(s, s.activeUnitId!).side).toBe(0);
   });
 
@@ -311,11 +313,11 @@ describe('match flow', () => {
 
   it('pays (2 + stones) × MP − upkeep at each hour mark, clamped to [0,120]', () => {
     const s = createMatch(testMap(6, 6));
-    expect(manaIncome(s, 0)).toBe(32);
+    expect(manaIncome(s, 0)).toBe(22); // Regent, MP 11
     s.stones = [{ hex: hex(3, 3), owner: 0 }];
-    expect(manaIncome(s, 0)).toBe(48);
+    expect(manaIncome(s, 0)).toBe(33);
     place(s, 'drake', 0, 2, 2); // upkeep 11
-    expect(manaIncome(s, 0)).toBe(37);
+    expect(manaIncome(s, 0)).toBe(22);
     const me = getUnit(s, s.activeUnitId!);
     const before = s.sides[0].mana;
     // waiting crosses 07:00 at some point; play turns until an hour passes
@@ -328,7 +330,7 @@ describe('match flow', () => {
       st = r.state;
     }
     expect(paid).toBe(true);
-    expect(st.sides[0].mana).toBe(Math.min(120, before + 37));
+    expect(st.sides[0].mana).toBe(Math.min(120, before + 22));
     void me;
   });
 
@@ -435,12 +437,18 @@ describe('targeting without minimum range', () => {
     const archer = place(s, 'archer', 0, 2, 2);
     place(s, 'imp', 1, 3, 2);
     expect(attackTargets(s, archer, archer.pos).map((u) => ('kind' in u ? u.kind : 'obstacle'))).toContain('imp');
-    // Newt's Steam Burst is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
-    const newt = place(s, 'newt', 0, 2, 4);
+    // Dryad's Boulder is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
+    const dryad = place(s, 'dryad', 0, 2, 4);
     place(s, 'imp', 1, 3, 4);
-    const ab = kindOf('newt').magic[0];
+    const ab = kindOf('dryad').magic[0];
     if (ab.kind === 'water') throw new Error('unexpected');
-    expect(magicTargetHexes(s, newt, ab, newt.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
+    expect(magicTargetHexes(s, dryad, ab, dryad.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
+    // a Burst is aimed at the caster's own hex, and only there
+    const newt = place(s, 'newt', 0, 4, 4);
+    place(s, 'imp', 1, 5, 4);
+    const burst = kindOf('newt').magic[0];
+    if (burst.kind === 'water') throw new Error('unexpected');
+    expect(magicTargetHexes(s, newt, burst, newt.pos)).toEqual([newt.pos]);
     const undine = place(s, 'undine', 0, 0, 2);
     undine.hp = 6;
     const heal = kindOf('undine').magic[0];
@@ -619,32 +627,42 @@ function withLine(): MatchState {
 // ---------- Summoners and balance overrides ----------
 
 describe('summoners', () => {
-  it('has ten Summoners with short names, all walk + wade with Bolt, Rise and Ebb', async () => {
-    const { SUMMONERS, kindWarnings } = await import('./index');
-    expect(SUMMONERS).toHaveLength(10);
-    expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(10);
+  it('has thirty Summoners with short names, all walk + wade with Bolt, Rise and Ebb, each on the Stat Budget', async () => {
+    const { SUMMONERS, kindWarnings, budgetError } = await import('./index');
+    expect(SUMMONERS).toHaveLength(30);
+    expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(30);
     for (const k of SUMMONERS) {
       expect(k.name.length).toBeLessThanOrEqual(7);
       expect(k.moveTypes).toEqual(['walk', 'wade']);
       expect(k.magic.map((m) => m.id)).toEqual(['bolt', 'rise', 'ebb']);
       expect(kindWarnings(k, SUMMONERS)).toEqual([]);
+      expect(Math.abs(budgetError(k.stats, k.attack.range))).toBeLessThanOrEqual(0.3);
     }
-    expect(SUMMONERS.filter((k) => k.element).length).toBe(2);
-    expect(SUMMONERS.filter((k) => k.alignment !== 'none').length).toBe(2);
+    expect(new Set(SUMMONERS.map((k) => k.element).filter(Boolean)).size).toBe(4);
+    expect(SUMMONERS.filter((k) => k.element).length).toBe(4);
+    expect(SUMMONERS.filter((k) => k.alignment === 'day').length).toBe(2);
+    expect(SUMMONERS.filter((k) => k.alignment === 'night').length).toBe(2);
+    // MDF floor: none below 6, at most one below 7
+    expect(Math.min(...SUMMONERS.map((k) => k.stats.mdf))).toBeGreaterThanOrEqual(6);
+    expect(SUMMONERS.filter((k) => k.stats.mdf < 7).length).toBeLessThanOrEqual(1);
+    const ranged = SUMMONERS.filter((k) => k.attack.range > 1);
+    expect(ranged.map((k) => k.attack.range).sort()).toEqual([3, 4, 4, 5, 6]);
+    expect(ranged.every((k) => k.attack.trajectory === (k.attack.range <= 4 ? 'direct' : 'high'))).toBe(true);
   });
 
   it('lets each Side start with its chosen Summoner', () => {
-    const s = createMatch(SCAFFOLD_MAP, { summoners: ['cinder', 'orrery'] });
-    expect(s.units.map((u) => u.kind)).toEqual(['cinder', 'orrery']);
+    const s = createMatch(SCAFFOLD_MAP, { summoners: ['efreet', 'lich'] });
+    expect(s.units.map((u) => u.kind)).toEqual(['efreet', 'lich']);
   });
 
   it('applies local overrides to the live roster and can reset them', async () => {
-    const { setLocalOverrides, kindOf: k, SUMMONS: roster } = await import('./index');
+    const { setLocalOverrides, kindOf: k, SUMMONS: roster, shippedKind } = await import('./index');
+    const shipped = shippedKind('imp').stats.atk;
     setLocalOverrides({ imp: { stats: { ...k('imp').stats, atk: 20 } } });
     expect(k('imp').stats.atk).toBe(20);
     expect(roster.find((x) => x.id === 'imp')!.stats.atk).toBe(20);
     setLocalOverrides({});
-    expect(k('imp').stats.atk).toBe(13);
+    expect(k('imp').stats.atk).toBe(shipped);
   });
 
   it('summon kinds pass the design checks', async () => {
@@ -700,5 +718,73 @@ describe('time limit', () => {
     advanceForTest(s);
     expect(s.winner).toBe('draw');
     expect(s.clock).toBe(s.timeLimit);
+  });
+});
+
+// ---------- Burst and area Facing ----------
+
+describe('Burst and area Magic', () => {
+  it('a Burst hits every Unit within its radius, allies included, but not the caster', async () => {
+    const { getLocalBalance, setLocalBalance } = await import('./index');
+    const before = getLocalBalance();
+    try {
+      setLocalBalance({
+        kinds: { golem: { magicIds: ['test-burst'] } },
+        abilities: { 'test-burst': { id: 'test-burst', name: 'Test Burst', kind: 'damage', range: 0, radius: 2, manaCost: 4, burst: true } },
+      });
+      const state = createMatch(testMap(8, 8));
+      state.units = state.units.filter((u) => kindOf(u.kind).isSummoner);
+      for (const u of state.units) u.pos = u.side === 0 ? hex(0, 7) : hex(7, 0);
+      const caster = place(state, 'golem', 0, 3, 3);
+      const ally = place(state, 'clod', 0, 5, 3); // 2 away
+      const foe = place(state, 'imp', 1, 3, 4); // 1 away
+      const far = place(state, 'imp', 1, 6, 3); // 3 away
+      state.sides[0].mana = 50;
+      activate(state, caster);
+      const action = { unitId: caster.id, to: caster.pos, facing: 0 as const, command: { type: 'magic' as const, ability: 'test-burst', target: caster.pos } };
+      expect(validateTurn(state, action)).toBeNull();
+      const { state: after } = applyTurn(state, action);
+      const hp = (id: number) => after.units.find((u) => u.id === id)?.hp ?? 0;
+      expect(hp(caster.id)).toBe(10);
+      expect(hp(ally.id)).toBeLessThan(10);
+      expect(hp(foe.id)).toBeLessThan(10);
+      expect(hp(far.id)).toBe(10);
+    } finally {
+      setLocalBalance(before);
+    }
+  });
+
+  it('a High area spell splashes with Facing measured from the hex it landed on', async () => {
+    const { magicHitOrigin } = await import('./index');
+    const lob = { id: 'lob', name: 'Lob', kind: 'damage', range: 4, radius: 1, manaCost: 6, trajectory: 'high' } as const;
+    const direct = { ...lob, trajectory: 'direct' } as const;
+    const caster = hex(0, 0);
+    const aim = hex(3, 0);
+    const splashed = { pos: hex(4, 0) } as Unit;
+    const centre = { pos: aim } as Unit;
+    expect(magicHitOrigin(lob, caster, aim, splashed)).toEqual(aim);
+    expect(magicHitOrigin(lob, caster, aim, centre)).toEqual(caster);
+    expect(magicHitOrigin(direct, caster, aim, splashed)).toEqual(caster);
+  });
+});
+
+describe('random Loadouts', () => {
+  it('draws 18 valid Summons with at least 2 of the Elements’ cheapest, and varies', async () => {
+    const { randomLoadout, cheapestPerElement, loadoutProblems, mulberry32, SUMMONS: roster, kindOf: k } = await import('./index');
+    const cheap = cheapestPerElement();
+    expect(cheap).toHaveLength(4);
+    for (const id of cheap) {
+      const el = k(id).element;
+      expect(Math.min(...roster.filter((x) => x.element === el).map((x) => x.cost))).toBe(k(id).cost);
+    }
+    const rng = mulberry32(7);
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      const l = randomLoadout(rng);
+      expect(loadoutProblems(l)).toEqual([]);
+      expect(l.filter((id) => cheap.includes(id)).length).toBeGreaterThanOrEqual(2);
+      seen.add([...l].sort().join());
+    }
+    expect(seen.size).toBeGreaterThan(150);
   });
 });

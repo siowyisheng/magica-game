@@ -2,6 +2,7 @@
 // but lets you experiment past them).
 
 import type { UnitKind } from '../types';
+import { MDF_FLOOR } from '../statgen';
 
 export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[] {
   const w: string[] = [];
@@ -15,9 +16,20 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   if (k.stats.spd < 1 || k.stats.spd > 20) w.push('SPD outside 1–20 has no Base Delay of its own');
   if (!k.moveTypes.length) w.push('needs at least one Move Type');
   if (k.moveTypes.includes('slow') && !k.moveTypes.includes('swim')) w.push('Slow should always come with Swim');
-  if (k.moveTypes.includes('walk') && k.stats.mov < 4) w.push('walkers should have MOV 4 or more');
+  if (!k.isSummoner && k.moveTypes.includes('walk') && k.stats.mov < 4) w.push('walking Summons should have MOV 4 or more');
+  if (k.isSummoner && k.stats.mdf < MDF_FLOOR.hard) w.push(`Summoners need MDF ${MDF_FLOOR.hard} or more (Magic reaches far)`);
+  else if (k.isSummoner && k.stats.mdf < MDF_FLOOR.soft) {
+    const low = roster.filter((o) => o.isSummoner && o.stats.mdf < MDF_FLOOR.soft);
+    if (low.length > MDF_FLOOR.atHardFloor) w.push(`only ${MDF_FLOOR.atHardFloor} Summoner may have MDF below ${MDF_FLOOR.soft} (now: ${low.map((o) => o.name).join(', ')})`);
+  }
   if (k.isSummoner && (k.moveTypes.length !== 2 || !k.moveTypes.includes('walk') || !k.moveTypes.includes('wade'))) w.push('Summoners walk + wade');
   if (k.attack.range < 1) w.push('Attack range must be at least 1');
+  for (const m of k.magic) {
+    if (m.kind === 'water') continue;
+    if (m.kind === 'damage' && m.burst && m.range !== 0) w.push(`${m.name}: a Burst has range 0 (it is centred on the caster)`);
+    if (m.kind === 'damage' && m.burst && m.radius === 0) w.push(`${m.name}: a Burst needs an area (radius 1 or 2)`);
+    if (m.radius === 2 && !(m.kind === 'damage' && m.burst)) w.push(`${m.name}: only a Burst may have radius 2`);
+  }
   if (k.attack.range > 1 && !k.attack.trajectory) w.push('a ranged Attack needs a Trajectory');
   if (!k.isSummoner) {
     if (k.cost % 8 !== 0 || k.cost < 16 || k.cost > 96) w.push('Cost should be a multiple of 8 from 16 to 96');
@@ -32,7 +44,7 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
       continue;
     }
     if (!k.isSummoner && (m.manaCost < 4 || m.manaCost > 16)) w.push(`${m.name}: Summon Magic should cost 4–16`);
-    if (m.range < (m.kind === 'damage' ? 1 : 0)) w.push(`${m.name}: range too short to aim`);
+    if (m.range < (m.kind === 'damage' && !m.burst ? 1 : 0)) w.push(`${m.name}: range too short to aim`);
     if (m.range > 1 && !m.trajectory) w.push(`${m.name}: a ranged spell needs a Trajectory`);
   }
   return w;

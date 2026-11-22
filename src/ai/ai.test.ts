@@ -14,7 +14,7 @@ describe('AI', () => {
       st = applyTurn(st, a).state;
       turns++;
     }
-    const summons = st.units.filter((u) => u.kind !== 'sigil').length;
+    const summons = st.units.filter((u) => u.kind !== 'regent').length;
     console.log(`turns=${turns} winner=${st.winner} summons=${summons} clock=${st.clock} ms/turn=${((Date.now() - t0) / turns).toFixed(1)} stones=${st.stones.map((s) => s.owner).join(',')}`);
     expect(turns).toBeGreaterThan(10);
   }, 120000);
@@ -48,7 +48,7 @@ describe('AI', () => {
   });
 
   it('builds valid Auto Loadouts and only summons from its Loadout', () => {
-    for (const id of ['sigil', 'cinder', 'nereid']) {
+    for (const id of ['regent', 'efreet', 'selkie']) {
       const l = autoLoadout(id, () => 0.3);
       expect(loadoutProblems(l)).toEqual([]);
       const own = kindOf(id).element;
@@ -62,4 +62,41 @@ describe('AI', () => {
       st = applyTurn(st, a).state;
     }
   }, 60000);
+});
+
+describe('never playing for time', () => {
+  it('values a position the same whatever the hour: Stones count for their Mana, not the Time Limit', async () => {
+    const { evaluate } = await import('./ai');
+    const { createMatch, SCAFFOLD_MAP } = await import('../rules');
+    const s = createMatch(SCAFFOLD_MAP);
+    s.stones = s.stones.map((st, i) => ({ ...st, owner: i % 3 === 0 ? 1 : 0 }));
+    const early = evaluate(s, 0);
+    const late = evaluate({ ...s, clock: s.timeLimit - 30 }, 0);
+    expect(late).toBe(early);
+  });
+});
+
+describe('healers', () => {
+  it('kills the healer that keeps an unkillable enemy Summoner up, instead of poking the Summoner', () => {
+    const hexes: MapHex[] = [];
+    for (let r = 0; r < 8; r++) for (let q = 0; q < 8; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: 'plain' });
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 18 * 60, spawns: [hex(0, 7), hex(7, 0)], spawnFacing: [0, 3] };
+    // a tough enemy Summoner (Templar, DEF 14): the Wolf can't kill it this turn, and the Mender heals more than the Wolf deals
+    const s = createMatch(map, { summoners: ['regent', 'templar'] });
+    const mine = s.units.find((u) => u.side === 0)!;
+    const theirs = s.units.find((u) => u.side === 1)!;
+    mine.pos = hex(0, 7);
+    theirs.pos = hex(4, 3);
+    theirs.hp = 10;
+    const mender = { id: 900, kind: 'undine', side: 1 as const, pos: hex(5, 3), facing: 3 as const, hp: 9, av: 5, stranded: false };
+    const wolf = { id: 901, kind: 'wolf', side: 0 as const, pos: hex(4, 5), facing: 1 as const, hp: 10, av: 0, stranded: false };
+    s.units.push(mender, wolf);
+    for (const u of s.units) if (u.id !== wolf.id) u.av = Math.max(u.av, 5);
+    s.activeUnitId = wolf.id;
+    s.sides[1].mana = 60;
+    const a = chooseAction(s);
+    expect(validateTurn(s, a)).toBeNull();
+    expect(a.command.type).toBe('attack');
+    expect(a.command.type === 'attack' && a.command.target).toEqual(mender.pos);
+  });
 });

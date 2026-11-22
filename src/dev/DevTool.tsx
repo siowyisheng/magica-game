@@ -22,6 +22,9 @@ import {
   type Stats,
   type Trajectory,
   type UnitKind,
+  budgetError,
+  generateSpread,
+  mulberry32,
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
@@ -50,7 +53,7 @@ const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 export function DevTool() {
   const setScreen = useGame((s) => s.setScreen);
   const setSetupOpen = useGame((s) => s.setSetupOpen);
-  const [selected, setSelected] = useState('sigil');
+  const [selected, setSelected] = useState('regent');
   // bumped after every change so the roster (a live array) re-renders
   const [rev, setRev] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -321,6 +324,7 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
           <Num key={s} label={s.toUpperCase()} value={kind.stats[s]} min={0} max={40} shipped={shipped.stats[s]} onChange={(v) => edit((k) => void (k.stats[s] = v))} />
         ))}
       </div>
+      {kind.isSummoner && <BudgetRow kind={kind} edit={edit} />}
 
       <div className="title">Move Types</div>
       <div className="dev-section">
@@ -401,7 +405,8 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
 
 function magicSummary(m: MagicAbility): string {
   if (m.kind === 'water') return `${m.delta > 0 ? 'raises' : 'lowers'} the Water Level`;
-  return `${m.kind}, range ${m.range}${m.radius ? ', area' : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
+  if (m.kind === 'damage' && m.burst) return `Burst, radius ${m.radius} around the caster (hits allies)`;
+  return `${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
 }
 
 /** A shared Magic Ability, with the units that use it. */
@@ -465,15 +470,61 @@ function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicA
           />
           <label className="dev-field">
             <span>Area</span>
-            <select value={m.radius} onChange={(e) => onChange((x) => void (x.kind !== 'water' && (x.radius = Number(e.target.value) as 0 | 1)))}>
+            <select value={m.radius} onChange={(e) => onChange((x) => void (x.kind !== 'water' && (x.radius = Number(e.target.value) as 0 | 1 | 2)))}>
               <option value={0}>Single hex</option>
               <option value={1}>Hex + neighbours</option>
+              <option value={2}>Two rings (Burst)</option>
             </select>
           </label>
+          {m.kind === 'damage' && (
+            <label className="dev-check" title="Centred on the caster (range 0); hits every Unit around it, allies included, but not the caster">
+              <input
+                type="checkbox"
+                checked={!!m.burst}
+                onChange={(e) =>
+                  onChange((x) => {
+                    if (x.kind !== 'damage') return;
+                    if (e.target.checked) {
+                      x.burst = true;
+                      x.range = 0;
+                      delete x.trajectory;
+                      if (x.radius === 0) x.radius = 1;
+                    } else {
+                      delete x.burst;
+                      if (x.radius === 2) x.radius = 1;
+                    }
+                  })
+                }
+              />{' '}
+              Burst
+            </label>
+          )}
           {m.range > 1 && <TrajectorySelect value={m.trajectory} onChange={(t) => onChange((x) => void (x.kind !== 'water' && (x.trajectory = t)))} />}
         </>
       )}
       <Num label="Mana" value={m.manaCost} min={0} max={120} shipped={sh?.manaCost} onChange={(v) => onChange((x) => void (x.manaCost = v))} />
+    </div>
+  );
+}
+
+/** A Summoner's distance from the Stat Budget, and a button to roll a new balanced spread. */
+function BudgetRow({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => void) => void }) {
+  const err = budgetError(kind.stats, kind.attack.range);
+  return (
+    <div className="dev-section">
+      <span className={Math.abs(err) <= 0.5 ? 'muted small' : 'bad small'} title="MP-equivalent of the stats minus the Stat Budget's total; within ±0.5 counts as balanced">
+        Stat Budget: {err >= 0 ? '+' : ''}
+        {err.toFixed(2)} MP {Math.abs(err) <= 0.5 ? '(balanced)' : err > 0 ? '(too strong)' : '(too weak)'}
+      </span>
+      <button
+        title="Replace the stats with a random spread on the Stat Budget, for this Summoner's Attack range"
+        onClick={() => {
+          const s = generateSpread(mulberry32((Date.now() ^ (Math.random() * 1e9)) >>> 0), kind.attack.range);
+          if (s) edit((k) => void (k.stats = s));
+        }}
+      >
+        Roll a balanced spread
+      </button>
     </div>
   );
 }

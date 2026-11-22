@@ -109,6 +109,7 @@ export function MatchSetupDialog() {
                     <span>Loadout</span>
                     <select value={setup.loadouts[side]} onChange={(e) => update((s) => ((s.loadouts[side] = e.target.value), s))}>
                       <option value="random">Random starter</option>
+                      <option value="random18" title="18 Summons drawn at random, at least 2 of them an Element's cheapest">Random (any 18 Summons)</option>
                       <option value="auto">Auto (built for the Summoner)</option>
                       {loadouts.map((l) => (
                         <option key={l.id} value={l.id}>

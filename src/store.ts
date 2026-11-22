@@ -30,6 +30,7 @@ import {
   type Target,
   SUMMONERS,
   STARTER_LOADOUTS,
+  randomLoadout,
   targetAt,
   targetById,
   canPlace,
@@ -41,7 +42,7 @@ import { autoLoadout, chooseAction } from './ai/ai';
 import { getLoadout } from './loadouts/library';
 import { getMap } from './maps/library';
 import { animWallMs, planTurnAnim, type TurnAnim } from './anim';
-import { ReplayCursor, loadReplay, newReplay, storeReplay, type Replay } from './replay/replay';
+import { ReplayCursor, loadReplay, newReplay, replayProblem, storeReplay, type Replay } from './replay/replay';
 
 /** Match Setup: map, and per Side a Summoner ('random' allowed) and who plays it. */
 export interface MatchSetup {
@@ -49,7 +50,7 @@ export interface MatchSetup {
   /** Test Match: both Sides may Summon all 28 Summons. */
   test: boolean;
   summoners: [string, string];
-  /** Loadout id per Side, or 'random' (a random starter) or 'auto' (built for the Summoner). */
+  /** Loadout id per Side, or 'random' (a random starter), 'random18' (18 random Summons) or 'auto' (built for the Summoner). */
   loadouts: [string, string];
   ai: [boolean, boolean];
   /** AI strength per Side (used when that Side is AI). */
@@ -61,7 +62,7 @@ function loadSetup(): MatchSetup {
   const d: MatchSetup = {
     mapId: 'builtin:scaffold-ford',
     test: false,
-    summoners: ['sigil', 'random'],
+    summoners: ['regent', 'random'],
     loadouts: ['starter:balanced', 'random'],
     ai: [false, true],
   };
@@ -74,13 +75,15 @@ function loadSetup(): MatchSetup {
 
 /** Resolve 'random' Summoner choices (uses the given random source). */
 export function resolveSummoners(choice: [string, string], rand: () => number = Math.random): [string, string] {
-  const pick = (c: string) => (c === 'random' ? SUMMONERS[Math.floor(rand() * SUMMONERS.length)].id : c);
+  // 'random', or a Summoner that no longer exists (an old saved setup): a random one
+  const pick = (c: string) => (c !== 'random' && SUMMONERS.some((k) => k.id === c) ? c : SUMMONERS[Math.floor(rand() * SUMMONERS.length)].id);
   return [pick(choice[0]), pick(choice[1])];
 }
 
 /** Resolve a Loadout choice into its Summons. */
 export function resolveLoadout(choice: string, summonerId: string, rand: () => number = Math.random): string[] {
   if (choice === 'auto') return autoLoadout(summonerId, rand);
+  if (choice === 'random18') return randomLoadout(rand);
   const l = choice === 'random' ? undefined : getLoadout(choice);
   if (l) return [...l.summons];
   return [...STARTER_LOADOUTS[Math.floor(rand() * STARTER_LOADOUTS.length)].summons];
@@ -541,7 +544,7 @@ export const useGame = create<Store>((set, get) => {
 
     openReplay: (id) => {
       const replay = loadReplay(id);
-      if (!replay) return false;
+      if (!replay || replayProblem(replay)) return false;
       const cur = get().replay;
       const live = cur ? cur.live : { match: get().match, recording: get().recording, log: get().log, paused: get().paused };
       applyTemporaryBalance(replay.balance);

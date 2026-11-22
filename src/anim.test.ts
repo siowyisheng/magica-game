@@ -79,3 +79,36 @@ describe('flying moves', () => {
     expect(cues).not.toContain('impact');
   });
 });
+
+describe('impacts', () => {
+  it('lands the hit (HP change) before a same-turn capture, and lets a KO fade before the turn ends', async () => {
+    const { applyTurn } = await import('./rules');
+    const { KO_FADE_MS } = await import('./anim');
+    const map = flatMap(6, 6);
+    map.hexes = map.hexes.map((h) => (h.hex.q === 1 && h.hex.r === 4 ? { ...h, terrain: 'stone' as const } : h));
+    const s = createMatch(map);
+    const me = getUnit(s, s.activeUnitId!);
+    const foe = s.units.find((u) => u.side === 1)!;
+    foe.pos = hex(2, 4);
+    const action = { unitId: me.id, to: hex(1, 4), facing: 0 as const, command: { type: 'attack' as const, target: hex(2, 4) } };
+    const a = planTurnAnim(s, action, 0);
+    const cap = a.steps.find((x) => x.kind === 'capture')!;
+    expect(a.impacts).toHaveLength(1);
+    const imp = a.impacts[0];
+    expect(imp.unitId).toBe(foe.id);
+    expect(imp.t).toBeLessThan(cap.t0);
+    const after = applyTurn(s, action).state.units.find((u) => u.id === foe.id);
+    expect(imp.hpAfter).toBe(after?.hp ?? 0);
+
+    foe.hp = 1;
+    const k = planTurnAnim(s, action, 0);
+    expect(k.impacts[0].lethal).toBe(true);
+    expect(k.duration).toBeGreaterThanOrEqual(k.impacts[0].t + KO_FADE_MS);
+  });
+
+  it('has no impacts for Waits and Summons', () => {
+    const s = createMatch(flatMap(6, 6));
+    const me = getUnit(s, s.activeUnitId!);
+    expect(planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 1, command: { type: 'wait' } }, 0).impacts).toEqual([]);
+  });
+});

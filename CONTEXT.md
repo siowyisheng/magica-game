@@ -9,11 +9,11 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Summoner**:
-The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of ten Summoners before the match (Sigil, Warden, Orrery, Bramble, Cinder, Zephyr, Sexton, Nereid, Cairn, Tinker); they differ in stats, and a few in Element or Alignment. Both Sides may pick the same one.
+The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Summoners before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Summoner's stats fit the Stat Budget. Both Sides may pick the same one.
 _Avoid_: Master, hero, commander
 
 **Loadout**:
-A set of exactly 18 of the 28 Summons: the only Summons a Side may Summon in a match. It is chosen separately from the Summoner. Players save Loadouts in the browser; the game also ships a few starter Loadouts. Both Sides' Loadouts, and the Summons each one leaves out, are visible to both players during the match.
+A set of exactly 18 of the 28 Summons: the only Summons a Side may Summon in a match. It is chosen separately from the Summoner. Players save Loadouts in the browser; the game also ships a few starter Loadouts. A Side may also take a **random Loadout**: 18 Summons drawn at random, at least two of them an Element's cheapest Summon. Both Sides' Loadouts, and the Summons each one leaves out, are visible to both players during the match.
 _Avoid_: Deck, army, roster (as a player-facing term)
 
 **Test Match**:
@@ -30,7 +30,7 @@ A recorded match that can be watched back turn by turn, played forward, stepped 
 _Avoid_: Recording, demo, VOD
 
 **Summon**:
-A Unit that a Summoner brings onto a hex next to it. The new Summon faces the way it was summoned, and so does the Summoner. There are 28 kinds, seven per Element. Each has exactly one Magic Ability.
+A Unit that a Summoner brings onto a hex next to it. The new Summon faces the way it was summoned, and so does the Summoner. There are 28 kinds, seven per Element, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 18 of them have a Magic Ability.
 _Avoid_: Monster, minion, creature
 
 **Side**:
@@ -45,6 +45,10 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 **Magic Defense (MDF)**: Reduces damage taken from the Magic Command.
 **Speed (SPD)**: Decides how soon a Unit acts again (see Action Value). The average is about 10, and most Units fall between 8 and 15.
 **Move (MOV)**: The Move Points a Unit can spend in one turn.
+
+**Stat Budget**:
+The hidden exchange rate that keeps Summoners balanced: each stat is priced in Magic Power, and every Summoner's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack is priced by how far it reaches (Move plus Attack range): free for a slow melee Summoner, dearer with every extra hex of Move or range. Magic Defense has a floor: Magic reaches further than most Attacks, so a Summoner keeps Magic Defense of at least 7, and at most one Summoner may have 6.
+_Avoid_: Point buy, stat total
 
 **Move Type**:
 A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex. Slow only ever comes paired with Swim: it marks swimmers that move with difficulty on land.
@@ -101,8 +105,12 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies. Heals hit allies and may include the caster. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 18 of the 28 Summons have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Summoners have several.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 18 of the 28 Summons have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Summoners have several.
 _Avoid_: Skill, spell (as a code term)
+
+**Burst**:
+A damaging Magic Ability centred on the caster, with no range: it hits every Unit and Obstacle within 1 or 2 hexes, allies included, but never the caster.
+_Avoid_: Nova, self-AoE
 
 **Trajectory**:
 How a ranged Attack or Magic Ability (range above 1) travels. **High** arcs over everything and always reaches a target in range. **Direct** flies straight and needs a Clear Angle. Abilities with range 1 have no Trajectory.
@@ -127,7 +135,10 @@ _Avoid_: Backstab bonus, flanking
 A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic) × (1 + Facing bonus + Element bonus), then multiplied by cover and Alignment. The Facing and Element bonuses add rather than multiply, with no cap: each is its modifier minus 1 (a hit from behind adds +1.0, a Counter +1.0, being Countered −0.5), so a Counter from behind deals ×3 and a Countered hit from behind ×1.5. Can be 0; never raised to a minimum.
 
 **Damage Preview**:
-The exact result of a Command against a target, shown before the Command is confirmed.
+The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.
+
+**Damage Number**:
+The floating amount of damage (or healing) a Command does to one target: shown in the Damage Preview, and popped briefly again the moment the hit lands. A target's HP changes at that moment, not when the turn ends; a unit brought to 0 HP fades out then.
 
 ## Terrain
 
@@ -176,7 +187,7 @@ A Side's shared resource for summoning and for every Magic Ability its Units cas
 What a Side gains each hour: (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons. Mana never drops below 0 or rises above 120.
 
 **Cost**:
-The Mana needed to Summon a Summon: a multiple of 8, from 16 to 96.
+The Mana needed to Summon a Summon: a multiple of 8, from 16 to 96. It reflects the Summon's power: its stats (Move most of all), Fly, a ranged Attack and its Magic Ability, priced from a reference set of Summons treated as balanced.
 
 **Upkeep**:
 A Summon's hourly drain on its Side's Mana Income. It is always its Cost ÷ 8.

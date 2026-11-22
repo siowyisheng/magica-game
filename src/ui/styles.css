@@ -103,14 +103,25 @@ button:disabled { opacity: 0.4; cursor: default; }
 .summon-tile .cost { position: absolute; top: 1px; right: 3px; font-size: 10px; color: #cfe0ff; text-shadow: 0 1px 1px #000; }
 
 /* damage preview */
-.dmg-tag {
-  background: #0d1020ee; border: 2px solid #ff7a4a; padding: 3px 6px; font-size: 10px; white-space: nowrap;
+.dmg-tag { display: flex; flex-direction: column; align-items: center; white-space: nowrap; line-height: 1; }
+.dmg-tag .note { font-size: 11px; font-weight: bold; color: #ffb0a0; margin-top: 2px; paint-order: stroke fill; -webkit-text-stroke: 3px #120a14; }
+/* Damage Number: shown in the Damage Preview and popped at impact */
+.dmg-num {
+  font-weight: 900; line-height: 1; white-space: nowrap; letter-spacing: 0.02em; color: #fff1d6;
+  paint-order: stroke fill; -webkit-text-stroke: 5px #1c0c06; text-shadow: 0 2px 0 #1c0c06, 0 0 8px #ff8a3a88;
 }
-.dmg-tag .big { font-size: 16px; font-weight: bold; color: #ffb07a; }
-.dmg-tag .after { font-size: 11px; color: var(--muted); font-weight: normal; }
-.dmg-tag.lethal { border-color: #ff3030; }
-.dmg-tag .ko { color: #ff4040; }
-.dmg-tag.heal { border-color: #5fe07a; color: #9ff0ad; font-size: 15px; font-weight: bold; }
+.dmg-num.lethal { color: #ff5a44; text-shadow: 0 2px 0 #1c0c06, 0 0 10px #ff2a2aaa; }
+.dmg-num.heal { color: #8dffa4; -webkit-text-stroke-color: #062010; text-shadow: 0 2px 0 #062010, 0 0 8px #3aff7a88; }
+.dmg-num.zero { color: #c4c4cc; text-shadow: 0 2px 0 #1c0c06; }
+.dmg-num .ko { font-size: 0.5em; margin-left: 2px; vertical-align: 0.6em; color: #ffd0c8; }
+.dmg-pop { animation-name: dmg-pop; animation-timing-function: linear; animation-fill-mode: both; }
+@keyframes dmg-pop {
+  0% { opacity: 0; transform: translateY(6px) scale(0.8); }
+  10% { opacity: 1; transform: translateY(0) scale(1.1); }
+  18% { transform: translateY(-2px) scale(1); }
+  68% { opacity: 1; transform: translateY(-8px) scale(1); }
+  100% { opacity: 0; transform: translateY(-14px) scale(1); }
+}
 
 .clock { font-size: 18px; }
 .tod.day { color: #ffd34d; }
@@ -139,8 +150,8 @@ button:disabled { opacity: 0.4; cursor: default; }
 .anchor.interactive { pointer-events: auto; z-index: 30; }
 .center-bottom { transform: translate(-50%, -100%); }
 
-.tag-stack { display: flex; gap: 4px; align-items: flex-end; }
-.dmg-tag .lbl { font-size: 10px; color: #c8d2ff; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
+.tag-stack { display: flex; gap: 12px; align-items: flex-end; }
+.dmg-tag .lbl { font-size: 10px; color: #c8d2ff; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; paint-order: stroke fill; -webkit-text-stroke: 3px #0d1020; }
 
 .tl-entry.ghost { opacity: 0.45; }
 .tl-entry.ghost img { filter: grayscale(0.3) drop-shadow(0 0 3px #ffe066); }

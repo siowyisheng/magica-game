@@ -7,11 +7,12 @@ describe('balance edits', () => {
 
   it('keeps only fields that differ from what ships, and drops edits that are reverted', () => {
     const imp = JSON.parse(JSON.stringify(kindOf('imp')));
+    const shipped = imp.stats.atk;
     imp.stats.atk = 19;
     saveKind(imp);
     expect(kindOf('imp').stats.atk).toBe(19);
     expect(Object.keys(getLocalBalance().kinds.imp)).toEqual(['stats']);
-    imp.stats.atk = 13;
+    imp.stats.atk = shipped;
     saveKind(imp);
     expect(isEdited('imp')).toBe(false);
   });
@@ -19,36 +20,36 @@ describe('balance edits', () => {
   it('shares Magic Abilities: one edit changes every kind that uses it', () => {
     // all Summoners share Bolt
     const bolt = abilityOf('bolt')!;
-    expect(abilityUsers('bolt').length).toBe(10);
+    expect(abilityUsers('bolt').length).toBe(30);
     saveAbility({ ...bolt, manaCost: 16 });
-    expect(kindOf('sigil').magic[0].manaCost).toBe(16);
-    expect(kindOf('tinker').magic[0].manaCost).toBe(16);
-    // give the Hound the Imp's Spark: both use the same record
+    expect(kindOf('regent').magic[0].manaCost).toBe(16);
+    expect(kindOf('oni').magic[0].manaCost).toBe(16);
+    // give the Hound the Wisp's Rekindle: both use the same record
     const hound = JSON.parse(JSON.stringify(kindOf('hound')));
-    hound.magic = [abilityOf('spark')!];
+    hound.magic = [abilityOf('rekindle')!];
     saveKind(hound);
-    expect(abilityUsers('spark').map((k) => k.id).sort()).toEqual(['hound', 'imp']);
-    saveAbility({ ...abilityOf('spark')!, manaCost: 12 });
+    expect(abilityUsers('rekindle').map((k) => k.id).sort()).toEqual(['hound', 'wisp']);
+    saveAbility({ ...abilityOf('rekindle')!, manaCost: 12 });
     expect(kindOf('hound').magic[0].manaCost).toBe(12);
-    expect(kindOf('imp').magic[0].manaCost).toBe(12);
+    expect(kindOf('wisp').magic[0].manaCost).toBe(12);
     // a new ability can be created and assigned
     const id = createAbility('Ember Rain');
     expect(abilityOf(id)?.name).toBe('Ember Rain');
   });
 
   it('round-trips through export / import, and resets', () => {
-    const sexton = JSON.parse(JSON.stringify(kindOf('sexton')));
-    sexton.stats.mp = 20;
-    saveKind(sexton);
+    const hermit = JSON.parse(JSON.stringify(kindOf('hermit')));
+    hermit.stats.mp = 20;
+    saveKind(hermit);
     saveAbility({ ...abilityOf('rise')!, manaCost: 24 });
     const json = exportBalanceJson();
     resetAll();
-    expect(kindOf('sexton').stats.mp).toBe(17);
+    expect(kindOf('hermit').stats.mp).toBe(14);
     importBalanceJson(json);
-    expect(kindOf('sexton').stats.mp).toBe(20);
-    expect(kindOf('sexton').magic[1].manaCost).toBe(24);
-    resetKind('sexton');
-    expect(kindOf('sexton').stats.mp).toBe(17);
+    expect(kindOf('hermit').stats.mp).toBe(20);
+    expect(kindOf('hermit').magic[1].manaCost).toBe(24);
+    resetKind('hermit');
+    expect(kindOf('hermit').stats.mp).toBe(14);
     expect(() => importBalanceJson('{"nope": {}}')).toThrow();
   });
 });

@@ -9,7 +9,7 @@ import {
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { DEFAULT_SUMMONER, kindOf } from './kinds';
-import { affectedUnits, attackTargets, computeDamage, computeHeal, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
+import { affectedUnits, attackTargets, computeDamage, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
 import { canPlace, isStranded, mapHexAt, reachable, surfaceOf, targetAt } from './terrain';
 import { isObstacle, type GameEvent, type MagicAbility, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
 
@@ -230,7 +230,7 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
     const ab = kind.magic.find((m) => m.id === cmd.ability);
     if (!ab || ab.kind === 'water') return [];
     return affectedUnits(view, caster, ab, cmd.target).map((t) =>
-      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : computeDamage(view, caster, action.to, t, 'magic'),
+      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : computeDamage(view, caster, magicHitOrigin(ab, action.to, cmd.target, t), t, 'magic'),
     );
   }
   return [];

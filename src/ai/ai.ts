@@ -8,11 +8,13 @@ import {
   type MatchState,
   type TurnAction,
   type Unit,
+  type UnitKind,
   type Command,
   DIRS,
   canStandOn,
   canCastWater,
   computeDamage,
+  computeHeal,
   delayForAction,
   elementModifier,
   facingToward,
@@ -30,6 +32,7 @@ import {
   validateTurn,
   attackTargets,
   activeUnit,
+  alignmentPercent,
   resultingFacing,
   canPlace,
   inRoster,
@@ -54,22 +57,63 @@ export const AI_WEIGHTS = {
   onStone: 6,
   approach: 3,
   summonerSafety: 8,
-  /** Share of an enemy's damage counted as threat when it has a better target than this unit. */
-  threatShare: 0.7,
+  /** Hits-to-kill at which a Summoner keeps the standard distance (fewer: more careful, more: bolder). */
+  postureHits: 4,
+  /** How strongly a durable, hard-hitting Summoner is pulled toward objectives (× approach). */
+  summonerAggression: 1,
+  /** Least share of an enemy's damage a Summon is charged with, however many other targets it has. */
+  threatShareMin: 0.25,
   /** Weight of second-round threat to the Summoner (enemies acting before its turn after next). */
   summonerSecondRound: 1,
   /** Bonus (× kill) for damage that leaves a target finishable by allies before it acts. */
   setupKill: 0.3,
   /** How much a material / Stone lead raises the pull toward the enemy. */
   pressure: 0,
+  /** How strongly a lead (≈ −1..1) raises the push: pull toward objectives up, fear of damage down. */
+  leadPush: 3,
+  /** Most the push multiplies the pull (and divides the fear) by. */
+  maxPush: 2.5,
+  /** Share of an enemy's threat cancelled when my side can finish it before it acts again. */
+  tradeCredit: 0.5,
+  /** 0: damage penalty linear in HP lost; 1: quadratic (scrapes cheap, near-deaths dear). */
+  hurtCurve: 0.5,
+  /** Share of a Summon's pull that goes to the side's shared target (the rest to its nearest objective). */
+  focus: 0.5,
+  /** Value of hitting a healer, per point of its heal × the best patient it can reach (÷ 4). */
+  support: 0.5,
+  /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
+  healedDamage: 0.15,
+  /** Damage to an enemy Summoner that healing is reaching and that can't be finished this round (× normal). */
+  pokeSummoner: 0.35,
+  /** Value of heal blocked by standing in a healer's way (× damage of the same amount). */
+  healBlock: 0.5,
+  /** Lead above which the shared target is the enemy Summoner. */
+  focusLead: 0.15,
   summonBase: 40,
   summonCostValue: 0.45,
   summonCounter: 18,
+  /** Hours ahead over which an aligned Summon's Time of Day is judged, and the most it moves the Summon's value. */
+  alignmentHours: 8,
+  alignmentValue: 0.15,
+  /** Distance (hexes) at which a Unit stops mattering to the Summon choice. */
+  summonRadius: 12,
+  /** Extra weight for countering an enemy that counters own Summons near it. */
+  summonProtect: 0.5,
   summonNegativeIncome: 35,
   manaSpend: 0.25,
+  /** Save for an unaffordable Summon whose value is at least this × the best affordable one… */
+  saveMargin: 1.25,
+  /** …and that income will pay for within this many hours. */
+  saveHours: 2,
+  /** Extra cost per point of Mana spent out of that reserve. */
+  reserveSpend: 0.6,
   strandEnemy: 30,
   strandAlly: 35,
   delay: 0.15,
+  /** Value of threat removed from allies by standing in enemies' way (× threat). */
+  screen: 0.6,
+  /** How many of the best destinations are re-scored for screening. */
+  screenTop: 8,
   /** Per enemy that breaking an Obstacle would bring into this Unit's Attack Reach. */
   obstacleOpening: 25,
 };
@@ -187,13 +231,13 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   };
   const allies = state.units.filter((u) => u.side === me.side && u.id !== me.id);
 
-  // Each enemy's best damage against my other units: an enemy with a better
-  // target elsewhere is unlikely to spend its turn on this unit.
-  const otherBest = new Map<number, number>();
+  // How each enemy's attack would split across my other units: it hits one
+  // target, most likely where it does the most damage (weights: damage²).
+  const otherSq = new Map<number, number>();
   for (const e of reaches) {
-    let best = 0;
-    for (const a of allies) best = Math.max(best, maxDamage(e, a, a.pos, a.facing));
-    otherBest.set(e.unit.id, best);
+    let sq = 0;
+    for (const a of allies) sq += maxDamage(e, a, a.pos, a.facing) ** 2;
+    otherSq.set(e.unit.id, sq);
   }
   // The Summoner also looks one enemy round further ahead.
   const secondWindow = kind.isSummoner ? turnDelay(kind, true, true) : 0;
@@ -217,8 +261,10 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         const reach = ek.stats.mov * turnsBefore + Math.max(ek.attack.range, ...ek.magic.map((m) => (m.kind === 'water' ? 0 : m.range + m.radius)));
         if (hexDistance(e.unit.pos, h) <= reach) d = approxDamage(state, e.unit, me, h, f);
       }
-      // enemies go for the Summoner; otherwise only part of the threat is real when they have a better target
-      if (!kind.isSummoner && d < (otherBest.get(e.unit.id) ?? 0)) d *= w.threatShare;
+      // enemies go for the Summoner; a Summon only bears its share of an enemy that has other targets
+      if (!kind.isSummoner && d > 0) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
+      // a trade, not just a loss: an enemy my side can finish before it acts again pays for its hit
+      if (!kind.isSummoner && d > 0) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
       total += second ? d * w.summonerSecondRound : d;
     }
     threatCache.set(key, total);
@@ -240,14 +286,43 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
     followUp.set(e.id, sum);
   }
 
+  // Enemy healing (1, 3): how much each enemy can be healed before my side's next
+  // hits land, and how much a healer's work is worth (its support value).
+  const healWindow = turnDelay(kind, true, true);
+  const enemyMana = state.sides[1 - me.side].mana;
+  /** Heal a healer would give, ignoring the target's missing HP. */
+  const rawHeal = (h: Unit) => computeHeal(state, h, { ...h, hp: 1 }).amount;
+  const healers = reaches.filter((e) => {
+    const k = kindOf(e.unit.kind);
+    return e.unit.av < healWindow && k.magic.some((m) => m.kind === 'heal' && m.manaCost <= enemyMana);
+  });
+  const healReach = (e: EnemyReach, at: Hex) => {
+    const m = kindOf(e.unit.kind).magic.find((x) => x.kind === 'heal')!;
+    if (m.kind === 'water') return false;
+    return e.positions.some((p) => hexDistance(p, at) <= m.range + m.radius) || hexDistance(e.unit.pos, at) <= m.range + m.radius;
+  };
+  const incomingHealFrom = (hs: EnemyReach[], t: Unit) => hs.reduce((a, h) => a + (healReach(h, t.pos) ? rawHeal(h.unit) : 0), 0);
+  const healIn = new Map<number, number>();
+  const support = new Map<number, number>();
+  for (const t of state.units) if (t.side !== me.side) healIn.set(t.id, incomingHealFrom(healers, t));
+  for (const h of healers) {
+    let best = 0;
+    for (const p of state.units) if (p.side === h.unit.side && p.id !== h.unit.id && healReach(h, p.pos)) best = Math.max(best, unitValue(p));
+    support.set(h.unit.id, (w.support * rawHeal(h.unit) * best) / 4);
+  }
+  /** What hitting an enemy is worth: its own value plus the healing it keeps doing. */
+  const targetValue = (t: Unit) => unitValue(t) + (support.get(t.id) ?? 0);
+
   // Pressure: a lead in material and Stones (and the clock running out while behind) pulls units forward.
   const sideValue = (s: number) => state.units.filter((u) => u.side === s).reduce((a, u) => a + unitValue(u) * u.hp, 0);
   const myStones = state.stones.filter((x) => x.owner === me.side).length;
   const theirStones = state.stones.filter((x) => x.owner !== null && x.owner !== me.side).length;
-  const lead = (sideValue(me.side) - sideValue(1 - me.side)) / Math.max(10, sideValue(me.side) + sideValue(1 - me.side)) + 0.08 * (myStones - theirStones);
-  const hoursLeft = (state.timeLimit - state.clock) / 60;
-  const behindLate = hoursLeft < 24 && myStones <= theirStones;
-  const pressure = Math.max(0.8, Math.min(3, 1 + w.pressure * lead * 4 + (behindLate ? 1 : 0)));
+  // The AI never plays for the Time Limit: a lead (material, Stones, Mana) is a reason to attack.
+  const manaLead = (state.sides[me.side].mana - state.sides[1 - me.side].mana) / MANA_MAX;
+  const lead = (sideValue(me.side) - sideValue(1 - me.side)) / Math.max(10, sideValue(me.side) + sideValue(1 - me.side)) + 0.08 * (myStones - theirStones) + 0.2 * manaLead;
+  const pressure = Math.max(1, Math.min(w.maxPush, 1 + w.leadPush * lead));
+  /** Boldness: how much less a Summon minds taking damage when its side is ahead. */
+  const boldness = 1 / pressure;
 
   const bestFacing = (h: Hex, delay: number, killed: Set<number>): { facing: Dir; threat: number } => {
     let bestF: Dir = me.facing;
@@ -275,29 +350,67 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   };
   const objs = objectives();
   const enemySummoner = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isSummoner);
+  // One shared target for the whole side: the enemy Summoner when ahead or when it's within
+  // reach of our army, otherwise the enemy-held (or free) Stone nearest our Summons.
+  const mySummons = state.units.filter((u) => u.side === me.side && !kindOf(u.kind).isSummoner);
+  const focusTarget: Hex | null = (() => {
+    if (!enemySummoner) return null;
+    const near = mySummons.some((u) => hexDistance(u.pos, enemySummoner.pos) <= kindOf(u.kind).stats.mov * 2 + kindOf(u.kind).attack.range);
+    // peel: while a healer keeps the enemy Summoner up, the healer is the target
+    const medic = healers
+      .filter((h) => healReach(h, enemySummoner.pos))
+      .sort((a, b) => hexDistance(a.unit.pos, enemySummoner.pos) - hexDistance(b.unit.pos, enemySummoner.pos) || a.unit.id - b.unit.id)[0];
+    if (medic && (lead > w.focusLead || near)) return medic.unit.pos;
+    if (lead > w.focusLead || near || !mySummons.length) return enemySummoner.pos;
+    const open = state.stones.filter((st) => st.owner !== me.side);
+    if (!open.length) return enemySummoner.pos;
+    const dist = (st: (typeof open)[number]) => mySummons.reduce((a, u) => a + hexDistance(u.pos, st.hex), 0);
+    return open.reduce((a, b) => (dist(b) < dist(a) || (dist(b) === dist(a) && hexKey(b.hex) < hexKey(a.hex)) ? b : a)).hex;
+  })();
+
+  // Summoner posture from the matchup: how many hits the strongest enemies need
+  // to kill it (fragile ones keep away), and how hard it hits back (durable
+  // hitters move up to threaten).
+  let fragility = 1;
+  let aggression = 0;
+  if (kind.isSummoner) {
+    const enemies = state.units.filter((u) => u.side !== me.side);
+    const incoming = enemies.map((e) => approxDamage(state, e, me, me.pos, me.facing)).sort((a, b) => b - a).slice(0, 3);
+    const perHit = incoming.length ? incoming.reduce((a, b) => a + b, 0) / incoming.length : 0;
+    const hitsToKill = me.hp / Math.max(0.5, perHit);
+    fragility = Math.max(0.35, Math.min(1.5, w.postureHits / hitsToKill));
+    const outgoing = enemies
+      .filter((e) => !kindOf(e.kind).isSummoner)
+      .map((e) => computeDamage(state, me, neighbor(e.pos, facingToward(e.pos, me.pos)), e, 'physical').amount);
+    const myHit = outgoing.length ? outgoing.reduce((a, b) => a + b, 0) / outgoing.length : 0;
+    aggression = Math.max(0, Math.min(1, (myHit - 1.5) / 2)) * Math.max(0, Math.min(1, (hitsToKill - 3) / 3));
+  }
 
   // Stones decide the Time Limit: they matter more over the last day, most when not ahead.
-  const lateness = Math.max(0, Math.min(1, 1 - hoursLeft / 24));
-  const stoneUrgency = 1 + lateness * (myStones > theirStones ? 1 : 3);
+  // Stones are worth their Mana, the same at any hour.
+  const stoneUrgency = 1;
   const positionalScore = (h: Hex): number => {
     let s = 0;
     const stone = state.stones.find((st) => hexEq(st.hex, h));
     if (stone) {
       if (stone.owner !== me.side) s += w.capture * stoneUrgency * (stone.owner === null ? 1 : 1.5);
       s += w.onStone * (10 - me.hp + 1) * 0.3;
-      // late on, standing on one of our Stones keeps the enemy from taking it
-      if (stone.owner === me.side) s += w.capture * 0.4 * lateness;
     }
     if (kind.isSummoner) {
       // Keep distance from enemies (but not infinitely).
       let minD = 99;
       for (const u of state.units) if (u.side !== me.side) minD = Math.min(minD, hexDistance(u.pos, h));
-      s += w.summonerSafety * Math.min(minD, 7);
+      s += w.summonerSafety * fragility * Math.min(minD, 7);
+      if (aggression > 0 && objs.length) {
+        let minO = 99;
+        for (const o of objs) minO = Math.min(minO, hexDistance(o, h));
+        s -= w.approach * pressure * aggression * w.summonerAggression * minO;
+      }
     } else if (objs.length) {
       let minD = 99;
       for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
-      s -= w.approach * pressure * minD;
-      if (enemySummoner) s -= w.approach * 0.3 * pressure * hexDistance(enemySummoner.pos, h);
+      s -= w.approach * pressure * minD * (1 - w.focus);
+      if (focusTarget) s -= w.approach * pressure * w.focus * 2 * hexDistance(focusTarget, h);
     }
     return s;
   };
@@ -310,27 +423,65 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const myMana = state.sides[me.side].mana;
   const income = manaIncome(state, me.side);
 
-  // Rank summon kinds once (placement-independent).
-  const summonKinds = kind.isSummoner
-    ? SUMMONS.filter((s) => s.cost <= myMana && inRoster(state, me.side, s.id))
+  /** Element relevance by distance: 1 next door, fading to 0 at summonRadius hexes. */
+  const prox = (d: number) => Math.max(0, 1 - d / w.summonRadius);
+  const counters = (a: UnitKind['element'], b: UnitKind['element']) => {
+    const m = elementModifier(a, b);
+    return m.num > m.den;
+  };
+  // Rank summon kinds once (placement-independent), affordable or not.
+  const rankedKinds = kind.isSummoner
+    ? SUMMONS.filter((s) => inRoster(state, me.side, s.id))
         .map((s) => {
           let counter = 0;
           for (const u of state.units) {
             if (u.side === me.side) continue;
             const uk = kindOf(u.kind);
-            if (hexDistance(u.pos, me.pos) > 8) continue;
-            const off = elementModifier(s.element, uk.element);
-            const def = elementModifier(uk.element, s.element);
-            if (off.num > off.den) counter += 1;
-            if (def.num > def.den) counter -= 1;
+            // about 1 for an average Summon, as the old ±1 per enemy was
+            const base = prox(hexDistance(u.pos, me.pos)) * (uk.isSummoner ? 1.5 : unitValue(u) / 2);
+            if (base <= 0) continue;
+            if (counters(s.element, uk.element)) {
+              // covered: own Summons near it already counter it; threatening: it counters own Summons near it
+              let covered = 0;
+              let threatening = 0;
+              for (const a of allies) {
+                const ak = kindOf(a.kind);
+                if (ak.isSummoner) continue;
+                const p = prox(hexDistance(a.pos, u.pos));
+                if (counters(ak.element, uk.element)) covered += p;
+                if (counters(uk.element, ak.element)) threatening += p;
+              }
+              counter += (base * (1 + w.summonProtect * threatening)) / (1 + covered);
+            }
+            if (counters(uk.element, s.element)) counter -= base;
           }
           let v = w.summonBase + s.cost * w.summonCostValue + counter * w.summonCounter;
+          if (s.alignment !== 'none') {
+            // how its Alignment will treat it over its working life: +1 all aligned, −1 all opposed
+            let sum = 0;
+            for (let hr = 0; hr < w.alignmentHours; hr++) sum += (alignmentPercent(s.alignment, state.clock + hr * 60) - 100) / 20;
+            v *= 1 + w.alignmentValue * Math.max(-1, Math.min(1, sum / w.alignmentHours));
+          }
           if (income - s.cost / 8 < 0) v -= w.summonNegativeIncome;
           return { kind: s, value: v };
         })
         .sort((a, b) => b.value - a.value || a.kind.cost - b.kind.cost)
-        .slice(0, 4)
     : [];
+  const summonKinds = rankedKinds.filter((k) => k.kind.cost <= myMana).slice(0, 4);
+  // Saving up: a clearly better Summon that income will soon pay for reserves its Cost.
+  const overflow = myMana + Math.max(0, income) >= MANA_MAX;
+  let reserve = 0;
+  {
+    const bestNow = summonKinds[0]?.value ?? 0;
+    const saveFor = rankedKinds.find((k) => k.kind.cost > myMana);
+    if (saveFor && income > 0 && saveFor.value >= Math.max(1, bestNow) * w.saveMargin && (saveFor.kind.cost - myMana) / income <= w.saveHours) reserve = saveFor.kind.cost;
+  }
+  /** Cost of spending `amount` Mana: what it's worth, plus eating into a reserve. */
+  const spendCost = (amount: number) => {
+    if (overflow) return 0;
+    const intoReserve = Math.max(0, Math.min(amount, reserve - (myMana - amount)));
+    return amount * w.manaSpend + intoReserve * w.reserveSpend;
+  };
 
   for (const dest of dests) {
     const pos = positionalScore(dest);
@@ -365,8 +516,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
       if (command.type === 'attack' || command.type === 'magic') {
         const ab = command.type === 'magic' ? kind.magic.find((m) => m.id === command.ability)! : null;
         // Mana that would overflow the cap is free to spend.
-        const overflow = myMana + Math.max(0, income) >= MANA_MAX;
-        if (ab && !overflow) score -= ab.manaCost * w.manaSpend;
+        if (ab) score -= spendCost(ab.manaCost);
         if (ab && ab.kind === 'water') {
           const level = state.waterLevel + ab.delta;
           for (const u of state.units) {
@@ -386,16 +536,23 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
               continue;
             }
             const t = state.units.find((u) => u.id === e.unitId)!;
-            const v = unitValue(t);
+            const v = t.side === me.side ? unitValue(t) : targetValue(t);
             if (e.kind === 'damage') {
               if (t.side === me.side) score -= e.amount * w.friendlyFire * v;
               else {
-                score += e.amount * w.damage * v;
+                const heal = healIn.get(t.id) ?? 0;
+                // only damage that outlasts the healing coming its way counts in full
+                const net = e.lethal ? e.amount : Math.max(0, e.amount - heal);
+                const canFinish = !e.lethal && t.hp - e.amount + heal <= (followUp.get(t.id) ?? 0);
+                let dmgValue = (net + (e.amount - net) * w.healedDamage) * w.damage * v;
+                // a Summoner that can't be finished this round just gets healed up: don't pour the lead into it
+                if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeSummoner;
+                score += dmgValue;
                 if (e.lethal) {
                   killed.add(t.id);
                   score += kindOf(t.kind).isSummoner ? w.killSummoner : w.kill * v;
-                } else if (t.hp - e.amount <= (followUp.get(t.id) ?? 0)) {
-                  // allies can finish it before it acts
+                } else if (canFinish) {
+                  // allies can finish it before it acts, healing included
                   score += w.kill * v * w.setupKill;
                 }
               }
@@ -406,7 +563,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         }
       } else if (command.type === 'summon') {
         const sk = summonKinds.find((s) => s.kind.id === command.kind)!;
-        score += sk.value;
+        score += sk.value - spendCost(sk.kind.cost);
         const h = neighbor(dest, command.dir);
         if (enemySummoner) score -= hexDistance(h, enemySummoner.pos) * 0.5;
         const stone = state.stones.find((s) => hexEq(s.hex, h));
@@ -430,7 +587,10 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         }
       }
       const v = unitValue(me);
-      score -= Math.min(threat, me.hp) * w.threat * v;
+      // scrapes a Unit can absorb cost little; damage that nearly kills it costs the most
+      const x = Math.min(threat, me.hp) / me.hp;
+      const hurt = kind.isSummoner ? x : (1 - w.hurtCurve) * x + w.hurtCurve * x * x;
+      score -= hurt * me.hp * w.threat * v * (kind.isSummoner ? 1 : boldness);
       if (threat >= me.hp) score -= kind.isSummoner ? w.summonerDeathRisk : w.deathRisk * v;
 
       candidates.push({ action: { ...draft, facing }, score });
@@ -438,6 +598,69 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   }
 
   candidates.sort((a, b) => b.score - a.score);
+
+  // Screening: ground enemies must stop in this Unit's ZOC, so where it ends can
+  // shield allies (or, by leaving, expose them). Re-score the best destinations
+  // with enemy reach recomputed around this Unit's new position.
+  if (w.screen > 0 && allies.length) {
+    const ev = (a: Unit, rs: EnemyReach[]) => {
+      let t = 0;
+      for (const e of rs) if (e.unit.av < a.av) t += maxDamage(e, a, a.pos, a.facing);
+      return Math.min(t, a.hp) * unitValue(a);
+    };
+    const baseThreat = allies.reduce((acc, a) => acc + ev(a, reaches), 0);
+    const near = (e: Unit, h: Hex) => hexDistance(e.pos, h) <= kindOf(e.kind).stats.mov + 2;
+    const done = new Map<string, number>();
+    const screened = new Set<Candidate>();
+    const screenBonus = (dest: Hex) => {
+      const key = hexKey(dest);
+      let v = done.get(key);
+      if (v !== undefined) return v;
+      const view: MatchState = { ...state, units: state.units.map((u) => (u.id === me.id ? { ...u, pos: dest } : u)) };
+      const rs = reaches.map((e) => {
+        if (!near(e.unit, dest) && !near(e.unit, me.pos)) return e;
+        const positions: Hex[] = [];
+        for (const n of reachable(view, e.unit).values()) if (n.canEnd || hexEq(n.hex, e.unit.pos)) positions.push(n.hex);
+        return { unit: e.unit, positions };
+      });
+      let after = 0;
+      for (const a of allies) {
+        let t = 0;
+        for (const e of rs) if (e.unit.av < a.av) t += maxDamageFrom(view, e, a, a.pos, a.facing);
+        after += Math.min(t, a.hp) * unitValue(a);
+      }
+      v = (baseThreat - after) * w.threat * w.screen;
+      // cutting the heal line: healing the enemy Summoner (or a hurt enemy) can no longer receive
+      if (healers.length) {
+        const hs = rs.filter((e) => healers.some((h) => h.unit.id === e.unit.id));
+        for (const t of state.units) {
+          if (t.side === me.side || (t.hp >= 10 && !kindOf(t.kind).isSummoner)) continue;
+          const lost = (healIn.get(t.id) ?? 0) - incomingHealFrom(hs, t);
+          if (lost > 0) v += lost * w.damage * unitValue(t) * w.healBlock;
+        }
+      }
+      done.set(key, v);
+      return v;
+    };
+    for (let round = 0; round < 3; round++) {
+      const dests: Hex[] = [];
+      for (const c of candidates) {
+        if (dests.length >= w.screenTop) break;
+        if (!done.has(hexKey(c.action.to)) && !dests.some((d) => hexEq(d, c.action.to))) dests.push(c.action.to);
+      }
+      if (!dests.length) break;
+      for (const d of dests) screenBonus(d);
+      for (const c of candidates) {
+        const b = done.get(hexKey(c.action.to));
+        if (b !== undefined && !screened.has(c)) {
+          c.score += b;
+          screened.add(c);
+        }
+      }
+      candidates.sort((a, b) => b.score - a.score);
+      if (done.has(hexKey(candidates[0].action.to))) break;
+    }
+  }
   return { me, candidates };
 }
 
@@ -483,10 +706,11 @@ function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): Turn
   }
   if (picks.length < 2) return picks[0]?.action ?? null;
   let best: { action: TurnAction; value: number } | null = null;
+  const rollout: W = { ...w, screen: 0 }; // playouts skip the screening re-score to stay in budget
   for (const c of picks) {
     let st = applyTurn(state, c.action).state;
     for (let t = 0; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
-      st = applyTurn(st, chooseAction(st, w, 'normal')).state;
+      st = applyTurn(st, chooseAction(st, rollout, 'normal')).state;
     }
     // position value, with the candidate's own score as a small tie-breaker
     const value = evaluate(st, me.side) + c.score * 0.01;
@@ -505,8 +729,8 @@ export function evaluate(st: MatchState, side: number): number {
     const worth = k.isSummoner ? 40 + u.hp * 12 : unitValue(u) * (8 + u.hp * 4);
     v += u.side === side ? worth : -worth;
   }
-  const hoursLeft = Math.max(0, (st.timeLimit - st.clock) / 60);
-  const stoneWeight = 18 + 30 * Math.max(0, 1 - hoursLeft / 24);
+  // Stones count for their Mana, not for the Time Limit: the AI never plays for time.
+  const stoneWeight = 18;
   for (const s of st.stones) if (s.owner !== null) v += (s.owner === side ? 1 : -1) * stoneWeight;
   v += 0.15 * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
   return v;

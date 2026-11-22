@@ -40,9 +40,14 @@ export type MagicAbility =
       kind: 'damage' | 'heal';
       /** Maximum distance to the aimed hex. */
       range: number;
-      /** 0 = single hex, 1 = aimed hex and its neighbours. */
-      radius: 0 | 1;
+      /** 0 = single hex, 1 = aimed hex and its neighbours, 2 = two rings (Burst only). */
+      radius: 0 | 1 | 2;
       manaCost: number;
+      /**
+       * Burst (damage only): centred on the caster (range 0), hitting every
+       * Unit and Obstacle in the area, allies included, but not the caster.
+       */
+      burst?: boolean;
       /** Set when range > 1. */
       trajectory?: Trajectory;
     }
