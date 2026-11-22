@@ -25,6 +25,7 @@ import {
   hexDistance,
 } from './index';
 import { ELEMENTS } from './data/summons';
+import { MANA_START } from './data/tuning';
 
 // ---------- helpers ----------
 
@@ -282,7 +283,7 @@ describe('match flow', () => {
     const imp = state.units.find((u) => u.kind === 'imp')!;
     expect(imp.facing).toBe(1);
     expect(getUnit(state, me.id).facing).toBe(1);
-    expect(state.sides[0].mana).toBeLessThan(40);
+    expect(state.sides[0].mana).toBeLessThan(MANA_START);
     expect(events.some((e) => e.type === 'summon')).toBe(true);
   });
 
