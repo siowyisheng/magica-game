@@ -15,7 +15,7 @@ import {
   STONE_BASE,
   type SideId,
 } from '../rules';
-import { useGame } from '../store';
+import { type HpBarsMode, useGame } from '../store';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { AlignmentIcon, ElementIcon, Icon } from './icons';
 import { StatGrid, magicText } from './Stats';
@@ -29,8 +29,8 @@ export function InfoPanel() {
   const match = useGame((s) => s.match);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const hoverHex = useGame((s) => s.hoverHex);
-  const showHpBars = useGame((s) => s.showHpBars);
-  const toggleHpBars = useGame((s) => s.toggleHpBars);
+  const hpBars = useGame((s) => s.hpBars);
+  const setHpBars = useGame((s) => s.setHpBars);
   const setAi = useGame((s) => s.setAi);
   const watching = useGame((s) => s.replay !== null);
   const newMatch = useGame((s) => s.newMatch);
@@ -105,7 +105,14 @@ export function InfoPanel() {
 
       <div className="window">
         <div className="title">Options</div>
-        <label><input type="checkbox" checked={showHpBars} onChange={toggleHpBars} /> Floating HP / AV bars</label>
+        <label>
+          Floating HP bars{' '}
+          <select value={hpBars} onChange={(e) => setHpBars(e.target.value as HpBarsMode)}>
+            <option value="damaged">When damaged</option>
+            <option value="always">Always</option>
+            <option value="off">Off (no AV bars either)</option>
+          </select>
+        </label>
         {!watching && (
           <>
             <label>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, isObstacle, hexDistance, kindOf, trajectoryOf, primaryMagic } from '../rules';
+import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, isObstacle, hexDistance, kindOf, trajectoryOf, primaryMagic } from '../rules';
 import { blockedShot, hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
@@ -16,7 +16,9 @@ export function Overlay() {
   const match = useGame((s) => s.match);
   const phase = useGame((s) => s.phase);
   const hoverHex = useGame((s) => s.hoverHex);
-  const showHpBars = useGame((s) => s.showHpBars);
+  const hpBars = useGame((s) => s.hpBars);
+  const showHpBars = hpBars !== 'off';
+  const hpShown = (hp: number) => hpBars === 'always' || hp < MAX_HP;
   const rightClick = useGame((s) => s.rightClick);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const choose = useGame((s) => s.choose);
@@ -168,12 +170,12 @@ export function Overlay() {
         match.units.filter((unit) => struck.get(unit.id) !== 0).map((unit) => (
           <div key={unit.id} className="anchor" data-anchor={`unit:${unit.id}`}>
             <div className="center-bottom">
-              <UnitBars unit={unit} hp={struck.get(unit.id) ?? unit.hp} />
+              <UnitBars unit={unit} hp={struck.get(unit.id) ?? unit.hp} showHp={hpShown(struck.get(unit.id) ?? unit.hp)} />
             </div>
           </div>
         ))}
       {showHpBars &&
-        match.obstacles.filter((o) => struck.get(o.id) !== 0).map((o) => (
+        match.obstacles.filter((o) => struck.get(o.id) !== 0 && hpShown(struck.get(o.id) ?? o.hp)).map((o) => (
           <div key={o.id} className="anchor" data-anchor={`unit:${o.id}`}>
             <div className="center-bottom">
               <div className="unit-bars">
@@ -257,17 +259,19 @@ export function Overlay() {
   );
 }
 
-function UnitBars({ unit, hp }: { unit: Unit; hp: number }) {
+function UnitBars({ unit, hp, showHp }: { unit: Unit; hp: number; showHp: boolean }) {
   const av = Math.max(0, unit.av);
   const main = Math.min(av, 60) / 60;
   const over = Math.min(Math.max(av - 60, 0), 60) / 60;
   return (
     <div className="unit-bars">
-      <div className="hp-bar">
-        {Array.from({ length: 10 }, (_, i) => (
-          <span key={i} className={i < hp ? (unit.side === 0 ? 'on green' : 'on red') : ''} />
-        ))}
-      </div>
+      {showHp && (
+        <div className="hp-bar">
+          {Array.from({ length: 10 }, (_, i) => (
+            <span key={i} className={i < hp ? (unit.side === 0 ? 'on green' : 'on red') : ''} />
+          ))}
+        </div>
+      )}
       <div className="av-bar" title={`AV ${av}`}>
         <div className="av-fill" style={{ width: `${main * 100}%` }} />
         <div className="av-over" style={{ width: `${over * 100}%` }} />

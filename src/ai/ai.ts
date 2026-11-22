@@ -54,8 +54,10 @@ export const AI_WEIGHTS = {
   threat: 9,
   deathRisk: 70,
   summonerDeathRisk: 5000,
-  capture: 45,
+  capture: 80,
   onStone: 6,
+  /** Holding an own Stone that an enemy could take next turn (standing on it blocks the capture). */
+  guard: 55,
   approach: 3,
   summonerSafety: 8,
   /** Hits-to-kill at which a Summoner keeps the standard distance (fewer: more careful, more: bolder). */
@@ -344,8 +346,16 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
     return { facing: bestF, threat: bestT };
   };
 
+  // Own Stones an enemy could walk onto within about a turn: whoever stands on one keeps it.
+  const stoneAt = (h: Hex) => state.stones.find((st) => hexEq(st.hex, h));
+  const threatenedStones = state.stones.filter(
+    (st) => st.owner === me.side && state.units.some((u) => u.side !== me.side && hexDistance(u.pos, st.hex) <= kindOf(u.kind).stats.mov + 1),
+  );
+  const guardedBy = (h: Hex) => state.units.find((u) => u.id !== me.id && hexEq(u.pos, h));
+  const needsGuard = (h: Hex) => threatenedStones.some((st) => hexEq(st.hex, h)) && !guardedBy(h);
+
   const objectives = (): Hex[] => {
-    const out: Hex[] = state.stones.filter((s) => s.owner !== me.side).map((s) => s.hex);
+    const out: Hex[] = state.stones.filter((s) => s.owner !== me.side || needsGuard(s.hex)).map((s) => s.hex);
     for (const u of state.units) if (u.side !== me.side) out.push(u.pos);
     return out;
   };
@@ -392,9 +402,10 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const stoneUrgency = 1;
   const positionalScore = (h: Hex): number => {
     let s = 0;
-    const stone = state.stones.find((st) => hexEq(st.hex, h));
+    const stone = stoneAt(h);
     if (stone) {
       if (stone.owner !== me.side) s += w.capture * stoneUrgency * (stone.owner === null ? 1 : 1.5);
+      else if (needsGuard(h)) s += w.guard;
       s += w.onStone * (10 - me.hp + 1) * 0.3;
     }
     if (kind.isSummoner) {
@@ -528,6 +539,9 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         } else {
           const effects = previewEffects(state, draft);
           if (effects.length === 0) continue;
+          // never Attack or cast damage for nothing: it must hurt an enemy or an Obstacle
+          const isDamage = !ab || ab.kind === 'damage';
+          if (isDamage && !effects.some((e) => e.kind === 'damage' && e.amount > 0 && (e.obstacle || state.units.find((u) => u.id === e.unitId)?.side !== me.side))) continue;
           for (const e of effects) {
             if (e.obstacle) {
               score += obstacleValue(state, me, dest, e.unitId, e.amount, e.lethal, w);
@@ -728,7 +742,7 @@ export function evaluate(st: MatchState, side: number): number {
     v += u.side === side ? worth : -worth;
   }
   // Stones count for their Mana, not for the Time Limit: the AI never plays for time.
-  const stoneWeight = 18;
+  const stoneWeight = 30;
   for (const s of st.stones) if (s.owner !== null) v += (s.owner === side ? 1 : -1) * stoneWeight;
   v += 0.15 * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
   return v;
