@@ -16,7 +16,7 @@ import {
   computeDamage,
   computeHeal,
   delayForAction,
-  elementModifier,
+  elementRelation,
   facingToward,
   hexDistance,
   hexEq,
@@ -32,7 +32,8 @@ import {
   validateTurn,
   attackTargets,
   activeUnit,
-  alignmentPercent,
+  alignmentBonus,
+  ALIGN_STAT,
   resultingFacing,
   canPlace,
   inRoster,
@@ -425,10 +426,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
 
   /** Element relevance by distance: 1 next door, fading to 0 at summonRadius hexes. */
   const prox = (d: number) => Math.max(0, 1 - d / w.summonRadius);
-  const counters = (a: UnitKind['element'], b: UnitKind['element']) => {
-    const m = elementModifier(a, b);
-    return m.num > m.den;
-  };
+  const counters = (a: UnitKind['element'], b: UnitKind['element']) => elementRelation(a, b) === 'counter';
   // Rank summon kinds once (placement-independent), affordable or not.
   const rankedKinds = kind.isSummoner
     ? SUMMONS.filter((s) => inRoster(state, me.side, s.id))
@@ -459,7 +457,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
           if (s.alignment !== 'none') {
             // how its Alignment will treat it over its working life: +1 all aligned, −1 all opposed
             let sum = 0;
-            for (let hr = 0; hr < w.alignmentHours; hr++) sum += (alignmentPercent(s.alignment, state.clock + hr * 60) - 100) / 20;
+            for (let hr = 0; hr < w.alignmentHours; hr++) sum += alignmentBonus(s.alignment, state.clock + hr * 60) / ALIGN_STAT;
             v *= 1 + w.alignmentValue * Math.max(-1, Math.min(1, sum / w.alignmentHours));
           }
           if (income - s.cost / 8 < 0) v -= w.summonNegativeIncome;

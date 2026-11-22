@@ -1,4 +1,4 @@
-import { DAY_END, DAY_START, MINUTES_PER_DAY, NIGHT_END, NIGHT_START, ALIGN_BONUS, ALIGN_PENALTY } from './data/tuning';
+import { DAY_END, DAY_START, MINUTES_PER_DAY, NIGHT_END, NIGHT_START, ALIGN_STAT } from './data/tuning';
 import type { Alignment, TimeOfDay } from './types';
 
 export function minuteOfDay(clock: number): number {
@@ -13,11 +13,12 @@ export function timeOfDay(clock: number): TimeOfDay {
 }
 
 /** Stat multiplier in percent for an Alignment at a given clock. */
-export function alignmentPercent(alignment: Alignment, clock: number): number {
-  if (alignment === 'none') return 100;
+/** Amount added to ATK, DEF, MP and MDF by Alignment at `clock`: +ALIGN_STAT, −ALIGN_STAT or 0. */
+export function alignmentBonus(alignment: Alignment, clock: number): number {
+  if (alignment === 'none') return 0;
   const tod = timeOfDay(clock);
-  if (tod === 'neutral') return 100;
-  return tod === alignment ? ALIGN_BONUS : ALIGN_PENALTY;
+  if (tod === 'neutral') return 0;
+  return tod === alignment ? ALIGN_STAT : -ALIGN_STAT;
 }
 
 export function formatClock(clock: number): string {

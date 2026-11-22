@@ -21,12 +21,17 @@ export const UPKEEP_DIVISOR = 8;
 /** Damage-taken reduction in percent. */
 export const COVER_PERCENT = { plain: 0, rough: 20, stone: 30, pit: 0 } as const;
 
-/** Alignment stat modifier in percent. */
-export const ALIGN_BONUS = 120;
-export const ALIGN_PENALTY = 80;
+/** Alignment: added to ATK, DEF, MP and MDF at the aligned Time of Day, subtracted at the opposite one. */
+export const ALIGN_STAT = 2;
 
-/** Facing Modifier knots ×1000 at 0°, 60°, 120°, 180°. */
-export const FACING_KNOTS = [1000, 1200, 1600, 2000] as const;
+/**
+ * Facing Bonus, doubled (to stay in integers), by the angle of the hit from
+ * the defender's Facing: under 30° +0, 30°–90° +0.5, 90°–150° +1.5, 150°+ +2.
+ */
+export const FACING_BONUS_X2 = [0, 1, 3, 4] as const;
+
+/** Element Bonus, doubled: Counter (Strong) +4, neutral +1, same Element −1, Countered (Weak) −3.5. */
+export const ELEMENT_BONUS_X2 = { counter: 8, neutral: 2, same: -2, countered: -7 } as const;
 
 /** Time of Day boundaries in minutes of the day. */
 export const DAY_START = 8 * 60;
@@ -36,8 +41,6 @@ export const NIGHT_END = 4 * 60;
 
 export const MINUTES_PER_DAY = 24 * 60;
 
-/** Damage = DAMAGE_K × ATK/DEF (or MP/MDF) × modifiers. */
-export const DAMAGE_K = 3;
 /** Heal = MP / HEAL_DIVISOR (rounded). */
 export const HEAL_DIVISOR = 3;
 

@@ -157,7 +157,7 @@ function SummonerInfo({ id }: { id: string }) {
         <b>{k.name}</b> {k.element && <ElementIcon element={k.element} />} {k.alignment !== 'none' && <AlignmentIcon alignment={k.alignment} />}
         <span className="muted small"> Mana Income {2 * k.stats.mp}/h before Stones</span>
       </div>
-      <StatGrid stats={k.stats} pct={100} />
+      <StatGrid stats={k.stats} />
     </div>
   );
 }

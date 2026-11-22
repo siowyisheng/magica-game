@@ -11,13 +11,13 @@ const ORDER: { key: keyof Stats; icon: 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'm
 ];
 
 /** The six basic stats with their icons; ATK/DEF/MP/MDF show the current Alignment adjustment. */
-export function StatGrid({ stats, pct = 100, size = 14 }: { stats: Stats; pct?: number; size?: number }) {
+export function StatGrid({ stats, align = 0, size = 14 }: { stats: Stats; align?: number; size?: number }) {
   return (
     <div className="stat-grid">
       {ORDER.map(({ key, icon, aligned }) => {
         const v = stats[key];
-        const shown = aligned && pct !== 100 ? Math.round((v * pct) / 100) : v;
-        const cls = aligned && pct !== 100 ? (pct > 100 ? 'good' : 'bad') : '';
+        const shown = aligned ? v + align : v;
+        const cls = aligned && align !== 0 ? (align > 0 ? 'good' : 'bad') : '';
         return (
           <span key={key} className="stat">
             <Icon name={icon} size={size} />

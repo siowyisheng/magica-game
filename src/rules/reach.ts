@@ -1,7 +1,7 @@
 // Move Range, Attack Reach, Magic Reach and targeting plans (pure).
 
 import { type Hex, hexDistance, hexEq, hexKey, hexesInRange } from './hex';
-import { affectedUnits, facingModifier, minAimDistance, shotAllowed, trajectoryOf } from './combat';
+import { affectedUnits, facingBonusX2, minAimDistance, shotAllowed, trajectoryOf } from './combat';
 import { kindOf } from './kinds';
 import { mapHexAt, reachable } from './terrain';
 import { isObstacle, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
@@ -93,9 +93,8 @@ function bestSource(unit: Unit, target: Target, sources: Hex[], useFacing: boole
   let best = sources[0];
   let bestScore: [number, number, number] = [-1, -1, -1];
   for (const h of sources) {
-    const f = useFacing && !isObstacle(target) ? facingModifier(target.pos, target.facing, h) : { num: 1, den: 1 };
-    // compare ratios exactly: f.num / f.den
-    const score: [number, number, number] = [f.num / f.den, hexDistance(h, target.pos), hexEq(h, unit.pos) ? 1 : 0];
+    const f = useFacing && !isObstacle(target) ? facingBonusX2(target.pos, target.facing, h) : 0;
+    const score: [number, number, number] = [f, hexDistance(h, target.pos), hexEq(h, unit.pos) ? 1 : 0];
     const better =
       score[0] > bestScore[0] + 1e-12 ||
       (Math.abs(score[0] - bestScore[0]) <= 1e-12 &&

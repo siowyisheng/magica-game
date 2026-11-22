@@ -1,9 +1,9 @@
 import { type Hex, hexDistance, hexesInRange, hexSub, ringPosition, hexEq } from './hex';
-import { COVER_PERCENT, DAMAGE_K, FACING_KNOTS, HEAL_DIVISOR } from './data/tuning';
+import { COVER_PERCENT, ELEMENT_BONUS_X2, FACING_BONUS_X2, HEAL_DIVISOR } from './data/tuning';
 import { kindOf } from './kinds';
 import { mapHexAt, surfaceOf, targetAt } from './terrain';
-import { alignmentPercent } from './time';
-import { isObstacle, type Element, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
+import { alignmentBonus } from './time';
+import { isObstacle, type Element, type UnitKind, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
 import type { Dir } from './hex';
 
 /** A rational number with integer parts. */
@@ -29,31 +29,44 @@ export function roundRatio(num: number, den: number): number {
 
 const COUNTERS: Record<Element, Element> = { fire: 'air', air: 'earth', earth: 'water', water: 'fire' };
 
-export function elementModifier(attacker: Element | null, defender: Element | null): Ratio {
-  if (!attacker || !defender) return { num: 1, den: 1 };
-  if (COUNTERS[attacker] === defender) return { num: 2, den: 1 };
-  if (COUNTERS[defender] === attacker) return { num: 1, den: 2 };
-  return { num: 1, den: 1 };
+export type ElementRelation = keyof typeof ELEMENT_BONUS_X2;
+
+/** How an attacking Element stands against a defending one. No Element on either side is neutral. */
+export function elementRelation(attacker: Element | null, defender: Element | null): ElementRelation {
+  if (!attacker || !defender) return 'neutral';
+  if (attacker === defender) return 'same';
+  if (COUNTERS[attacker] === defender) return 'counter';
+  if (COUNTERS[defender] === attacker) return 'countered';
+  return 'neutral';
+}
+
+/**
+ * Element Bonus ×2 for a hit. Summoners always attack as a Counter and are
+ * always hit as neutral, whatever their own Element; Obstacles (`defender`
+ * null) are hit as neutral.
+ */
+export function elementBonusX2(attacker: UnitKind, defender: UnitKind | null): number {
+  if (attacker.isSummoner) return ELEMENT_BONUS_X2.counter;
+  if (!defender || defender.isSummoner) return ELEMENT_BONUS_X2.neutral;
+  return ELEMENT_BONUS_X2[elementRelation(attacker.element, defender.element)];
 }
 
 // ---------- Facing ----------
 
 /**
- * Facing Modifier for a hit on a defender at `defPos` facing `facing`,
- * coming from `fromPos`. Uses the hex-ring angle (ADR 0001).
- * Returned as a ratio with denominator 1000·d.
+ * Facing Bonus ×2 for a hit on a defender at `defPos` facing `facing`,
+ * coming from `fromPos`, by the hex-ring angle (ADR 0001): under 30° +0,
+ * 30°–90° +0.5, 90°–150° +1.5, 150° and more +2.
  */
-export function facingModifier(defPos: Hex, facing: Dir, fromPos: Hex): Ratio {
+export function facingBonusX2(defPos: Hex, facing: Dir, fromPos: Hex): number {
   const v = hexSub(fromPos, defPos);
-  if (v.q === 0 && v.r === 0) return { num: 1, den: 1 };
+  if (v.q === 0 && v.r === 0) return FACING_BONUS_X2[0];
   const { p, d } = ringPosition(v);
   let m = (((p - facing * d) % (6 * d)) + 6 * d) % (6 * d);
   if (m > 3 * d) m = 6 * d - m;
-  const seg = Math.floor(m / d);
-  if (seg >= 3) return { num: FACING_KNOTS[3], den: 1000 };
-  const rem = m - seg * d;
-  const num = FACING_KNOTS[seg] * d + (FACING_KNOTS[seg + 1] - FACING_KNOTS[seg]) * rem;
-  return { num, den: 1000 * d };
+  // angle = 60·m/d degrees; compare 2m against d (30°), 3d (90°), 5d (150°)
+  const band = 2 * m < d ? 0 : 2 * m < 3 * d ? 1 : 2 * m < 5 * d ? 2 : 3;
+  return FACING_BONUS_X2[band];
 }
 
 /** Angle in degrees on the hex ring (for UI display only). */
@@ -79,13 +92,13 @@ export function coverPercent(state: MatchState, h: Hex): number {
 // ---------- Damage / heal ----------
 
 export interface Breakdown {
-  base: number; // power × ratio as a float, display only
-  element: number;
-  facing: number;
+  base: number; // (ATK − DEF) / 2 after Alignment, display only
+  element: number; // Element Bonus
+  facing: number; // Facing Bonus
   facingAngle: number;
   cover: number; // percent
-  attackerAlign: number; // percent
-  defenderAlign: number; // percent
+  attackerAlign: number; // added to the attacker's stat
+  defenderAlign: number; // added to the defender's stat
 }
 
 export interface Effect {
@@ -102,6 +115,11 @@ export interface Effect {
 
 export type HitKind = 'physical' | 'magic';
 
+/**
+ * Damage = ((ATK − DEF) / 2 + Element Bonus + Facing Bonus) × (100% − terrain
+ * Defense), MP and MDF for Magic; fractions dropped, never below 0, at most
+ * the defender's HP. Alignment adds or subtracts ALIGN_STAT to the stats first.
+ */
 export function computeDamage(
   state: MatchState,
   attacker: Unit,
@@ -110,31 +128,31 @@ export function computeDamage(
   hit: HitKind,
 ): Effect {
   const ak = kindOf(attacker.kind);
-  const aPct = alignmentPercent(ak.alignment, state.clock);
-  const aStat = (hit === 'physical' ? ak.stats.atk : ak.stats.mp) * aPct;
+  const aAlign = alignmentBonus(ak.alignment, state.clock);
+  const aStat = (hit === 'physical' ? ak.stats.atk : ak.stats.mp) + aAlign;
   let dStat: number;
-  let dPct = 100;
-  let el: Ratio = { num: 1, den: 1 };
-  let fac: Ratio = { num: 1, den: 1 };
+  let dAlign = 0;
+  let el2: number;
+  let fac2 = 0;
   let facingAngle = 0;
   let cover = 0;
   if (isObstacle(defender)) {
-    // Obstacles: no Element, no Facing, no cover; DEF = MDF.
-    dStat = defender.def * 100;
+    // Obstacles: no Element (hit as neutral), no Facing, no cover; DEF = MDF.
+    dStat = defender.def;
+    el2 = elementBonusX2(ak, null);
   } else {
     const dk = kindOf(defender.kind);
-    dPct = alignmentPercent(dk.alignment, state.clock);
-    dStat = (hit === 'physical' ? dk.stats.def : dk.stats.mdf) * dPct;
-    el = elementModifier(ak.element, dk.element);
-    fac = facingModifier(defender.pos, defender.facing, attackerPos);
+    dAlign = alignmentBonus(dk.alignment, state.clock);
+    dStat = (hit === 'physical' ? dk.stats.def : dk.stats.mdf) + dAlign;
+    el2 = elementBonusX2(ak, dk);
+    fac2 = facingBonusX2(defender.pos, defender.facing, attackerPos);
     facingAngle = facingAngleDegrees(defender.pos, defender.facing, attackerPos);
     cover = coverPercent(state, defender.pos);
   }
-  // Facing and Element bonuses add: 1 + (facing − 1) + (element − 1) = facing + element − 1
-  const mod: Ratio = { num: fac.num * el.den + el.num * fac.den - fac.den * el.den, den: fac.den * el.den };
-  const num = DAMAGE_K * aStat * mod.num * (100 - cover);
-  const den = Math.max(1, dStat) * mod.den * 100;
-  const amount = Math.min(defender.hp, roundRatio(num, den));
+  // all doubled to stay in integers: 2 × damage before terrain
+  const twice = aStat - dStat + el2 + fac2;
+  const raw = twice <= 0 ? 0 : idiv(twice * (100 - cover), 200);
+  const amount = Math.min(defender.hp, raw);
   return {
     unitId: defender.id,
     obstacle: isObstacle(defender),
@@ -143,21 +161,21 @@ export function computeDamage(
     hpBefore: defender.hp,
     lethal: amount >= defender.hp,
     breakdown: {
-      base: (DAMAGE_K * aStat) / Math.max(1, dStat),
-      element: el.num / el.den,
-      facing: fac.num / fac.den,
+      base: (aStat - dStat) / 2,
+      element: el2 / 2,
+      facing: fac2 / 2,
       facingAngle,
       cover,
-      attackerAlign: aPct,
-      defenderAlign: dPct,
+      attackerAlign: aAlign,
+      defenderAlign: dAlign,
     },
   };
 }
 
 export function computeHeal(state: MatchState, caster: Unit, target: Unit): Effect {
   const ck = kindOf(caster.kind);
-  const pct = alignmentPercent(ck.alignment, state.clock);
-  const raw = roundRatio(ck.stats.mp * pct, 100 * HEAL_DIVISOR);
+  const mp = Math.max(0, ck.stats.mp + alignmentBonus(ck.alignment, state.clock));
+  const raw = roundRatio(mp, HEAL_DIVISOR);
   const amount = Math.min(raw, 10 - target.hp);
   return { unitId: target.id, kind: 'heal', amount, hpBefore: target.hp, lethal: false };
 }
