@@ -1,5 +1,5 @@
 // Map Themes: the look of Plain (2 variants), Rough (2 variants), Pit and the
-// three Obstacles (DEF 5 / 10 / 15). Visual only — never rules.
+// three Obstacles (DEF 2 / 4 / 6). Visual only — never rules.
 //
 // Readability conventions shared by every Theme:
 // - Plain is a flat, calm top: colour and flat detail only, nothing raised.
@@ -50,7 +50,7 @@ export interface Theme {
   plain: [TileLook, TileLook];
   rough: [TileLook, TileLook];
   pit: PitLook;
-  obstacles: Record<5 | 10 | 15, (rnd: () => number) => Deco[]>;
+  obstacles: Record<2 | 4 | 6, (rnd: () => number) => Deco[]>;
 }
 
 // ---------- helpers ----------
@@ -194,9 +194,9 @@ export const THEMES: Theme[] = [
     ],
     pit: { wall: '#3a2a1c', floor: '#06060a', depth: 1.4, deco: (r) => rocks(r, 3, ['#2a2018'], 0.1) },
     obstacles: {
-      5: (r) => clumps(r, 1, ['#3c6a28'], 0.3).map((d) => ({ ...d, p: [d.p[0] * 0.2, d.p[1], d.p[2] * 0.2] as [number, number, number] })),
-      10: () => [{ shape: 'rock', p: [0, 0.36, 0], s: [0.48, 0.42, 0.44], color: '#8c8a84', rot: [0.3, 0.7, 0.2] }],
-      15: () => [
+      2: (r) => clumps(r, 1, ['#3c6a28'], 0.3).map((d) => ({ ...d, p: [d.p[0] * 0.2, d.p[1], d.p[2] * 0.2] as [number, number, number] })),
+      4: () => [{ shape: 'rock', p: [0, 0.36, 0], s: [0.48, 0.42, 0.44], color: '#8c8a84', rot: [0.3, 0.7, 0.2] }],
+      6: () => [
         { shape: 'box', p: [0, 0.72, 0], s: [0.38, 1.44, 0.3], color: '#8a8a94', rot: [0, 0.3, 0.04] },
         { shape: 'box', p: [0, 1.46, 0], s: [0.4, 0.08, 0.32], color: '#5f8a3a', rot: [0, 0.3, 0.04] },
         { shape: 'box', p: [0.02, 0.95, 0.16], s: [0.08, 0.3, 0.02], color: '#9fe0ff', emissive: 0.8, rot: [0, 0.3, 0.04] },
@@ -225,17 +225,17 @@ export const THEMES: Theme[] = [
     ],
     pit: { wall: '#a07a48', floor: '#2a1a10', depth: 1.1, deco: (r) => rocks(r, 2, ['#8a6a40'], 0.1) },
     obstacles: {
-      5: () => [
+      2: () => [
         { shape: 'cyl', p: [0, 0.32, 0], s: [0.12, 0.64, 0.12], color: '#4a8a3a' },
         { shape: 'cyl', p: [0.16, 0.42, 0], s: [0.07, 0.24, 0.07], color: '#4a8a3a' },
         { shape: 'cyl', p: [-0.15, 0.36, 0], s: [0.07, 0.2, 0.07], color: '#4a8a3a' },
         { shape: 'sphere', p: [0, 0.66, 0], s: [0.06, 0.05, 0.06], color: '#f070a0' },
       ],
-      10: () => [
+      4: () => [
         { shape: 'rock', p: [0, 0.34, 0], s: [0.5, 0.4, 0.42], color: '#c47a46', rot: [0.2, 0.4, 0.1] },
         { shape: 'rock', p: [0.22, 0.6, 0.05], s: [0.28, 0.24, 0.26], color: '#b06c3c', rot: [0.5, 0.1, 0.3] },
       ],
-      15: () => [
+      6: () => [
         { shape: 'box', p: [0, 0.1, 0], s: [0.56, 0.2, 0.56], color: '#c8a46c' },
         { shape: 'cone', p: [0, 0.9, 0], s: [0.24, 1.4, 0.24], color: '#d8b47c', rot: [0, Math.PI / 4, 0] },
         { shape: 'cone', p: [0, 1.66, 0], s: [0.06, 0.14, 0.06], color: '#ffd84a', emissive: 0.6 },
@@ -272,16 +272,16 @@ export const THEMES: Theme[] = [
     ],
     pit: { wall: '#4a4640', floor: '#141214', depth: 0.9, deco: (r) => spikes(r, '#b8bcc8') },
     obstacles: {
-      5: () => [
+      2: () => [
         { shape: 'box', p: [0, 0.24, 0], s: [0.46, 0.46, 0.46], color: '#9a6a3a', rot: [0, 0.4, 0] },
         { shape: 'box', p: [0, 0.24, 0], s: [0.48, 0.08, 0.48], color: '#6a4422', rot: [0, 0.4, 0] },
       ],
-      10: () => [
+      4: () => [
         { shape: 'cyl', p: [0, 0.4, 0], s: [0.26, 0.8, 0.26], color: '#b8b4a8' },
         { shape: 'rock', p: [0.06, 0.84, 0], s: [0.24, 0.16, 0.22], color: '#a8a498', rot: [0.4, 0.2, 0.6] },
         { shape: 'box', p: [0, 0.04, 0], s: [0.64, 0.08, 0.64], color: '#9a968a' },
       ],
-      15: () => [
+      6: () => [
         { shape: 'box', p: [0, 0.2, 0], s: [0.6, 0.4, 0.6], color: '#9a968a' },
         { shape: 'cyl', p: [0, 0.75, 0], s: [0.2, 0.7, 0.18], color: '#c0bcb0' },
         { shape: 'sphere', p: [0, 1.22, 0], s: [0.17, 0.19, 0.17], color: '#c0bcb0' },
@@ -312,12 +312,12 @@ export const THEMES: Theme[] = [
     ],
     pit: { wall: '#2c4a6c', floor: '#040a16', depth: 1.4, deco: (r) => shards(r, 3, ['#6ab0e0'], 0.3) },
     obstacles: {
-      5: () => [
+      2: () => [
         { shape: 'sphere', p: [0, 0.14, 0], s: [0.42, 0.28, 0.38], color: '#f2f6fa' },
         { shape: 'cone', p: [0.08, 0.42, 0], s: [0.03, 0.3, 0.03], color: '#4a3a30', rot: [0, 0, -0.3] },
       ],
-      10: () => [{ shape: 'box', p: [0, 0.34, 0], s: [0.6, 0.66, 0.54], color: '#a8dcf4', rot: [0, 0.35, 0], opacity: 0.9 }],
-      15: () => [
+      4: () => [{ shape: 'box', p: [0, 0.34, 0], s: [0.6, 0.66, 0.54], color: '#a8dcf4', rot: [0, 0.35, 0], opacity: 0.9 }],
+      6: () => [
         { shape: 'cone', p: [0, 0.8, 0], s: [0.34, 1.6, 0.34], color: '#3a6a9a', rot: [0, 0.3, 0] },
         { shape: 'cone', p: [0.2, 0.4, 0.06], s: [0.14, 0.7, 0.14], color: '#5a8ab8', rot: [0, 0, -0.3] },
         { shape: 'cone', p: [-0.18, 0.34, 0.02], s: [0.12, 0.6, 0.12], color: '#5a8ab8', rot: [0, 0, 0.3] },
@@ -352,13 +352,13 @@ export const THEMES: Theme[] = [
       deco: (r) => spots(r, 3, 0.05, 0.5).map(([x, z]) => ({ shape: 'sphere', p: [x, 0.02, z], s: [0.1, 0.06, 0.1], color: '#ffc04a', emissive: 1.4 }) as Deco),
     },
     obstacles: {
-      5: () => [
+      2: () => [
         { shape: 'cyl', p: [0, 0.26, 0], s: [0.2, 0.52, 0.2], color: '#2a2220' },
         { shape: 'cone', p: [0.04, 0.6, 0], s: [0.12, 0.2, 0.12], color: '#2a2220', rot: [0, 0, 0.3] },
         { shape: 'sphere', p: [0, 0.5, 0.15], s: [0.05, 0.05, 0.03], color: '#ff7a2a', emissive: 1 },
       ],
-      10: () => [{ shape: 'rock', p: [0, 0.38, 0], s: [0.5, 0.46, 0.46], color: '#1e1a1e', rot: [0.4, 0.2, 0.5] }],
-      15: () => [
+      4: () => [{ shape: 'rock', p: [0, 0.38, 0], s: [0.5, 0.46, 0.46], color: '#1e1a1e', rot: [0.4, 0.2, 0.5] }],
+      6: () => [
         { shape: 'cone', p: [0, 0.84, 0], s: [0.3, 1.68, 0.3], color: '#2a1a3a', rot: [0, 0.4, 0] },
         { shape: 'cone', p: [0.18, 0.4, 0.05], s: [0.13, 0.8, 0.13], color: '#3a2650', rot: [0, 0, -0.35] },
         { shape: 'cone', p: [0, 1.5, 0.08], s: [0.04, 0.2, 0.04], color: '#c08aff', emissive: 0.9 },

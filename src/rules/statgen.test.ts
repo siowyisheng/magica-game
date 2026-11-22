@@ -72,11 +72,11 @@ describe('Stat Budget', () => {
 });
 
 describe('MDF floor check', () => {
-  it('flags a Summoner below 6, and a second one below 7', async () => {
+  it('flags a Summoner below 2, and a second one below 3', async () => {
     const { SUMMONERS, kindWarnings } = await import('./index');
     const k = SUMMONERS.find((x) => x.id === 'regent')!;
-    expect(kindWarnings({ ...k, stats: { ...k.stats, mdf: 5 } }, SUMMONERS).join()).toMatch(/MDF 6 or more/);
-    const lowered = SUMMONERS.map((x) => (x.id === 'regent' ? { ...x, stats: { ...x.stats, mdf: 6 } } : x));
+    expect(kindWarnings({ ...k, stats: { ...k.stats, mdf: 1 } }, SUMMONERS).join()).toMatch(/MDF 2 or more/);
+    const lowered = SUMMONERS.map((x) => (x.id === 'regent' ? { ...x, stats: { ...x.stats, mdf: 2 } } : x));
     expect(kindWarnings(lowered.find((x) => x.id === 'regent')!, lowered).join()).toMatch(/only 1 Summoner/);
     expect(kindWarnings(k, SUMMONERS)).toEqual([]);
   });

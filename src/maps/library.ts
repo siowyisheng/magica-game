@@ -1,7 +1,7 @@
 // Map library: built-in maps from the repo plus the player's own maps, kept
 // in this browser (localStorage) and exportable / importable as JSON files.
 
-import { SCAFFOLD_MAP, type MapDef, validateMap } from '../rules';
+import { SCAFFOLD_MAP, type MapDef, type ObstacleDefense, validateMap } from '../rules';
 
 export interface StoredMap {
   /** 'builtin:<name>' for built-in maps, otherwise a generated id. */
@@ -17,7 +17,7 @@ export const BUILTIN_MAPS: StoredMap[] = [{ id: 'builtin:scaffold-ford', builtin
 function readUser(): StoredMap[] {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '[]') as { id: string; map: MapDef }[];
-    return raw.filter((m) => m && typeof m.id === 'string' && isMapDef(m.map)).map((m) => ({ id: m.id, builtin: false, map: m.map }));
+    return raw.filter((m) => m && typeof m.id === 'string' && isMapDef(m.map)).map((m) => ({ id: m.id, builtin: false, map: migrateObstacles(m.map) }));
   } catch {
     return [];
   }
@@ -67,8 +67,15 @@ export function isMapDef(x: unknown): x is MapDef {
     m.spawns.length === 2 &&
     m.spawns.every(isHex) &&
     Array.isArray(m.spawnFacing) &&
-    (m.obstacles === undefined || (Array.isArray(m.obstacles) && m.obstacles.every((o) => isHex(o?.hex) && [5, 10, 15].includes(o.def))))
+    (m.obstacles === undefined || (Array.isArray(m.obstacles) && m.obstacles.every((o) => isHex(o?.hex) && [2, 4, 6, 5, 10, 15].includes(o.def))))
   );
+}
+
+/** Maps saved before Defense was halved list Obstacle Defense 5 / 10 / 15: now 2 / 4 / 6. */
+export function migrateObstacles(map: MapDef): MapDef {
+  const old: Record<number, ObstacleDefense> = { 5: 2, 10: 4, 15: 6 };
+  if (!map.obstacles?.some((o) => o.def in old)) return map;
+  return { ...map, obstacles: map.obstacles.map((o) => ({ ...o, def: old[o.def] ?? o.def })) };
 }
 
 export function exportMapJson(map: MapDef): string {
@@ -85,7 +92,7 @@ export function parseMapJson(text: string): MapDef {
   }
   const map = (data as { map?: unknown })?.map ?? data;
   if (!isMapDef(map)) throw new Error('not a Magica map file');
-  return map;
+  return migrateObstacles(map);
 }
 
 export function isPlayable(map: MapDef): boolean {

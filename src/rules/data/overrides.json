@@ -17,20 +17,20 @@
     },
     "siren": {
       "stats": {
-        "atk": 13,
-        "def": 14,
-        "mp": 11,
-        "mdf": 16,
+        "atk": 6,
+        "def": 6,
+        "mp": 5,
+        "mdf": 7,
         "spd": 11,
         "mov": 4
       }
     },
     "undine": {
       "stats": {
-        "atk": 3,
-        "def": 17,
-        "mp": 18,
-        "mdf": 11,
+        "atk": 1,
+        "def": 8,
+        "mp": 6,
+        "mdf": 5,
         "spd": 13,
         "mov": 7
       },
@@ -47,10 +47,10 @@
     },
     "wolf": {
       "stats": {
-        "atk": 20,
-        "def": 16,
-        "mp": 3,
-        "mdf": 14,
+        "atk": 10,
+        "def": 7,
+        "mp": 1,
+        "mdf": 6,
         "spd": 11,
         "mov": 6
       },
@@ -61,10 +61,10 @@
     },
     "hawk": {
       "stats": {
-        "atk": 9,
-        "def": 4,
-        "mp": 4,
-        "mdf": 8,
+        "atk": 4,
+        "def": 1,
+        "mp": 2,
+        "mdf": 3,
         "spd": 11,
         "mov": 6
       },
@@ -76,10 +76,10 @@
     },
     "monk": {
       "stats": {
-        "atk": 12,
-        "def": 9,
-        "mp": 6,
-        "mdf": 12,
+        "atk": 6,
+        "def": 4,
+        "mp": 3,
+        "mdf": 5,
         "spd": 12,
         "mov": 5
       },
@@ -90,20 +90,20 @@
     },
     "harpy": {
       "stats": {
-        "atk": 14,
-        "def": 11,
-        "mp": 15,
-        "mdf": 9,
+        "atk": 7,
+        "def": 5,
+        "mp": 7,
+        "mdf": 4,
         "spd": 8,
         "mov": 5
       }
     },
     "muse": {
       "stats": {
-        "atk": 10,
-        "def": 12,
-        "mp": 7,
-        "mdf": 11,
+        "atk": 5,
+        "def": 5,
+        "mp": 3,
+        "mdf": 5,
         "spd": 9,
         "mov": 5
       },
@@ -115,10 +115,10 @@
     },
     "giant": {
       "stats": {
-        "atk": 15,
-        "def": 14,
-        "mp": 14,
-        "mdf": 15,
+        "atk": 7,
+        "def": 6,
+        "mp": 7,
+        "mdf": 7,
         "spd": 10,
         "mov": 6
       },
@@ -133,10 +133,10 @@
     "wyrm": {
       "alignment": "none",
       "stats": {
-        "atk": 17,
-        "def": 13,
-        "mp": 16,
-        "mdf": 17,
+        "atk": 8,
+        "def": 6,
+        "mp": 8,
+        "mdf": 8,
         "spd": 12,
         "mov": 5
       }

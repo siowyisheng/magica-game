@@ -182,7 +182,7 @@ export function PitTile({ mh, theme }: { mh: MapHex; theme: Theme }) {
 /** Obstacle models are authored small; drawn at this scale so they fill their hex. */
 const OBSTACLE_SCALE = 1.55;
 
-function obstacleTop(theme: Theme, def: 5 | 10 | 15): number {
+function obstacleTop(theme: Theme, def: 2 | 4 | 6): number {
   let top = 0.4;
   for (const d of theme.obstacles[def](rng(1))) top = Math.max(top, d.p[1] + d.s[1] / (d.shape === 'sphere' || d.shape === 'rock' ? 1 : 2));
   return top * OBSTACLE_SCALE;

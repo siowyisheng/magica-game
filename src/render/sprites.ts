@@ -247,7 +247,7 @@ export function spriteScale(kindId: string): number {
   const cost = k.isSummoner ? 64 : k.cost;
   const avgDef = (k.stats.def + k.stats.mdf) / 2;
   const costT = Math.min(1, Math.max(0, (cost - 16) / 80));
-  const defT = Math.min(1, Math.max(0, (avgDef - 8.5) / 8));
+  const defT = Math.min(1, Math.max(0, (avgDef - 3.25) / 4));
   return 1.55 * (1 + 0.3 * costT + 0.2 * defT);
 }
 

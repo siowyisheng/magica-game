@@ -29,32 +29,32 @@ type Row = [atk: number, def: number, mp: number, mdf: number, spd: number, mov:
 
 /** The reference Summoners the Stat Budget is fitted to (treated as balanced). */
 const REFERENCE_ROWS: Row[] = [
-  [15, 13, 10, 11, 15, 5, 1],
-  [9, 8, 12, 9, 15, 3, 1],
-  [12, 8, 12, 11, 14, 4, 1],
-  [17, 16, 10, 15, 13, 4, 1],
-  [14, 12, 13, 10, 11, 4, 1],
-  [11, 8, 10, 9, 15, 5, 4, 'direct'],
-  [9, 9, 11, 9, 14, 4, 6, 'high'],
-  [14, 15, 8, 12, 16, 5, 4, 'direct'],
-  [8, 9, 9, 11, 17, 6, 4, 'direct'],
-  [5, 4, 13, 6, 14, 4, 1],
-  [4, 9, 13, 12, 11, 4, 1],
-  [2, 4, 15, 10, 12, 3, 1],
-  [3, 5, 14, 7, 12, 4, 1],
-  [12, 12, 11, 12, 14, 4, 1],
-  [2, 4, 12, 8, 14, 6, 1],
-  [12, 10, 12, 7, 13, 5, 1],
-  [9, 5, 12, 16, 14, 4, 1],
-  [6, 7, 11, 12, 15, 4, 1],
-  [4, 6, 14, 9, 11, 4, 1],
-  [16, 14, 11, 10, 14, 4, 1],
-  [15, 11, 10, 12, 15, 5, 1],
-  [16, 14, 9, 12, 17, 5, 1],
-  [8, 6, 12, 7, 16, 3, 1],
-  [17, 7, 13, 9, 12, 4, 1],
-  [17, 15, 10, 13, 15, 4, 1],
-  [2, 6, 15, 7, 11, 4, 1],
+  [8, 6, 5, 5, 15, 5, 1],
+  [5, 3, 6, 4, 15, 3, 1],
+  [6, 3, 6, 5, 14, 4, 1],
+  [9, 7, 5, 7, 13, 4, 1],
+  [7, 5, 7, 4, 11, 4, 1],
+  [6, 3, 5, 4, 15, 5, 4, 'direct'],
+  [5, 4, 6, 4, 14, 4, 6, 'high'],
+  [7, 7, 4, 5, 16, 5, 4, 'direct'],
+  [4, 4, 5, 5, 17, 6, 4, 'direct'],
+  [3, 1, 7, 2, 14, 4, 1],
+  [2, 4, 7, 5, 11, 4, 1],
+  [1, 1, 8, 4, 12, 3, 1],
+  [2, 2, 7, 3, 12, 4, 1],
+  [6, 5, 6, 5, 14, 4, 1],
+  [1, 1, 6, 3, 14, 6, 1],
+  [6, 4, 6, 3, 13, 5, 1],
+  [5, 2, 6, 7, 14, 4, 1],
+  [3, 3, 6, 5, 15, 4, 1],
+  [2, 2, 7, 4, 11, 4, 1],
+  [8, 6, 6, 4, 14, 4, 1],
+  [8, 5, 5, 5, 15, 5, 1],
+  [8, 6, 5, 5, 17, 5, 1],
+  [4, 2, 6, 3, 16, 3, 1],
+  [9, 3, 7, 4, 12, 4, 1],
+  [9, 7, 5, 6, 15, 4, 1],
+  [1, 2, 8, 3, 11, 4, 1],
 ];
 
 export const REFERENCE_SPREADS: readonly ReferenceSpread[] = REFERENCE_ROWS.map(([atk, def, mp, mdf, spd, mov, range, trajectory]) => ({
@@ -132,14 +132,14 @@ const ALL_KEYS = ['atk', 'def', 'mp', 'mdf', 'spd', 'mov'] as const;
  * generated spreads stay at 7 or above (soft), and no Summoner may go below
  * 6 (hard), with at most one at 6.
  */
-export const MDF_FLOOR = { soft: 7, hard: 6, atHardFloor: 1 } as const;
+export const MDF_FLOOR = { soft: 3, hard: 2, atHardFloor: 1 } as const;
 
 /** Bounds of the references, widened by one point on each side (MOV kept to 3–6; MDF from the soft floor). */
 export const STAT_BOUNDS: Record<keyof Stats, [number, number]> = {
-  atk: [1, 18],
-  def: [3, 17],
-  mp: [8, 16],
-  mdf: [7, 17], // MDF_FLOOR.soft
+  atk: [1, 9],
+  def: [1, 8],
+  mp: [4, 8],
+  mdf: [3, 8], // MDF_FLOOR.soft
   spd: [10, 18],
   mov: [3, 6],
 };
@@ -194,8 +194,8 @@ export function zScores(s: Stats): number[] {
   return SD.map(({ k, mean, sd }) => (s[k] - mean) / sd);
 }
 
-/** ATK of ranged Summoners: the references' 8–14, widened by one (a ranged Summoner must be able to hurt). */
-export const RANGED_ATK: [number, number] = [7, 15];
+/** ATK of ranged Summoners: the references' 4–7, widened by one (a ranged Summoner must be able to hurt). */
+export const RANGED_ATK: [number, number] = [3, 8];
 
 /** Largest distance from the budget a generated spread may have (MP; the references sit within about ±0.5). */
 export const MAX_BUDGET_ERROR = 0.3;

@@ -1,6 +1,7 @@
 import { type Dir, type Hex, facingTowardTarget, hexDistance, hexEq, hexKey, neighbor } from './hex';
 import {
   BASE_DELAY_BY_SPEED,
+  INCOME_MULTIPLIER,
   MANA_MAX,
   MANA_START,
   MAX_HP,
@@ -71,7 +72,7 @@ export function manaIncome(state: MatchState, side: SideId): number {
   const s = summonerOf(state, side);
   if (!s) return 0;
   const mp = kindOf(s.kind).stats.mp;
-  return (STONE_BASE + stonesControlled(state, side)) * mp - upkeep(state, side);
+  return INCOME_MULTIPLIER * (STONE_BASE + stonesControlled(state, side)) * mp - upkeep(state, side);
 }
 
 export function magicAbility(kind: UnitKind, id: string): MagicAbility {

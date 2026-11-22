@@ -24,7 +24,8 @@ import {
   shippedKind,
 } from '../rules';
 
-const KEY = 'magica.balance';
+// v2: stats are on the halved scale (Damage = ATK − DEF), so edits saved under the old key no longer fit
+const KEY = 'magica.balance.v2';
 const FIELDS = ['name', 'cost', 'alignment', 'element', 'stats', 'moveTypes', 'attack'] as const;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -124,7 +125,7 @@ export function effectiveBalance(): Balance {
 }
 
 export function exportBalanceJson(): string {
-  return JSON.stringify({ format: 'magica-balance', version: 2, overrides: effectiveBalance() }, null, 1);
+  return JSON.stringify({ format: 'magica-balance', version: 3, overrides: effectiveBalance() }, null, 1);
 }
 
 /** Import exported balance: it becomes the local edits (on top of what ships). */
@@ -135,6 +136,8 @@ export function importBalanceJson(text: string) {
   } catch {
     throw new Error('not a JSON file');
   }
+  const version = (data as { version?: unknown })?.version;
+  if (typeof version === 'number' && version < 3) throw new Error('this balance file uses the old stat scale (ATK, DEF, MP and MDF twice as big): export it again from the current dev tool');
   const raw = (data as { overrides?: unknown })?.overrides ?? data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('not a Magica balance file');
   const b = normalizeBalance(raw);

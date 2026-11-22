@@ -35,17 +35,17 @@ describe('map editor', () => {
   it('places Obstacles only on Plain or Rough, and flags bad maps', () => {
     const ed = useEditor.getState();
     ed.setMirror(false);
-    ed.setObstacleDef(15);
+    ed.setObstacleDef(6);
     ed.paint({ col: 1, row: 1 }, false);
     let d = useEditor.getState().draft;
-    expect(d.cells[1 * d.width + 1].obstacle).toBe(15);
+    expect(d.cells[1 * d.width + 1].obstacle).toBe(6);
     // a spawn under an Obstacle is a problem
     ed.paint({ col: d.spawns[0].col, row: d.spawns[0].row }, false);
     expect(validateMap(toMapDef(useEditor.getState().draft)).some((p) => p.includes('under an Obstacle'))).toBe(true);
     // no Obstacles on Pits
     ed.setTool('pit');
     ed.paint({ col: 4, row: 4 }, false);
-    ed.setObstacleDef(5);
+    ed.setObstacleDef(2);
     ed.paint({ col: 4, row: 4 }, false);
     d = useEditor.getState().draft;
     expect(d.cells[4 * d.width + 4].obstacle).toBeUndefined();

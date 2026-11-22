@@ -70,30 +70,30 @@ const burst = (radius: 1 | 2, manaCost: number): MagicSpec => ({ kind: 'damage',
 const heal = (manaCost: number): MagicSpec => ({ kind: 'heal', range: 1, radius: 0, manaCost });
 
 const REFERENCE_ROWS: Ref[] = [
-  ['Fa-Rancell', 16, 'earth', 'none', [8, 6, 3, 7, 11, 5], ['walk', 'wade'], [1], null, 'grabber'],
-  ['Da-Colm', 64, 'earth', 'none', [18, 16, 5, 15, 9, 6], ['walk', 'wade'], [1], null, 'workhorse'],
-  ['Ae-Ferrion', 32, 'earth', 'none', [12, 8, 6, 5, 8, 5], ['walk'], [6, 'high'], null, 'sniper'],
-  ['Gia-Bro', 40, 'earth', 'none', [9, 10, 11, 16, 6, 5], ['walk', 'wade'], [1], dmg(4, 1, 6, 'high'), 'artillery'],
-  ['D-Alma', 24, 'earth', 'day', [5, 11, 11, 5, 10, 7], ['walk'], [1], heal(4), 'healer'],
-  ['Ba-Mado', 80, 'earth', 'night', [13, 11, 15, 15, 11, 5], ['fly'], [1], null, 'assassin', true],
-  ['Reque', 16, 'water', 'none', [9, 5, 2, 7, 13, 5], ['slow', 'swim'], [1], null, 'grabber'],
-  ['Neptjunoue', 64, 'water', 'none', [15, 13, 13, 16, 13, 6], ['slow', 'swim'], [1], dmg(4, 0, 8, 'direct'), 'caster'],
-  ['Tarbss', 48, 'water', 'none', [16, 12, 6, 12, 10, 5], ['swim'], [7, 'direct'], null, 'sniper'],
-  ['Zamilpen', 40, 'water', 'day', [12, 13, 11, 10, 8, 6], ['slow', 'swim'], [1], null, 'workhorse', true],
-  ['Marme', 32, 'water', 'night', [8, 9, 13, 14, 10, 5], ['slow', 'swim'], [1], heal(4), 'healer'],
-  ['Tentarch', 88, 'water', 'none', [19, 20, 19, 14, 11, 6], ['slow', 'swim'], [1], burst(2, 15), 'stallbreaker'],
-  ['Hepitus', 24, 'fire', 'none', [10, 8, 4, 9, 7, 6], ['walk'], [1], null, 'skirmisher'],
-  ['Oonevievle', 56, 'fire', 'none', [18, 14, 6, 13, 9, 6], ['walk'], [1], null, 'striker'],
-  ['Blexe', 40, 'fire', 'none', [13, 9, 7, 9, 8, 5], ['walk'], [4, 'direct'], null, 'ranged'],
-  ['Dullmdaler', 32, 'fire', 'night', [5, 8, 13, 11, 8, 6], ['walk'], [1], burst(1, 4), 'burster'],
-  ['Zenosblead', 88, 'fire', 'none', [16, 13, 16, 15, 12, 5], ['walk'], [1], dmg(7, 0, 10, 'direct'), 'caster'],
-  ['Greon', 80, 'fire', 'day', [13, 11, 9, 8, 10, 7], ['fly'], [1], null, 'assassin'],
-  ['Pelitt', 16, 'air', 'none', [1, 2, 12, 13, 13, 4], ['fly'], [1], null, 'screener'],
-  ['Currier-Bell', 48, 'air', 'none', [13, 12, 13, 7, 9, 5], ['fly'], [1], dmg(3, 1, 8, 'high'), 'artillery'],
-  ['Amoltamiss', 56, 'air', 'night', [13, 12, 6, 12, 11, 4], ['fly'], [5, 'high'], null, 'ranged'],
-  ['Guene-Foss', 32, 'air', 'day', [5, 5, 8, 9, 10, 6], ['fly'], [1], dmg(4, 0, 4, 'high'), 'harrier'],
-  ['Fifenall', 48, 'air', 'none', [4, 8, 16, 16, 10, 5], ['fly'], [1], heal(4), 'healer'],
-  ['Regna-Croxe', 80, 'air', 'none', [17, 12, 18, 11, 11, 6], ['fly'], [1], burst(2, 12), 'stallbreaker'],
+  ['Fa-Rancell', 16, 'earth', 'none', [4, 2, 2, 3, 11, 5], ['walk', 'wade'], [1], null, 'grabber'],
+  ['Da-Colm', 64, 'earth', 'none', [9, 7, 3, 7, 9, 6], ['walk', 'wade'], [1], null, 'workhorse'],
+  ['Ae-Ferrion', 32, 'earth', 'none', [6, 3, 3, 2, 8, 5], ['walk'], [6, 'high'], null, 'sniper'],
+  ['Gia-Bro', 40, 'earth', 'none', [5, 4, 6, 7, 6, 5], ['walk', 'wade'], [1], dmg(4, 1, 6, 'high'), 'artillery'],
+  ['D-Alma', 24, 'earth', 'day', [3, 5, 4, 2, 10, 7], ['walk'], [1], heal(4), 'healer'],
+  ['Ba-Mado', 80, 'earth', 'night', [7, 5, 8, 7, 11, 5], ['fly'], [1], null, 'assassin', true],
+  ['Reque', 16, 'water', 'none', [5, 2, 1, 3, 13, 5], ['slow', 'swim'], [1], null, 'grabber'],
+  ['Neptjunoue', 64, 'water', 'none', [8, 6, 7, 7, 13, 6], ['slow', 'swim'], [1], dmg(4, 0, 8, 'direct'), 'caster'],
+  ['Tarbss', 48, 'water', 'none', [8, 5, 3, 5, 10, 5], ['swim'], [7, 'direct'], null, 'sniper'],
+  ['Zamilpen', 40, 'water', 'day', [6, 6, 6, 4, 8, 6], ['slow', 'swim'], [1], null, 'workhorse', true],
+  ['Marme', 32, 'water', 'night', [4, 4, 4, 6, 10, 5], ['slow', 'swim'], [1], heal(4), 'healer'],
+  ['Tentarch', 88, 'water', 'none', [10, 9, 10, 6, 11, 6], ['slow', 'swim'], [1], burst(2, 15), 'stallbreaker'],
+  ['Hepitus', 24, 'fire', 'none', [5, 3, 2, 4, 7, 6], ['walk'], [1], null, 'skirmisher'],
+  ['Oonevievle', 56, 'fire', 'none', [9, 6, 3, 6, 9, 6], ['walk'], [1], null, 'striker'],
+  ['Blexe', 40, 'fire', 'none', [7, 4, 4, 4, 8, 5], ['walk'], [4, 'direct'], null, 'ranged'],
+  ['Dullmdaler', 32, 'fire', 'night', [3, 3, 7, 5, 8, 6], ['walk'], [1], burst(1, 4), 'burster'],
+  ['Zenosblead', 88, 'fire', 'none', [8, 6, 8, 7, 12, 5], ['walk'], [1], dmg(7, 0, 10, 'direct'), 'caster'],
+  ['Greon', 80, 'fire', 'day', [7, 5, 5, 3, 10, 7], ['fly'], [1], null, 'assassin'],
+  ['Pelitt', 16, 'air', 'none', [1, 0, 6, 6, 13, 4], ['fly'], [1], null, 'screener'],
+  ['Currier-Bell', 48, 'air', 'none', [7, 5, 7, 3, 9, 5], ['fly'], [1], dmg(3, 1, 8, 'high'), 'artillery'],
+  ['Amoltamiss', 56, 'air', 'night', [7, 5, 3, 5, 11, 4], ['fly'], [5, 'high'], null, 'ranged'],
+  ['Guene-Foss', 32, 'air', 'day', [3, 2, 4, 4, 10, 6], ['fly'], [1], dmg(4, 0, 4, 'high'), 'harrier'],
+  ['Fifenall', 48, 'air', 'none', [2, 3, 5, 7, 10, 5], ['fly'], [1], heal(4), 'healer'],
+  ['Regna-Croxe', 80, 'air', 'none', [9, 5, 9, 5, 11, 6], ['fly'], [1], burst(2, 12), 'stallbreaker'],
 ];
 
 export const REFERENCE_SUMMONS: readonly ReferenceSummon[] = REFERENCE_ROWS.map(([name, cost, element, alignment, s, moveTypes, [range, trajectory], magic, role, excluded]) => ({
@@ -112,7 +112,7 @@ export const REFERENCE_SUMMONS: readonly ReferenceSummon[] = REFERENCE_ROWS.map(
 // ---------- the Cost model ----------
 
 /** Fixed shape of a Magic Ability's worth (the fit sets its scale). */
-export const MAGIC_SHAPE = { perRange: 0.2, perRing: 1.5, heal: 0.6 } as const;
+export const MAGIC_SHAPE = { perRange: 0.2, perRing: 1.5, heal: 0.9 } as const;
 
 /** What the Magic Ability is worth before scaling: MP × its shape. */
 export function magicWorth(mp: number, m: MagicSpec | null): number {
@@ -196,10 +196,10 @@ export interface GeneratedSummon {
 }
 
 export const SUMMON_BOUNDS: Record<keyof Stats, [number, number]> = {
-  atk: [1, 20],
-  def: [2, 20],
-  mp: [2, 20],
-  mdf: [5, 18],
+  atk: [1, 10],
+  def: [0, 9],
+  mp: [1, 10],
+  mdf: [2, 8],
   spd: [6, 14],
   mov: [3, 7],
 };
@@ -274,7 +274,9 @@ export function generateSummon(rng: () => number, slot: SummonSlot, ref: Referen
   for (const k of STAT_KEYS) {
     if (k === 'mov') continue;
     const [lo, hi] = SUMMON_BOUNDS[k];
-    stats[k] = Math.max(lo, Math.min(hi, Math.round(stats[k] + gauss(rng) * 1.3)));
+    // ATK, DEF, MP and MDF are half the size of SPD, so they wobble half as much
+    const wobble = k === 'spd' ? 1.3 : 0.65;
+    stats[k] = Math.max(lo, Math.min(hi, Math.round(stats[k] + gauss(rng) * wobble)));
   }
   // vary a ranged reach a little
   const attack = { ...ref.attack };

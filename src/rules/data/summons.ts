@@ -27,34 +27,34 @@ type Def = [
 ];
 
 const DEFS: Def[] = [
-  ['imp', 'Scamp', 'fire', 16, 'none', 'grabber', [8, 6, 4, 7, 11, 5], ['walk'], [1], null], // from Fa-Rancell, model 15
-  ['hound', 'Cinder', 'fire', 24, 'day', 'skirmisher', [9, 6, 5, 10, 8, 6], ['walk'], [1], null], // from Hepitus, model 28
-  ['archer', 'Archon', 'fire', 40, 'day', 'ranged', [15, 10, 7, 8, 8, 5], ['walk'], [4, 'direct'], null], // from Blexe, model 40
-  ['wisp', 'Kindle', 'fire', 48, 'none', 'healer', [6, 9, 19, 14, 10, 5], ['fly'], [1], { name: 'Rekindle', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from Fifenall, model 45
-  ['newt', 'Ashen', 'fire', 56, 'night', 'burster', [5, 10, 18, 15, 10, 7], ['walk'], [1], { name: 'Flashfire', kind: 'damage', range: 0, radius: 1, manaCost: 4, burst: true }], // from Dullmdaler, model 54
-  ['golem', 'Magma', 'fire', 64, 'none', 'workhorse', [18, 15, 5, 15, 9, 6], ['walk'], [1], null], // from Da-Colm, model 67
-  ['drake', 'Pyrex', 'fire', 88, 'none', 'stallbreaker', [16, 11, 19, 11, 11, 6], ['fly'], [1], { name: 'Inferno', kind: 'damage', range: 0, radius: 2, manaCost: 12, burst: true }], // from Regna-Croxe, model 84
-  ['sprite', 'Spark', 'air', 16, 'day', 'harrier', [4, 6, 7, 9, 9, 4], ['fly'], [1], { name: 'Wind Lance', kind: 'damage', range: 5, radius: 0, manaCost: 4, trajectory: 'high' }], // from Guene-Foss, model 18
-  ['hawk', 'Comet', 'air', 32, 'night', 'harrier', [4, 2, 8, 10, 11, 6], ['fly'], [1], { name: 'Gale Shot', kind: 'damage', range: 4, radius: 0, manaCost: 4, trajectory: 'high' }], // from Guene-Foss, model 36
-  ['monk', 'Squall', 'air', 40, 'night', 'artillery', [10, 10, 10, 17, 6, 5], ['walk'], [1], { name: 'Thunderclap', kind: 'damage', range: 4, radius: 1, manaCost: 6, trajectory: 'high' }], // from Gia-Bro, model 43
-  ['muse', 'Nimbus', 'air', 48, 'none', 'artillery', [13, 11, 12, 7, 9, 5], ['fly'], [1], { name: 'Downburst', kind: 'damage', range: 3, radius: 1, manaCost: 8, trajectory: 'high' }], // from Currier-Bell, model 51
-  ['harpy', 'Shriek', 'air', 56, 'none', 'artillery', [15, 13, 13, 6, 7, 5], ['fly'], [1], { name: 'Downburst', kind: 'damage', range: 3, radius: 1, manaCost: 8, trajectory: 'high' }], // from Currier-Bell, model 52
-  ['giant', 'Ruin', 'air', 72, 'none', 'caster', [18, 11, 14, 15, 9, 6], ['walk'], [1], { name: 'Lightning', kind: 'damage', range: 7, radius: 0, manaCost: 10, trajectory: 'direct' }], // from Zenosblead, model 70
-  ['djinn', 'Vortex', 'air', 96, 'none', 'stallbreaker', [19, 15, 20, 11, 9, 6], ['fly'], [1], { name: 'Cyclone', kind: 'damage', range: 0, radius: 2, manaCost: 12, burst: true }], // from Regna-Croxe, model 92
-  ['clod', 'Clay', 'earth', 16, 'none', 'grabber', [8, 5, 4, 8, 10, 5], ['walk', 'wade'], [1], null], // from Fa-Rancell, model 15
-  ['thorn', 'Briar', 'earth', 24, 'day', 'healer', [5, 11, 13, 5, 10, 7], ['walk', 'wade'], [1], { name: 'Verdant Mend', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from D-Alma, model 27
-  ['sling', 'Thorne', 'earth', 32, 'none', 'ranged', [12, 9, 9, 10, 6, 5], ['walk', 'wade'], [4, 'direct'], null], // from Blexe, model 34
-  ['dryad', 'Mortar', 'earth', 48, 'night', 'artillery', [10, 9, 13, 17, 6, 5], ['walk', 'wade'], [1], { name: 'Boulder', kind: 'damage', range: 4, radius: 1, manaCost: 6, trajectory: 'high' }], // from Gia-Bro, model 44
-  ['turtle', 'Bunker', 'earth', 64, 'none', 'caster', [16, 9, 11, 16, 12, 6], ['slow', 'swim'], [1], { name: 'Stone Spike', kind: 'damage', range: 4, radius: 0, manaCost: 8, trajectory: 'direct' }], // from Neptjunoue, model 67
-  ['wyrm', 'Tremor', 'earth', 80, 'day', 'caster', [18, 13, 19, 17, 14, 5], ['walk', 'wade'], [1], { name: 'Meteor', kind: 'damage', range: 7, radius: 0, manaCost: 10, trajectory: 'direct' }], // from Zenosblead, model 77
-  ['titan', 'Rook', 'earth', 96, 'none', 'workhorse', [20, 20, 4, 18, 10, 7], ['walk'], [1], null], // from Da-Colm, model 92
-  ['bubble', 'Dew', 'water', 16, 'night', 'grabber', [8, 6, 3, 5, 13, 5], ['slow', 'swim'], [1], null], // from Reque, model 14
-  ['crab', 'Coral', 'water', 24, 'night', 'healer', [7, 11, 14, 17, 8, 4], ['slow', 'swim'], [1], { name: 'Healing Rain', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from Marme, model 27
-  ['siren', 'Naiad', 'water', 40, 'none', 'caster', [14, 14, 11, 16, 13, 3], ['slow', 'swim'], [1], { name: 'Water Jet', kind: 'damage', range: 4, radius: 0, manaCost: 8, trajectory: 'direct' }], // from Neptjunoue, model 44
-  ['undine', 'Mender', 'water', 48, 'day', 'healer', [3, 19, 18, 9, 14, 7], ['walk', 'swim'], [1], { name: 'Healing Rain', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from D-Alma, model 45
-  ['shark', 'Harpun', 'water', 56, 'none', 'sniper', [15, 15, 7, 11, 9, 5], ['swim'], [7, 'direct'], null], // from Tarbss, model 53
-  ['wolf', 'Frost', 'water', 72, 'none', 'striker', [20, 16, 3, 14, 10, 6], ['walk'], [1], null], // from Oonevievle, model 72
-  ['kraken', 'Abyss', 'water', 96, 'none', 'stallbreaker', [20, 20, 20, 15, 10, 6], ['slow', 'swim'], [1], { name: 'Maelstrom', kind: 'damage', range: 0, radius: 2, manaCost: 15, burst: true }], // from Tentarch, model 93
+  ['imp', 'Scamp', 'fire', 16, 'none', 'grabber', [4, 2, 2, 3, 11, 5], ['walk'], [1], null], // from Fa-Rancell, model 13
+  ['hound', 'Cinder', 'fire', 24, 'day', 'skirmisher', [4, 2, 2, 4, 8, 6], ['walk'], [1], null], // from Hepitus, model 21
+  ['archer', 'Archon', 'fire', 40, 'day', 'ranged', [7, 4, 3, 4, 8, 5], ['walk'], [4, 'direct'], null], // from Blexe, model 39
+  ['wisp', 'Kindle', 'fire', 48, 'none', 'healer', [3, 4, 6, 6, 10, 5], ['fly'], [1], { name: 'Rekindle', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from Fifenall, model 45
+  ['newt', 'Ashen', 'fire', 56, 'night', 'burster', [2, 4, 9, 8, 10, 7], ['walk'], [1], { name: 'Flashfire', kind: 'damage', range: 0, radius: 1, manaCost: 4, burst: true }], // from Dullmdaler, model 54
+  ['golem', 'Magma', 'fire', 64, 'none', 'workhorse', [9, 7, 2, 6, 9, 6], ['walk'], [1], null], // from Da-Colm, model 65
+  ['drake', 'Pyrex', 'fire', 88, 'none', 'stallbreaker', [9, 5, 9, 6, 11, 6], ['fly'], [1], { name: 'Inferno', kind: 'damage', range: 0, radius: 2, manaCost: 12, burst: true }], // from Regna-Croxe, model 88
+  ['sprite', 'Spark', 'air', 16, 'day', 'harrier', [2, 2, 3, 4, 9, 4], ['fly'], [1], { name: 'Wind Lance', kind: 'damage', range: 5, radius: 0, manaCost: 4, trajectory: 'high' }], // from Guene-Foss, model 18
+  ['hawk', 'Comet', 'air', 32, 'night', 'harrier', [2, 0, 4, 4, 11, 6], ['fly'], [1], { name: 'Gale Shot', kind: 'damage', range: 4, radius: 0, manaCost: 4, trajectory: 'high' }], // from Guene-Foss, model 41
+  ['monk', 'Squall', 'air', 40, 'night', 'artillery', [5, 4, 5, 8, 6, 5], ['walk'], [1], { name: 'Thunderclap', kind: 'damage', range: 4, radius: 1, manaCost: 6, trajectory: 'high' }], // from Gia-Bro, model 53
+  ['muse', 'Nimbus', 'air', 48, 'none', 'artillery', [7, 5, 6, 3, 9, 5], ['fly'], [1], { name: 'Downburst', kind: 'damage', range: 3, radius: 1, manaCost: 8, trajectory: 'high' }], // from Currier-Bell, model 57
+  ['harpy', 'Shriek', 'air', 56, 'none', 'artillery', [8, 6, 7, 2, 7, 5], ['fly'], [1], { name: 'Downburst', kind: 'damage', range: 3, radius: 1, manaCost: 8, trajectory: 'high' }], // from Currier-Bell, model 57
+  ['giant', 'Ruin', 'air', 72, 'none', 'caster', [9, 5, 7, 7, 9, 6], ['walk'], [1], { name: 'Lightning', kind: 'damage', range: 7, radius: 0, manaCost: 10, trajectory: 'direct' }], // from Zenosblead, model 64
+  ['djinn', 'Vortex', 'air', 96, 'none', 'stallbreaker', [9, 7, 10, 6, 9, 6], ['fly'], [1], { name: 'Cyclone', kind: 'damage', range: 0, radius: 2, manaCost: 12, burst: true }], // from Regna-Croxe, model 93
+  ['clod', 'Clay', 'earth', 16, 'none', 'grabber', [4, 2, 2, 4, 10, 5], ['walk', 'wade'], [1], null], // from Fa-Rancell, model 16
+  ['thorn', 'Briar', 'earth', 24, 'day', 'healer', [2, 5, 4, 2, 10, 7], ['walk', 'wade'], [1], { name: 'Verdant Mend', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from D-Alma, model 26
+  ['sling', 'Thorne', 'earth', 32, 'none', 'ranged', [6, 4, 4, 4, 6, 5], ['walk', 'wade'], [4, 'direct'], null], // from Blexe, model 33
+  ['dryad', 'Mortar', 'earth', 48, 'night', 'artillery', [5, 4, 6, 8, 6, 5], ['walk', 'wade'], [1], { name: 'Boulder', kind: 'damage', range: 4, radius: 1, manaCost: 6, trajectory: 'high' }], // from Gia-Bro, model 44
+  ['turtle', 'Bunker', 'earth', 64, 'none', 'caster', [8, 4, 5, 7, 12, 6], ['slow', 'swim'], [1], { name: 'Stone Spike', kind: 'damage', range: 4, radius: 0, manaCost: 8, trajectory: 'direct' }], // from Neptjunoue, model 62
+  ['wyrm', 'Tremor', 'earth', 80, 'day', 'caster', [9, 6, 10, 8, 14, 5], ['walk', 'wade'], [1], { name: 'Meteor', kind: 'damage', range: 7, radius: 0, manaCost: 10, trajectory: 'direct' }], // from Zenosblead, model 69
+  ['titan', 'Rook', 'earth', 96, 'none', 'workhorse', [10, 9, 2, 8, 10, 7], ['walk'], [1], null], // from Da-Colm, model 92
+  ['bubble', 'Dew', 'water', 16, 'night', 'grabber', [4, 2, 1, 3, 13, 5], ['slow', 'swim'], [1], null], // from Reque, model 16
+  ['crab', 'Coral', 'water', 24, 'night', 'healer', [3, 5, 5, 7, 8, 4], ['slow', 'swim'], [1], { name: 'Healing Rain', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from Marme, model 27
+  ['siren', 'Naiad', 'water', 40, 'none', 'caster', [7, 6, 6, 7, 13, 3], ['slow', 'swim'], [1], { name: 'Water Jet', kind: 'damage', range: 4, radius: 0, manaCost: 8, trajectory: 'direct' }], // from Neptjunoue, model 46
+  ['undine', 'Mender', 'water', 48, 'day', 'healer', [2, 9, 6, 4, 14, 7], ['walk', 'swim'], [1], { name: 'Healing Rain', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from D-Alma, model 49
+  ['shark', 'Harpun', 'water', 56, 'none', 'sniper', [7, 7, 3, 5, 9, 5], ['swim'], [7, 'direct'], null], // from Tarbss, model 55
+  ['wolf', 'Frost', 'water', 72, 'none', 'striker', [10, 7, 2, 6, 10, 6], ['walk'], [1], null], // from Oonevievle, model 71
+  ['kraken', 'Abyss', 'water', 96, 'none', 'stallbreaker', [10, 9, 10, 7, 10, 6], ['slow', 'swim'], [1], { name: 'Maelstrom', kind: 'damage', range: 0, radius: 2, manaCost: 15, burst: true }], // from Tentarch, model 93
 ];
 
 /** Magic Ability id from its name: 'Fire Arrow' → 'fire-arrow'. */

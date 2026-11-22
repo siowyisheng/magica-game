@@ -12,7 +12,6 @@ export function timeOfDay(clock: number): TimeOfDay {
   return 'neutral';
 }
 
-/** Stat multiplier in percent for an Alignment at a given clock. */
 /** Amount added to ATK, DEF, MP and MDF by Alignment at `clock`: +ALIGN_STAT, −ALIGN_STAT or 0. */
 export function alignmentBonus(alignment: Alignment, clock: number): number {
   if (alignment === 'none') return 0;

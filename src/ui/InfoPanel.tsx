@@ -1,7 +1,7 @@
 import {
   activeUnit,
   alignmentBonus,
-  coverPercent,
+  coverAt,
   dayOf,
   formatClock,
   kindOf,
@@ -11,6 +11,7 @@ import {
   surfaceOf,
   timeOfDay,
   upkeep,
+  INCOME_MULTIPLIER,
   MANA_MAX,
   STONE_BASE,
   type SideId,
@@ -99,7 +100,7 @@ export function InfoPanel() {
               ? 'Pit (only Fly crosses)'
               : `${mh.terrain === 'stone' ? 'Magic Stone' : mh.terrain === 'rough' ? 'Rough' : 'Plain'} · height ${mh.height} · ${surfaceOf(mh, match.waterLevel)}`}
           </div>
-          <div className="muted">Defense bonus {coverPercent(match, mh.hex)}%</div>
+          <div className="muted">Cover {coverAt(match, mh.hex) > 0 ? `−${coverAt(match, mh.hex)} damage taken` : 'none'}</div>
         </div>
       )}
 
@@ -196,7 +197,7 @@ function UnitCard({ unitId }: { unitId: number }) {
 function ManaBars({ side }: { side: SideId }) {
   const match = useGame((s) => s.match);
   const summoner = match.units.find((u) => u.side === side && kindOf(u.kind).isSummoner);
-  const mp = summoner ? kindOf(summoner.kind).stats.mp : 0;
+  const mp = summoner ? INCOME_MULTIPLIER * kindOf(summoner.kind).stats.mp : 0; // Mana per Stone-hour
   const stones = stonesControlled(match, side);
   const base = STONE_BASE * mp;
   const gross = (STONE_BASE + stones) * mp;
