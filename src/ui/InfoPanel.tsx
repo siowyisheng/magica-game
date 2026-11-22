@@ -1,6 +1,6 @@
 import {
   activeUnit,
-  alignmentPercent,
+  alignmentBonus,
   coverPercent,
   dayOf,
   formatClock,
@@ -150,13 +150,13 @@ function UnitCard({ unitId }: { unitId: number }) {
   const u = match.units.find((x) => x.id === unitId);
   if (!u) return null;
   const k = kindOf(u.kind);
-  const pct = alignmentPercent(k.alignment, match.clock);
+  const align = alignmentBonus(k.alignment, match.clock);
   return (
     <div className="window">
       <div className="title" style={{ color: SIDE_COLORS[u.side] }}>
         {k.element && <ElementIcon element={k.element} />} {k.name}{' '}
         {k.alignment !== 'none' && <AlignmentIcon alignment={k.alignment} />}
-        {pct !== 100 && <span className={`small ${pct > 100 ? 'good' : 'bad'}`}> {pct > 100 ? '+' : ''}{pct - 100}%</span>}
+        {align !== 0 && <span className={`small ${align > 0 ? 'good' : 'bad'}`}> {align > 0 ? '+' : '−'}{Math.abs(align)}</span>}
       </div>
       <div className="unit-card">
         <img src={unitIconUrl(u.kind, u.side)} alt="" />
@@ -170,7 +170,7 @@ function UnitCard({ unitId }: { unitId: number }) {
           <div className="muted">Move Type: {k.moveTypes.join(' + ')}</div>
         </div>
       </div>
-      <StatGrid stats={k.stats} pct={pct} />
+      <StatGrid stats={k.stats} align={align} />
       <div className="muted small">Attack: range {k.attack.range}</div>
       {k.magic.map((m) => (
         <div key={m.id} className="muted small">

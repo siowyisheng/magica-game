@@ -1,4 +1,4 @@
-import { alignmentPercent, kindOf, type SideId } from '../rules';
+import { alignmentBonus, kindOf, type SideId } from '../rules';
 import { useGame } from '../store';
 import { SIDE_COLORS } from '../render/sprites';
 import { AnimatedSprite } from './AnimatedSprite';
@@ -9,7 +9,7 @@ import { StatGrid, magicText } from './Stats';
 export function SummonDetail({ kindId, side }: { kindId: string; side: SideId }) {
   const match = useGame((s) => s.match);
   const k = kindOf(kindId);
-  const pct = alignmentPercent(k.alignment, match.clock);
+  const align = alignmentBonus(k.alignment, match.clock);
   const m = k.magic[0];
   return (
     <div className="window summon-card">
@@ -22,7 +22,7 @@ export function SummonDetail({ kindId, side }: { kindId: string; side: SideId })
           <div className="sc-tags">
             {k.element && <ElementIcon element={k.element} size={18} />}
             {k.alignment !== 'none' && <AlignmentIcon alignment={k.alignment} size={18} />}
-            {pct !== 100 && <span className={pct > 100 ? 'good' : 'bad'}>{pct > 100 ? '+' : ''}{pct - 100}%</span>}
+            {align !== 0 && <span className={align > 0 ? 'good' : 'bad'}>{align > 0 ? '+' : '−'}{Math.abs(align)}</span>}
           </div>
           <div className="muted">{k.role}</div>
           <div>
@@ -30,7 +30,7 @@ export function SummonDetail({ kindId, side }: { kindId: string; side: SideId })
           </div>
         </div>
       </div>
-      <StatGrid stats={k.stats} pct={pct} size={16} />
+      <StatGrid stats={k.stats} align={align} size={16} />
       <div className="sc-row">Move Type: {k.moveTypes.join(' + ')}</div>
       <div className="sc-row">
         Attack: range {k.attack.range}

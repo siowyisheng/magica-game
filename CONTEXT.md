@@ -67,7 +67,10 @@ _Avoid_: Threat range, attack range (when meaning after moving)
 One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has none.
 
 **Counter**:
-Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. A Counter adds +1.0 to the damage multiplier (×2 on its own); being Countered adds −0.5 (×0.5 on its own). It adds to the Facing bonus (see Damage). Opposite Elements (Fire–Earth, Air–Water) are neutral.
+Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. Opposite Elements (Fire–Earth, Air–Water) are neutral.
+
+**Element Bonus**:
+A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral +1, the same Element −1, being Countered −3.5. A Summoner always attacks as a Counter and is always hit as neutral, whatever its own Element; an Obstacle is hit as neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
@@ -96,7 +99,7 @@ Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
 A match ends 72 Game Clock hours after it starts if no Summoner has fallen. The Side controlling more Magic Stones then wins; if they are level, the Side with more total HP across its Units; if that is level too, the match is a draw.
 
 **Alignment**:
-Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF get a bonus; at the opposite one they get a penalty. Speed and Move are never changed by Alignment.
+Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF are 2 higher; at the opposite one they are 2 lower. Speed and Move are never changed by Alignment.
 
 ## Turn structure
 
@@ -127,12 +130,12 @@ A Unit that starts its turn on a hex none of its Move Types may enter. It takes 
 **Facing**:
 One of the six hex directions a Unit faces.
 
-**Facing Modifier**:
-A damage multiplier based on the angle between a defender's Facing and the direction the hit comes from: ×1.0 at 0°, ×1.2 at 60°, ×1.6 at 120° and ×2.0 at 180°, interpolated for angles in between. It applies to both Attack and Magic, and adds to the Element bonus rather than multiplying with it (see Damage).
+**Facing Bonus**:
+A flat amount added to damage by the angle between a defender's Facing and the direction the hit comes from: under 30° +0, 30° up to 90° +0.5, 90° up to 150° +1.5, 150° and more +2. So an adjacent hit from the front adds 0, from a front side +0.5, from a rear side +1.5 and from behind +2. It applies to both Attack and Magic.
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic) × (1 + Facing bonus + Element bonus), then multiplied by cover and Alignment. The Facing and Element bonuses add rather than multiply, with no cap: each is its modifier minus 1 (a hit from behind adds +1.0, a Counter +1.0, being Countered −0.5), so a Counter from behind deals ×3 and a Countered hit from behind ×1.5. Can be 0; never raised to a minimum.
+(Attacker's ATK − defender's DEF) ÷ 2 + Element Bonus + Facing Bonus, then reduced by the defender's terrain (cover); MP and MDF for Magic. Alignment changes the stats first. Fractions are dropped, and a result of 0 or less deals 0: there is no minimum. It never exceeds the defender's HP. For example, ATK 9 against DEF 4 with a Counter from behind deals (9 − 4) ÷ 2 + 4 + 2 = 8.5, so 8.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.
