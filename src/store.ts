@@ -44,6 +44,8 @@ import { getMap } from './maps/library';
 import { animWallMs, planTurnAnim, type TurnAnim } from './anim';
 import { ReplayCursor, loadReplay, newReplay, replayProblem, storeReplay, type Replay } from './replay/replay';
 
+export type HpBarsMode = 'always' | 'damaged' | 'off';
+
 /** Match Setup: map, and per Side a Summoner ('random' allowed) and who plays it. */
 export interface MatchSetup {
   mapId: string;
@@ -168,7 +170,8 @@ interface Store {
   hoverSummon: string | null;
   /** Other units whose ranges are toggled on (oldest first). Cleared when a turn ends. */
   inspected: number[];
-  showHpBars: boolean;
+  /** Floating HP bars: on every unit, only on damaged ones (default), or none. AV bars show unless off. */
+  hpBars: HpBarsMode;
   log: string[];
   aiThinking: boolean;
   /** The turn animation currently playing; `match` updates when it ends. */
@@ -193,7 +196,7 @@ interface Store {
   clickHex: (h: Hex) => void;
   rightClick: () => void;
   choose: (c: 'wait' | 'attack' | 'magic' | { magic: string } | { summon: string } | { sub: 'magic' | 'summon' }) => void;
-  toggleHpBars: () => void;
+  setHpBars: (mode: HpBarsMode) => void;
   setAi: (side: 0 | 1, ai: boolean) => void;
   tickAi: () => void;
 
@@ -348,7 +351,7 @@ export const useGame = create<Store>((set, get) => {
     hoverCommand: null,
     hoverSummon: null,
     inspected: [],
-    showHpBars: true,
+    hpBars: 'damaged',
     log: ['Match start — 06:00'],
     aiThinking: false,
     anim: null,
@@ -510,7 +513,7 @@ export const useGame = create<Store>((set, get) => {
       if (screen !== 'game' && get().replay) get().exitReplay();
       set({ screen, hoverHex: null, hoverUnitId: null });
     },
-    toggleHpBars: () => set((s) => ({ showHpBars: !s.showHpBars })),
+    setHpBars: (hpBars) => set({ hpBars }),
     setAi: (side, ai) => {
       if (get().replay) return;
       const m = get().match;

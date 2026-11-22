@@ -100,3 +100,34 @@ describe('healers', () => {
     expect(a.command.type === 'attack' && a.command.target).toEqual(mender.pos);
   });
 });
+
+describe('Stones and pointless hits', () => {
+  it('never Attacks or casts damage that deals 0', () => {
+    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 11 });
+    for (let turns = 0; st.winner === null && turns < 200; turns++) {
+      const me = st.units.find((u) => u.id === st.activeUnitId)!;
+      const a = chooseAction(st);
+      const r = applyTurn(st, a);
+      const c = a.command;
+      const damaging = c.type === 'attack' || (c.type === 'magic' && kindOf(me.kind).magic.find((m) => m.id === c.ability)?.kind === 'damage');
+      if (damaging) {
+        const hurt = r.events.some((e) => e.type === 'damage' && e.amount > 0 && (st.units.find((u) => u.id === e.unitId)?.side ?? -1) !== me.side);
+        expect(hurt, `${me.kind} ${JSON.stringify(c)}`).toBe(true);
+      }
+      st = r.state;
+    }
+  }, 60000);
+
+  it('steps onto its own empty Stone when an enemy could take it next turn', () => {
+    const hexes: MapHex[] = [];
+    for (let r = 0; r < 5; r++) for (let q = 0; q < 14; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: q === 4 && r === 2 ? 'stone' : 'plain' });
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(0, 4), hex(13, 0)], spawnFacing: [0, 3] };
+    const st = createMatch(map, { ai: [true, true] });
+    st.stones[0].owner = 0;
+    st.units.push({ id: 50, kind: 'imp', side: 0, pos: hex(2, 2), facing: 0, hp: 10, av: 0, stranded: false });
+    st.units.push({ id: 51, kind: 'hound', side: 1, pos: hex(8, 2), facing: 3, hp: 10, av: 30, stranded: false });
+    st.units.forEach((u) => { if (u.id !== 50) u.av = Math.max(u.av, 30); });
+    st.activeUnitId = 50;
+    expect(chooseAction(st).to).toEqual(hex(4, 2));
+  });
+});

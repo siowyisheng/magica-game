@@ -28,6 +28,7 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 
 **Good things**
 
+- **No pointless hits.** An Attack, or a damaging Magic ability, is never a candidate unless it deals more than 0 damage to at least one enemy or Obstacle.
 - **Damage** to enemies, scaled by the target's value. Units are valued by cost and HP. Summoners are worth more. Each point of damage is worth `damage` (10) × the target's value.
 - **Healing it will undo.** The AI works out how much each enemy can be healed before its own side's next hits land: every enemy healer that acts first and can reach it, at the healer's real heal amount. Damage only counts in full for what outlasts that healing; the rest is worth `healedDamage` (15%).
   - Damage to the enemy **Summoner** that healing is reaching, and that can't be finished this round net of that healing, is worth only `pokeSummoner` (35%). Without a healer in reach, chip damage on a Summoner counts in full. The lead goes into lining up a kill instead of being poured into a target that gets healed back up.
@@ -37,7 +38,8 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 - **Setting up a kill.** If the hit doesn't kill but leaves the target low enough that an ally can finish it before it acts again, that counts for part of a kill (`setupKill`, 0.3).
 - **Healing** allies is valued a little less than damage (`heal`, 7).
 - **Breaking Obstacles** is valued by how many enemies would then be able to reach you. Each one that breaking the Obstacle would open up is worth `obstacleOpening` (25), scaled by how much of its HP this hit takes. This is what makes the AI break a wall that blocks its only shot.
-- **Stones.** Standing on a Stone you don't own is worth `capture` (45), more if the enemy holds it. Standing on a Stone you already own is worth a little, more for a wounded Unit (Stone Heal). Stones are valued for their Mana, the same at every hour: **the AI never plays for the Time Limit**, and nothing in its scoring rewards running out the clock.
+- **Stones.** Standing on a Stone you don't own is worth `capture` (80), ×1.5 if the enemy holds it. Standing on a Stone you already own is worth a little, more for a wounded Unit (Stone Heal).
+- **Guarding Stones.** An own Stone is *threatened* when an enemy stands within its Move + 1 hexes of it. Standing on a threatened own Stone that no other Unit is already on is worth `guard` (55), since the enemy can't capture a Stone that is occupied. Threatened, unguarded own Stones also join the objectives every Summon is pulled toward, so a nearby Summon or the Summoner steps onto them. Stones are valued for their Mana, the same at every hour: **the AI never plays for the Time Limit**, and nothing in its scoring rewards running out the clock.
 - **Water.** When a Magic ability changes the Water Level, the AI counts which Units it would strand. Stranding an enemy is good (`strandEnemy`, 30 × value). Stranding an ally is bad (`strandAlly`, 35).
 - **Summoning** is scored in its own section below.
 
@@ -120,7 +122,7 @@ A Summon with a good attack will usually take it. The interesting part is what i
 ## Normal and Hard
 
 - **Normal** takes the single best-scoring candidate. Ties are broken with a random number from a seed based on the match's RNG state and the turn number, so the same match always plays out the same way.
-- **Hard** takes the top 5 distinct, legal candidates and plays each out (the playouts skip the screening re-score to stay within the time budget). After each one, every Unit plays Normal until this Unit's next turn (at most 6 turns). Each resulting position is then rated with `evaluate()`, which compares HP-weighted material, Summoners, Stones (a fixed weight for their Mana, never more as the Time Limit nears) and Mana. The best-rated first move wins. The candidate's own score only breaks near-ties.
+- **Hard** takes the top 5 distinct, legal candidates and plays each out (the playouts skip the screening re-score to stay within the time budget). After each one, every Unit plays Normal until this Unit's next turn (at most 6 turns). Each resulting position is then rated with `evaluate()`, which compares HP-weighted material, Summoners, Stones (a fixed weight of 30 each for their Mana, never more as the Time Limit nears) and Mana. The best-rated first move wins. The candidate's own score only breaks near-ties.
 
 Hard is therefore only a few turns deeper in a rough sense. It sees how the next few turns play out with the AI's own policy, not how the opponent would respond. That's the design limit of the current version.
 

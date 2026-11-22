@@ -1,4 +1,4 @@
-// Frozen copy of the AI with the healing-aware changes (Summoner poke discount always on); used as the arena baseline. Do not edit.
+// Frozen copy of the AI with the no-zero-damage rule, before Stone guarding; used as the arena baseline. Do not edit.
 // One-ply, timeline-aware AI. Enumerates every reachable hex × Command ×
 // target and scores the outcome, including how much damage enemies who act
 // before this Unit's next turn could deal to it. Pure and deterministic.
@@ -85,7 +85,7 @@ export const AI_WEIGHTS = {
   support: 0.5,
   /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
   healedDamage: 0.15,
-  /** Damage to an enemy Summoner that can't be finished this round, net of healing (× normal). */
+  /** Damage to an enemy Summoner that healing is reaching and that can't be finished this round (× normal). */
   pokeSummoner: 0.35,
   /** Value of heal blocked by standing in a healer's way (× damage of the same amount). */
   healBlock: 0.5,
@@ -427,9 +427,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
 
   /** Element relevance by distance: 1 next door, fading to 0 at summonRadius hexes. */
   const prox = (d: number) => Math.max(0, 1 - d / w.summonRadius);
-  const counters = (a: UnitKind['element'], b: UnitKind['element']) => {
-    return elementRelation(a, b) === 'counter';
-  };
+  const counters = (a: UnitKind['element'], b: UnitKind['element']) => elementRelation(a, b) === 'counter';
   // Rank summon kinds once (placement-independent), affordable or not.
   const rankedKinds = kind.isSummoner
     ? SUMMONS.filter((s) => inRoster(state, me.side, s.id))
@@ -531,6 +529,8 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         } else {
           const effects = previewEffects(state, draft);
           if (effects.length === 0) continue;
+          const isDamage = !ab || ab.kind === 'damage';
+          if (isDamage && !effects.some((e) => e.kind === 'damage' && e.amount > 0 && (e.obstacle || state.units.find((u) => u.id === e.unitId)?.side !== me.side))) continue;
           for (const e of effects) {
             if (e.obstacle) {
               score += obstacleValue(state, me, dest, e.unitId, e.amount, e.lethal, w);
@@ -547,7 +547,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
                 const canFinish = !e.lethal && t.hp - e.amount + heal <= (followUp.get(t.id) ?? 0);
                 let dmgValue = (net + (e.amount - net) * w.healedDamage) * w.damage * v;
                 // a Summoner that can't be finished this round just gets healed up: don't pour the lead into it
-                if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish) dmgValue *= w.pokeSummoner;
+                if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeSummoner;
                 score += dmgValue;
                 if (e.lethal) {
                   killed.add(t.id);
