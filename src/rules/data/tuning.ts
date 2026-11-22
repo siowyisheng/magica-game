@@ -13,7 +13,7 @@ export const BASE_DELAY_BY_SPEED: readonly number[] = [
 
 export const MAX_HP = 10;
 export const MANA_MAX = 120;
-export const MANA_START = 40;
+export const MANA_START = 120;
 /** Mana Income per hour = (STONE_BASE + stones) × Summoner MP − Upkeep. */
 export const STONE_BASE = 2;
 export const UPKEEP_DIVISOR = 8;
