@@ -129,6 +129,17 @@
       "magicIds": [
         "water-jet"
       ]
+    },
+    "wyrm": {
+      "alignment": "none",
+      "stats": {
+        "atk": 17,
+        "def": 13,
+        "mp": 16,
+        "mdf": 17,
+        "spd": 12,
+        "mov": 5
+      }
     }
   },
   "abilities": {}
