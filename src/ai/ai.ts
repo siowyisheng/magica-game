@@ -57,7 +57,7 @@ export const AI_WEIGHTS = {
   capture: 80,
   onStone: 6,
   /** Holding an own Stone that an enemy could take next turn (standing on it blocks the capture). */
-  guard: 55,
+  guard: 90,
   approach: 3,
   summonerSafety: 8,
   /** Hits-to-kill at which a Summoner keeps the standard distance (fewer: more careful, more: bolder). */
