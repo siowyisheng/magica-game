@@ -41,7 +41,7 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 
 **Attack (ATK)**: Contributes to the damage dealt by the Attack Command. ATK, DEF, MP and MDF are small numbers (about 0–10) on the same scale as HP: a point of ATK is a point of damage.
 **Defense (DEF)**: Reduces damage taken from the Attack Command.
-**Magic Power (MP)**: Contributes to the damage or healing of the Magic Command (a heal restores as much HP as the healer's MP). For a Summoner it is also the key factor in Mana generation.
+**Magic Power (MP)**: Contributes to the damage or healing of the Magic Command (a heal restores as much HP as the healer's MP). A Summon with no Magic Ability has MP 0, since MP does nothing without one. For a Summoner it is also the key factor in Mana generation.
 **Magic Defense (MDF)**: Reduces damage taken from the Magic Command.
 **Speed (SPD)**: Decides how soon a Unit acts again (see Action Value). The average is about 10, and most Units fall between 8 and 15.
 **Move (MOV)**: The Move Points a Unit can spend in one turn.

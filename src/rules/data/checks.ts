@@ -10,7 +10,8 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   if (!k.name.trim()) w.push('needs a name');
   else if (k.name.length > maxName) w.push(`name is longer than ${maxName} letters`);
   for (const [stat, v] of Object.entries(k.stats)) {
-    const min = stat === 'def' || stat === 'mdf' ? 0 : 1;
+    // DEF and MDF may be 0; so may a Summon's MP (it matters only for Magic, and a Summoner's MP sets its Mana Income)
+    const min = stat === 'def' || stat === 'mdf' || (stat === 'mp' && !k.isSummoner) ? 0 : 1;
     if (!Number.isInteger(v) || v < min) w.push(`${stat.toUpperCase()} should be a whole number of at least ${min}`);
     else if (v > 30) w.push(`${stat.toUpperCase()} above 30 is far outside the usual range`);
   }
