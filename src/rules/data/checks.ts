@@ -10,7 +10,8 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   if (!k.name.trim()) w.push('needs a name');
   else if (k.name.length > maxName) w.push(`name is longer than ${maxName} letters`);
   for (const [stat, v] of Object.entries(k.stats)) {
-    if (!Number.isInteger(v) || v < 1) w.push(`${stat.toUpperCase()} should be a whole number of at least 1`);
+    const min = stat === 'def' || stat === 'mdf' ? 0 : 1;
+    if (!Number.isInteger(v) || v < min) w.push(`${stat.toUpperCase()} should be a whole number of at least ${min}`);
     else if (v > 30) w.push(`${stat.toUpperCase()} above 30 is far outside the usual range`);
   }
   if (k.stats.spd < 1 || k.stats.spd > 20) w.push('SPD outside 1–20 has no Base Delay of its own');

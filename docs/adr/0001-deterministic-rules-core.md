@@ -4,5 +4,5 @@ The game rules live in `src/rules/`, a pure TypeScript module that imports nothi
 
 ## Consequences
 
-- For ranged hits, the Facing Bonus uses a **hex-ring angle**: the attacker's position around its hex ring relative to the defender. It does not use `Math.atan2`, because floating-point trig is not guaranteed to give the same result on every platform. The two agree at multiples of 60° and differ by a few degrees in between, which can move a hit near 30°, 90° or 150° into the neighbouring band. That difference is accepted on purpose; don't "fix" it with `atan2`.
+- For ranged hits, the Facing Bonus uses a **hex-ring angle**: the attacker's position around its hex ring relative to the defender. It does not use `Math.atan2`, because floating-point trig is not guaranteed to give the same result on every platform. The two agree at multiples of 60° and differ by a few degrees in between, which can move a hit near 90° or 120° into the neighbouring band. That difference is accepted on purpose; don't "fix" it with `atan2`.
 - Rules state is never iterated in an unordered way: Units are kept in arrays sorted by id.

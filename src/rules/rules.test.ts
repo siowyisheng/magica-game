@@ -3,7 +3,7 @@ import {
   applyTurn,
   computeDamage,
   createMatch,
-  facingBonusX2,
+  facingBonus,
   getUnit,
   hex,
   hexKey,
@@ -54,23 +54,23 @@ function activate(state: MatchState, u: Unit) {
 // ---------- hex angle & facing ----------
 
 describe('facing bonus', () => {
-  it('is +0 / +0.5 / +1.5 / +2 for adjacent hits', () => {
+  it('is Front +0, Flank +1, Back +2 for adjacent hits', () => {
     const d = hex(0, 0);
-    const bonus = (from: { q: number; r: number }) => facingBonusX2(d, 0, from) / 2;
+    const bonus = (from: { q: number; r: number }) => facingBonus(d, 0, from);
     expect(bonus(hex(1, 0))).toBe(0); // in front (E)
-    expect(bonus(hex(1, -1))).toBe(0.5); // 60°
-    expect(bonus(hex(0, 1))).toBe(0.5); // 60° other side
-    expect(bonus(hex(0, -1))).toBe(1.5); // 120°
+    expect(bonus(hex(1, -1))).toBe(0); // 60°
+    expect(bonus(hex(0, 1))).toBe(0); // 60° other side
+    expect(bonus(hex(0, -1))).toBe(2); // 120°
     expect(bonus(hex(-1, 0))).toBe(2); // directly behind
   });
 
-  it('puts ranged hits between hex directions into bands: 30° → +0.5, 150° → +2', () => {
+  it('puts ranged hits between hex directions into bands: under 90° +0, 90°–120° +1, 120°+ +2', () => {
     const v = hex(2, -1); // ring 2, halfway between E and NE → 30°
     expect(ringPosition(v)).toEqual({ p: 1, d: 2 });
-    expect(facingBonusX2(hex(0, 0), 0, v)).toBe(1);
-    expect(facingBonusX2(hex(0, 0), 0, hex(3, -1))).toBe(0); // 20°
-    expect(facingBonusX2(hex(0, 0), 0, hex(-1, -1))).toBe(4); // 150°
-    expect(facingBonusX2(hex(0, 0), 0, hex(-1, 2))).toBe(3); // 90°
+    expect(facingBonus(hex(0, 0), 0, v)).toBe(0);
+    expect(facingBonus(hex(0, 0), 0, hex(3, -1))).toBe(0); // 20°
+    expect(facingBonus(hex(0, 0), 0, hex(-1, 2))).toBe(1); // 90°
+    expect(facingBonus(hex(0, 0), 0, hex(-1, -1))).toBe(2); // 150°
   });
 });
 
@@ -143,49 +143,49 @@ describe('roster', () => {
 // ---------- damage ----------
 
 describe('damage', () => {
-  it('is (ATK − DEF)/2 + Element Bonus + Facing Bonus, fractions dropped, never below 0', () => {
+  it('is ATK − DEF + Element Bonus + Facing Bonus, never below 0', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60; // neutral time
-    const hound = place(state, 'hound', 0, 1, 1); // fire ATK 9
-    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air DEF 4, faces W toward the hound
-    // (9 − 4)/2 + 4 (fire counters air) + 0 (front) = 6.5 → 6
-    expect(computeDamage(state, hound, hound.pos, hawk, 'physical').amount).toBe(6);
+    const hound = place(state, 'hound', 0, 1, 1); // fire ATK 4
+    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air DEF 1, faces W toward the hound
+    // 4 − 1 + 4 (fire counters air) + 0 (front) = 7
+    expect(computeDamage(state, hound, hound.pos, hawk, 'physical').amount).toBe(7);
 
-    // a Counter from behind: 2.5 + 4 + 2 = 8.5 → 8
+    // a Counter from behind: 3 + 4 + 2 = 9
     const hawk2 = place(state, 'hawk', 1, 4, 1, 0); // faces E, away from a hound at (3,1)
     const back = computeDamage(state, hound, hex(3, 1), hawk2, 'physical');
     expect(back.breakdown!.facing).toBe(2);
     expect(back.breakdown!.element).toBe(4);
-    expect(back.amount).toBe(8);
+    expect(back.amount).toBe(9);
 
-    // Countered, even from behind: (9 − 11)/2 − 3.5 + 2 = −2.5 → 0
-    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 11, faces E
+    // Countered, even from behind: 4 − 5 − 4 + 2 = −3 → 0
+    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 5, faces E
     expect(computeDamage(state, hound, hex(2, 3), crab, 'physical').amount).toBe(0);
 
-    // neutral (fire–earth): (9 − 5)/2 + 1 = 3
-    const clod = place(state, 'clod', 1, 2, 5, 3); // earth DEF 5, faces W
-    expect(computeDamage(state, hound, hex(1, 5), clod, 'physical').amount).toBe(3);
+    // neutral (fire–earth): 4 − 2 = 2
+    const clod = place(state, 'clod', 1, 2, 5, 3); // earth DEF 2, faces W
+    expect(computeDamage(state, hound, hex(1, 5), clod, 'physical').amount).toBe(2);
 
-    // same Element: (9 − 6)/2 − 1 = 0.5 → 0
-    const hound2 = place(state, 'hound', 1, 5, 3, 3); // faces W
-    expect(computeDamage(state, hound, hex(4, 3), hound2, 'physical').amount).toBe(0);
+    // same Element counts as neutral: 4 − 2 = 2
+    const hound2 = place(state, 'hound', 1, 5, 3, 3); // fire DEF 2, faces W
+    expect(computeDamage(state, hound, hex(4, 3), hound2, 'physical').amount).toBe(2);
   });
 
   it('Summoners attack as a Counter and are hit as neutral, whatever the Elements', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60;
-    const hound = place(state, 'hound', 0, 1, 1); // fire ATK 9
-    const regent = place(state, 'regent', 1, 2, 1, 3); // Summoner DEF 9, faces W
-    // (9 − 9)/2 + 1 = 1
-    expect(computeDamage(state, hound, hound.pos, regent, 'physical').amount).toBe(1);
-    const oni = place(state, 'oni', 0, 1, 4); // Summoner ATK 18
-    const golem = place(state, 'golem', 1, 2, 4, 3); // fire DEF 15, faces W
-    // (18 − 15)/2 + 4 = 5.5 → 5
-    expect(computeDamage(state, oni, oni.pos, golem, 'physical').amount).toBe(5);
+    const drake = place(state, 'drake', 0, 1, 1); // fire ATK 9
+    const regent = place(state, 'regent', 1, 2, 1, 3); // Summoner DEF 3, faces W
+    // 9 − 3 + 0 = 6 (a Summoner is hit as neutral)
+    expect(computeDamage(state, drake, drake.pos, regent, 'physical').amount).toBe(6);
+    const oni = place(state, 'oni', 0, 1, 4); // Summoner ATK 9
+    const golem = place(state, 'golem', 1, 2, 4, 3); // fire DEF 7, faces W
+    // 9 − 7 + 4 = 6
+    expect(computeDamage(state, oni, oni.pos, golem, 'physical').amount).toBe(6);
   });
 
   it('can deal 0 damage', () => {
-    // air Sprite (ATK 4) into a fire Golem (DEF 15, counters air) on a Magic Stone
+    // air Sprite (ATK 2) into a fire Golem (DEF 7, counters air) on a Magic Stone
     const state = createMatch(testMap(6, 6, (q, r) => (q === 4 && r === 4 ? { terrain: 'stone' } : {})));
     state.clock = 22 * 60;
     const golem = place(state, 'golem', 1, 4, 4, 3);
@@ -193,30 +193,30 @@ describe('damage', () => {
     expect(computeDamage(state, sprite, sprite.pos, golem, 'physical').amount).toBe(0);
   });
 
-  it('reduces damage on rough (20%) and magic stones (30%)', () => {
+  it('takes 1 off on rough and 2 off on magic stones', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
-    const a = place(state, 'oni', 0, 1, 1); // Summoner ATK 18
-    const b = place(state, 'regent', 1, 2, 1, 3); // DEF 9
-    // (18 − 9)/2 + 4 = 8.5; rough → 6.8 → 6
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(6);
-    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(20);
+    const a = place(state, 'oni', 0, 1, 1); // Summoner ATK 9
+    const b = place(state, 'regent', 1, 2, 1, 3); // DEF 3
+    // 9 − 3 + 4 (a Summoner attacks as a Counter) = 10; rough → 9
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(9);
+    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
     b.pos = hex(2, 2);
     a.pos = hex(1, 2);
-    // stone → 5.95 → 5
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
-    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(30);
+    // stone → 8
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(8);
+    expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(2);
   });
 
-  it('applies day/night alignment as +2 / −2 to the stats', () => {
+  it('applies day/night alignment as +1 / −1 to the stats', () => {
     const state = createMatch(testMap(6, 6));
-    const archer = place(state, 'archer', 0, 1, 1); // day, ATK 15
-    const sum = place(state, 'oni', 1, 3, 1, 3); // Summoner DEF 15, no Alignment
-    state.clock = 18 * 60; // neutral: (15 − 15)/2 + 1 = 1
+    const archer = place(state, 'archer', 0, 1, 1); // day, ATK 7
+    const sum = place(state, 'oni', 1, 3, 1, 3); // Summoner DEF 6, no Alignment
+    state.clock = 18 * 60; // neutral: 7 − 6 = 1
     expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(1);
-    state.clock = 12 * 60; // day: ATK 17 → 1 + 1 = 2
+    state.clock = 12 * 60; // day: ATK 8 → 2
     expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(2);
-    state.clock = 22 * 60; // night: ATK 13 → −1 + 1 = 0
+    state.clock = 22 * 60; // night: ATK 6 → 0
     expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(0);
   });
 });
@@ -323,13 +323,13 @@ describe('match flow', () => {
     expect(r2.state.stones[0].owner).toBe(0);
   });
 
-  it('pays (2 + stones) × MP − upkeep at each hour mark, clamped to [0,120]', () => {
+  it('pays 2 × (2 + stones) × MP − upkeep at each hour mark, clamped to [0,120]', () => {
     const s = createMatch(testMap(6, 6));
-    expect(manaIncome(s, 0)).toBe(22); // Regent, MP 11
+    expect(manaIncome(s, 0)).toBe(24); // Regent, MP 6
     s.stones = [{ hex: hex(3, 3), owner: 0 }];
-    expect(manaIncome(s, 0)).toBe(33);
+    expect(manaIncome(s, 0)).toBe(36);
     place(s, 'drake', 0, 2, 2); // upkeep 11
-    expect(manaIncome(s, 0)).toBe(22);
+    expect(manaIncome(s, 0)).toBe(25);
     const me = getUnit(s, s.activeUnitId!);
     const before = s.sides[0].mana;
     // waiting crosses 07:00 at some point; play turns until an hour passes
@@ -342,7 +342,7 @@ describe('match flow', () => {
       st = r.state;
     }
     expect(paid).toBe(true);
-    expect(st.sides[0].mana).toBe(Math.min(120, before + 22));
+    expect(st.sides[0].mana).toBe(Math.min(120, before + 25));
     void me;
   });
 
@@ -421,10 +421,10 @@ describe('facing toward target and reach', () => {
     expect(getUnit(r.state, me.id).facing).toBe(0);
 
     const plan = planAttack(s, me, foe)!;
-    expect(plan.dest).toEqual(hex(1, 6)); // directly behind the foe
+    expect(facingBonus(foe.pos, foe.facing, plan.dest)).toBe(2); // behind the foe (the Back band, 120° or more)
     expect(plan.sources.length).toBeGreaterThan(1);
     const mplan = planMagic(s, me, foe)!; // Bolt 1–3
-    const fm = (h: { q: number; r: number }) => facingBonusX2(foe.pos, foe.facing, h);
+    const fm = (h: { q: number; r: number }) => facingBonus(foe.pos, foe.facing, h);
     const bestF = Math.max(...mplan.sources.map(fm));
     expect(fm(mplan.dest)).toBe(bestF);
     const farthest = Math.max(...mplan.sources.filter((h) => fm(h) === bestF).map((h) => hexDistance(h, foe.pos)));
@@ -551,7 +551,7 @@ describe('pits', () => {
 });
 
 describe('obstacles', () => {
-  const withObstacle = (def: 5 | 10 | 15 = 10) => {
+  const withObstacle = (def: 2 | 4 | 6 = 4) => {
     const map = { ...testMap(7, 3), obstacles: [{ hex: hex(3, 1), def }] };
     const s = createMatch(map);
     s.units = [];
@@ -560,7 +560,7 @@ describe('obstacles', () => {
 
   it('block movement for ground units, can be flown over, and take damage with DEF = MDF', async () => {
     const { computeDamage: dmg } = await import('./index');
-    const s = withObstacle(10);
+    const s = withObstacle(4);
     const golem = place(s, 'golem', 0, 2, 1);
     expect(reachable(s, golem).has(hexKey(hex(3, 1)))).toBe(false);
     const hawk = place(s, 'hawk', 0, 2, 0);
@@ -575,7 +575,7 @@ describe('obstacles', () => {
   });
 
   it('are destroyed at 0 HP, freeing the hex', () => {
-    const s = withObstacle(5);
+    const s = withObstacle(2);
     const golem = place(s, 'golem', 0, 2, 1, 0, 0);
     s.obstacles[0].hp = 2;
     activate(s, golem);
@@ -596,7 +596,7 @@ describe('trajectory and clear angle', () => {
     // nothing in between
     expect(clearShot(s, sling.id, sling.pos, foe.pos)).toBe(true);
     // an Obstacle straight in the line of fire
-    s.obstacles.push({ id: 900, pos: hex(1, 1), def: 10, hp: 10 });
+    s.obstacles.push({ id: 900, pos: hex(1, 1), def: 4, hp: 10 });
     expect(attackTargets(s, sling, sling.pos).some((t) => t.id === foe.id)).toBe(false);
     // High arcs over it (archer at (0,0) to (3,0)... aim at foe through the obstacle row)
     const foe2 = place(s, 'imp', 1, 2, 1);
@@ -654,9 +654,9 @@ describe('summoners', () => {
     expect(SUMMONERS.filter((k) => k.element).length).toBe(4);
     expect(SUMMONERS.filter((k) => k.alignment === 'day').length).toBe(2);
     expect(SUMMONERS.filter((k) => k.alignment === 'night').length).toBe(2);
-    // MDF floor: none below 6, at most one below 7
-    expect(Math.min(...SUMMONERS.map((k) => k.stats.mdf))).toBeGreaterThanOrEqual(6);
-    expect(SUMMONERS.filter((k) => k.stats.mdf < 7).length).toBeLessThanOrEqual(1);
+    // MDF floor: none below 2, at most one below 3
+    expect(Math.min(...SUMMONERS.map((k) => k.stats.mdf))).toBeGreaterThanOrEqual(2);
+    expect(SUMMONERS.filter((k) => k.stats.mdf < 3).length).toBeLessThanOrEqual(1);
     const ranged = SUMMONERS.filter((k) => k.attack.range > 1);
     expect(ranged.map((k) => k.attack.range).sort()).toEqual([3, 4, 4, 5, 6]);
     expect(ranged.every((k) => k.attack.trajectory === (k.attack.range <= 4 ? 'direct' : 'high'))).toBe(true);

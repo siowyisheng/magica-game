@@ -22,7 +22,7 @@ describe('AI', () => {
   it('plays legal turns on a map with Pits and Obstacles', () => {
     const hexes: MapHex[] = SCAFFOLD_MAP.hexes.map((h, i) => (i % 23 === 5 && h.terrain === 'plain' && h.height >= 3 ? { ...h, terrain: 'pit' } : h));
     const free = hexes.filter((h) => h.terrain === 'plain' && h.height >= 3 && !SCAFFOLD_MAP.spawns.some((s) => s.q === h.hex.q && s.r === h.hex.r));
-    const map: MapDef = { ...SCAFFOLD_MAP, hexes, obstacles: free.filter((_, i) => i % 9 === 4).map((h, i) => ({ hex: h.hex, def: ([5, 10, 15] as const)[i % 3] })) };
+    const map: MapDef = { ...SCAFFOLD_MAP, hexes, obstacles: free.filter((_, i) => i % 9 === 4).map((h, i) => ({ hex: h.hex, def: ([2, 4, 6] as const)[i % 3] })) };
     let st = createMatch(map, { ai: [true, true], seed: 3 });
     expect(st.obstacles.length).toBeGreaterThan(3);
     for (let turns = 0; st.winner === null && turns < 120; turns++) {
@@ -36,7 +36,7 @@ describe('AI', () => {
     // a corridor: Sling (Direct) behind an Obstacle, the enemy Summoner beyond
     const hexes: MapHex[] = [];
     for (let r = 0; r < 3; r++) for (let q = 0; q < 9; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: r === 1 ? 'plain' : 'pit' });
-    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 360, spawns: [hex(0, 1), hex(8, 1)], spawnFacing: [0, 3], obstacles: [{ hex: hex(4, 1), def: 5 }] };
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 360, spawns: [hex(0, 1), hex(8, 1)], spawnFacing: [0, 3], obstacles: [{ hex: hex(4, 1), def: 2 }] };
     const st = createMatch(map, { ai: [true, true] });
     st.units = st.units.filter((u) => u.side === 1);
     st.units.push({ id: 50, kind: 'sling', side: 0, pos: hex(3, 1), facing: 0, hp: 10, av: 0, stranded: false });
@@ -125,7 +125,7 @@ describe('Stones and pointless hits', () => {
     const st = createMatch(map, { ai: [true, true] });
     st.stones[0].owner = 0;
     st.units.push({ id: 50, kind: 'imp', side: 0, pos: hex(2, 2), facing: 0, hp: 10, av: 0, stranded: false });
-    st.units.push({ id: 51, kind: 'hound', side: 1, pos: hex(8, 2), facing: 3, hp: 10, av: 30, stranded: false });
+    st.units.push({ id: 51, kind: 'clod', side: 1, pos: hex(8, 2), facing: 3, hp: 10, av: 30, stranded: false });
     st.units.forEach((u) => { if (u.id !== 50) u.av = Math.max(u.av, 30); });
     st.activeUnitId = 50;
     expect(chooseAction(st).to).toEqual(hex(4, 2));

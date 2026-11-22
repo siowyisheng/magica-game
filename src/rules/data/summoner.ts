@@ -8,9 +8,11 @@ import type { Alignment, Element, Stats, Trajectory, UnitKind } from '../types';
 // Income, trades against Speed, Move, the defences and (at range) ATK.
 // The comment after each is its distance from the budget in MP. After
 // generation, some were adjusted by hand: spreads below the MDF floor
-// (MDF_FLOOR) were raised to 7, paid for mostly with DEF (only Sylph keeps
-// MDF 6), and hard hitters with little reach were compensated when ATK came
-// to be priced by reach.
+// (MDF_FLOOR) were raised to 3, paid for mostly with DEF (only Sylph keeps
+// MDF 2), and hard hitters with little reach were compensated when ATK came
+// to be priced by reach. ATK, DEF, MP and MDF are on the halved scale
+// (Damage = ATK − DEF): the spreads were converted from the old scale, then
+// nudged by a point or so to sit on the refitted budget.
 
 type Def = [
   id: string,
@@ -23,36 +25,36 @@ type Def = [
 ];
 
 const DEFS: Def[] = [
-  ['corsair', 'Corsair', [11, 9, 13, 11, 10, 5], 3, 'direct'], // +0.20
-  ['lancer', 'Lancer', [15, 12, 9, 15, 15, 4], 4, 'direct'], // -0.25
-  ['harpist', 'Harpist', [11, 11, 13, 10, 11, 3], 4, 'direct'], // +0.01 (SPD +1: ATK at Move 3 reaches less)
-  ['savage', 'Savage', [14, 15, 8, 13, 14, 6], 5, 'high'], // -0.07
-  ['tracker', 'Tracker', [8, 9, 11, 10, 14, 4], 6, 'high'], // -0.09
-  ['witch', 'Witch', [4, 6, 15, 7, 10, 4], 1], // +0.10 (MDF raised to the floor)
-  ['sylph', 'Sylph', [3, 4, 13, 6, 14, 5], 1, undefined, 'air'], // +0.14 (the one Summoner at the hard MDF floor of 6)
-  ['duelist', 'Duelist', [4, 3, 14, 7, 14, 3], 1], // +0.28 (MDF raised to the floor, paid with DEF)
-  ['valkyr', 'Valkyr', [17, 13, 11, 8, 13, 5], 1], // -0.14
-  ['lich', 'Lich', [3, 6, 15, 12, 10, 3], 1], // +0.26
-  ['seraph', 'Seraph', [10, 10, 12, 15, 13, 3], 1, undefined, null, 'day'], // -0.17
-  ['regent', 'Regent', [11, 9, 11, 12, 13, 6], 1], // +0.02
-  ['warlock', 'Warlock', [10, 4, 14, 9, 12, 4], 1], // +0.18
-  ['satyr', 'Satyr', [10, 7, 10, 9, 17, 5], 1], // -0.17
-  ['efreet', 'Efreet', [12, 8, 12, 7, 15, 4], 1, undefined, 'fire'], // +0.20 (MDF raised to the floor, paid with DEF)
-  ['templar', 'Templar', [15, 14, 12, 12, 12, 4], 1, undefined, null, 'day'], // +0.24
-  ['banshee', 'Banshee', [4, 5, 13, 12, 14, 3], 1, undefined, null, 'night'], // +0.20
-  ['ronin', 'Ronin', [15, 11, 11, 10, 16, 3], 1], // -0.03 (DEF and MDF +1: ATK at Move 3 reaches less)
-  ['oni', 'Oni', [18, 15, 9, 10, 17, 4], 1], // -0.15 (DEF +1)
-  ['vampire', 'Vampire', [10, 9, 13, 7, 12, 5], 1, undefined, null, 'night'], // +0.29 (MDF raised to the floor, paid with DEF)
-  ['herald', 'Herald', [14, 11, 10, 12, 15, 5], 1], // -0.06
-  ['oracle', 'Oracle', [2, 5, 13, 11, 12, 5], 1], // -0.19
-  ['gorgon', 'Gorgon', [12, 12, 11, 15, 12, 5], 1], // -0.20
-  ['naga', 'Naga', [7, 9, 14, 7, 12, 3], 1], // +0.20
-  ['magus', 'Magus', [4, 3, 15, 8, 11, 3], 1], // -0.17
-  ['shadow', 'Shadow', [7, 5, 12, 8, 16, 3], 1], // -0.23
-  ['selkie', 'Selkie', [5, 6, 11, 12, 15, 5], 1, undefined, 'water'], // -0.22
-  ['lamia', 'Lamia', [10, 7, 13, 13, 12, 4], 1], // +0.14
-  ['hermit', 'Hermit', [5, 9, 14, 9, 10, 4], 1], // -0.17
-  ['dwarf', 'Dwarf', [17, 12, 12, 9, 14, 3], 1, undefined, 'earth'], // -0.03 (SPD +1: ATK at Move 3 reaches less)
+  ['corsair', 'Corsair', [5, 3, 7, 4, 10, 5], 3, 'direct'], // -0.01
+  ['lancer', 'Lancer', [7, 5, 5, 6, 15, 4], 4, 'direct'], // -0.06
+  ['harpist', 'Harpist', [5, 4, 7, 4, 11, 3], 4, 'direct'], // -0.08 (SPD +1: ATK at Move 3 reaches less)
+  ['savage', 'Savage', [7, 7, 4, 6, 14, 6], 5, 'high'], // -0.29
+  ['tracker', 'Tracker', [4, 3, 6, 4, 14, 4], 6, 'high'], // -0.02
+  ['witch', 'Witch', [2, 2, 8, 3, 10, 4], 1], // +0.20 (MDF raised to the floor)
+  ['sylph', 'Sylph', [1, 1, 7, 2, 14, 5], 1, undefined, 'air'], // +0.27 (the one Summoner at the hard MDF floor of 6)
+  ['duelist', 'Duelist', [2, 1, 7, 3, 14, 3], 1], // -0.05 (MDF raised to the floor, paid with DEF)
+  ['valkyr', 'Valkyr', [8, 5, 6, 3, 13, 5], 1], // -0.05
+  ['lich', 'Lich', [1, 2, 8, 5, 10, 3], 1], // +0.25
+  ['seraph', 'Seraph', [5, 4, 6, 7, 13, 3], 1, undefined, null, 'day'], // -0.28
+  ['regent', 'Regent', [5, 3, 6, 5, 13, 6], 1], // +0.15
+  ['warlock', 'Warlock', [5, 1, 7, 4, 12, 4], 1], // -0.18
+  ['satyr', 'Satyr', [5, 2, 5, 4, 17, 5], 1], // -0.29
+  ['efreet', 'Efreet', [6, 3, 6, 3, 15, 4], 1, undefined, 'fire'], // -0.15 (MDF raised to the floor, paid with DEF)
+  ['templar', 'Templar', [7, 6, 6, 5, 12, 4], 1, undefined, null, 'day'], // -0.24
+  ['banshee', 'Banshee', [2, 1, 7, 5, 14, 3], 1, undefined, null, 'night'], // +0.25
+  ['ronin', 'Ronin', [7, 4, 6, 4, 16, 3], 1], // +0.13 (DEF and MDF +1: ATK at Move 3 reaches less)
+  ['oni', 'Oni', [9, 6, 5, 4, 17, 4], 1], // +0.08 (DEF +1)
+  ['vampire', 'Vampire', [5, 3, 7, 3, 12, 5], 1, undefined, null, 'night'], // +0.27 (MDF raised to the floor, paid with DEF)
+  ['herald', 'Herald', [7, 5, 5, 5, 15, 5], 1], // -0.20
+  ['oracle', 'Oracle', [1, 1, 7, 4, 12, 5], 1], // -0.01
+  ['gorgon', 'Gorgon', [6, 5, 6, 6, 12, 5], 1], // +0.06
+  ['naga', 'Naga', [3, 4, 7, 3, 12, 3], 1], // -0.17
+  ['magus', 'Magus', [2, 1, 8, 3, 11, 3], 1], // +0.08
+  ['shadow', 'Shadow', [3, 2, 6, 4, 16, 3], 1], // -0.17
+  ['selkie', 'Selkie', [2, 2, 6, 5, 15, 5], 1, undefined, 'water'], // +0.19
+  ['lamia', 'Lamia', [5, 2, 7, 5, 12, 4], 1], // +0.12
+  ['hermit', 'Hermit', [2, 4, 7, 5, 10, 4], 1], // -0.19
+  ['dwarf', 'Dwarf', [8, 5, 6, 4, 14, 3], 1, undefined, 'earth'], // -0.29 (SPD +1: ATK at Move 3 reaches less)
 ];
 
 function build([id, name, s, range, trajectory, element, alignment]: Def): UnitKind {

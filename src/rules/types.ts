@@ -87,7 +87,8 @@ export interface MapHex {
   variant?: 0 | 1;
 }
 
-export type ObstacleDefense = 5 | 10 | 15;
+/** An Obstacle's Defense (and Magic Defense). */
+export type ObstacleDefense = 2 | 4 | 6;
 
 export interface MapObstacle {
   hex: Hex;

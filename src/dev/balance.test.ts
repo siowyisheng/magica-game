@@ -39,17 +39,17 @@ describe('balance edits', () => {
 
   it('round-trips through export / import, and resets', () => {
     const hermit = JSON.parse(JSON.stringify(kindOf('hermit')));
-    hermit.stats.mp = 20;
+    hermit.stats.mp = 10;
     saveKind(hermit);
     saveAbility({ ...abilityOf('rise')!, manaCost: 24 });
     const json = exportBalanceJson();
     resetAll();
-    expect(kindOf('hermit').stats.mp).toBe(14);
+    expect(kindOf('hermit').stats.mp).toBe(7);
     importBalanceJson(json);
-    expect(kindOf('hermit').stats.mp).toBe(20);
+    expect(kindOf('hermit').stats.mp).toBe(10);
     expect(kindOf('hermit').magic[1].manaCost).toBe(24);
     resetKind('hermit');
-    expect(kindOf('hermit').stats.mp).toBe(14);
+    expect(kindOf('hermit').stats.mp).toBe(7);
     expect(() => importBalanceJson('{"nope": {}}')).toThrow();
   });
 });

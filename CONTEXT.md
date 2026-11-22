@@ -39,15 +39,15 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 
 ## Stats
 
-**Attack (ATK)**: Contributes to the damage dealt by the Attack Command.
+**Attack (ATK)**: Contributes to the damage dealt by the Attack Command. ATK, DEF, MP and MDF are small numbers (about 0–10) on the same scale as HP: a point of ATK is a point of damage.
 **Defense (DEF)**: Reduces damage taken from the Attack Command.
-**Magic Power (MP)**: Contributes to the damage or healing of the Magic Command. For a Summoner it is also the key factor in Mana generation.
+**Magic Power (MP)**: Contributes to the damage or healing of the Magic Command (a heal restores as much HP as the healer's MP). For a Summoner it is also the key factor in Mana generation.
 **Magic Defense (MDF)**: Reduces damage taken from the Magic Command.
 **Speed (SPD)**: Decides how soon a Unit acts again (see Action Value). The average is about 10, and most Units fall between 8 and 15.
 **Move (MOV)**: The Move Points a Unit can spend in one turn.
 
 **Stat Budget**:
-The hidden exchange rate that keeps Summoners balanced: each stat is priced in Magic Power, and every Summoner's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack is priced by how far it reaches (Move plus Attack range): free for a slow melee Summoner, dearer with every extra hex of Move or range. Magic Defense has a floor: Magic reaches further than most Attacks, so a Summoner keeps Magic Defense of at least 7, and at most one Summoner may have 6.
+The hidden exchange rate that keeps Summoners balanced: each stat is priced in Magic Power, and every Summoner's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack is priced by how far it reaches (Move plus Attack range): free for a slow melee Summoner, dearer with every extra hex of Move or range. Magic Defense has a floor: Magic reaches further than most Attacks, so a Summoner keeps Magic Defense of at least 3, and at most one Summoner may have 2.
 _Avoid_: Point buy, stat total
 
 **Move Type**:
@@ -70,7 +70,7 @@ One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has no
 Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. Opposite Elements (Fire–Earth, Air–Water) are neutral.
 
 **Element Bonus**:
-A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral +1, the same Element −1, being Countered −3.5. A Summoner always attacks as a Counter and is always hit as neutral, whatever its own Element; an Obstacle is hit as neutral.
+A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. A Summoner always attacks as a Counter and is always hit as neutral, whatever its own Element; an Obstacle is hit as neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
@@ -99,7 +99,7 @@ Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
 A match ends 72 Game Clock hours after it starts if no Summoner has fallen. The Side controlling more Magic Stones then wins; if they are level, the Side with more total HP across its Units; if that is level too, the match is a draw.
 
 **Alignment**:
-Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF are 2 higher; at the opposite one they are 2 lower. Speed and Move are never changed by Alignment.
+Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF are 1 higher; at the opposite one they are 1 lower. Speed and Move are never changed by Alignment.
 
 ## Turn structure
 
@@ -131,11 +131,11 @@ A Unit that starts its turn on a hex none of its Move Types may enter. It takes 
 One of the six hex directions a Unit faces.
 
 **Facing Bonus**:
-A flat amount added to damage by the angle between a defender's Facing and the direction the hit comes from: under 30° +0, 30° up to 90° +0.5, 90° up to 150° +1.5, 150° and more +2. So an adjacent hit from the front adds 0, from a front side +0.5, from a rear side +1.5 and from behind +2. It applies to both Attack and Magic.
+A flat amount added to damage by the angle between a defender's Facing and the direction the hit comes from: under 90° (Front) +0, 90° up to 120° (Flank) +1, 120° and more (Back) +2. So an adjacent hit from the front or a front side adds 0, from a rear side or from behind +2. It applies to both Attack and Magic.
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-(Attacker's ATK − defender's DEF) ÷ 2 + Element Bonus + Facing Bonus, then reduced by the defender's terrain (cover); MP and MDF for Magic. Alignment changes the stats first. Fractions are dropped, and a result of 0 or less deals 0: there is no minimum. It never exceeds the defender's HP. For example, ATK 9 against DEF 4 with a Counter from behind deals (9 − 4) ÷ 2 + 4 + 2 = 8.5, so 8.
+Attacker's ATK − defender's DEF + Element Bonus + Facing Bonus − the defender's terrain cover; MP and MDF for Magic. Alignment changes the stats first. A result of 0 or less deals 0: there is no minimum. It never exceeds the defender's HP. For example, ATK 5 against DEF 1 with a Counter from behind deals 5 − 1 + 4 + 2 = 10.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.
@@ -155,10 +155,10 @@ The map's water surface Height. Rise and Ebb change it by one step at a time, fr
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.
 
 **Rough**:
-Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. It cuts Attack and Magic damage taken by 20%.
+Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. It takes 1 off every Attack and Magic hit.
 
 **Magic Stone**:
-A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 30% less damage. The Side that controls it gains more Mana.
+A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 2 less damage from every hit. The Side that controls it gains more Mana.
 _Avoid_: Crystal, pedestal
 
 **Stone Heal**:
@@ -172,11 +172,11 @@ A hex type of its own that no Unit can stand on: a chasm, a lava pool, spikes, w
 _Avoid_: Chasm, hole, void (as the rules term)
 
 **Obstacle**:
-A neutral map object placed on dry Plain or Rough at the start of a match. No Unit can stand on its hex, and only Fly can cross it. It blocks Direct shots but not High ones. Both Sides may Attack it or hit it with damaging Magic, area Magic included; it cannot be healed and exerts no ZOC. It has 10 HP like a Unit, no Element and no Facing, and its Defense and Magic Defense are equal: 5, 10 or 15. Destroyed at 0 HP, leaving the hex beneath. It stays, and keeps blocking, if water rises over it.
+A neutral map object placed on dry Plain or Rough at the start of a match. No Unit can stand on its hex, and only Fly can cross it. It blocks Direct shots but not High ones. Both Sides may Attack it or hit it with damaging Magic, area Magic included; it cannot be healed and exerts no ZOC. It has 10 HP like a Unit, no Element and no Facing, and its Defense and Magic Defense are equal: 2, 4 or 6. Destroyed at 0 HP, leaving the hex beneath. It stays, and keeps blocking, if water rises over it.
 _Avoid_: Wall, prop, blocker
 
 **Theme**:
-The look of a map: two visual variants each for Plain and Rough, one for Pit, and one Obstacle design for each Defense value (5, 10, 15). Each hex's variant is picked from its position unless the map sets it. Water looks the same in every Theme. A Theme changes only appearance, never rules.
+The look of a map: two visual variants each for Plain and Rough, one for Pit, and one Obstacle design for each Defense value (2, 4, 6). Each hex's variant is picked from its position unless the map sets it. Water looks the same in every Theme. A Theme changes only appearance, never rules.
 
 **Zone of Control (ZOC)**:
 The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn. Fly Units ignore ZOC. A Unit that starts its turn in a ZOC may leave it.
@@ -187,7 +187,7 @@ The hexes next to a Unit that the Unit itself could move into. An opposing Unit 
 A Side's shared resource for summoning and for every Magic Ability its Units cast, Summoners' and Summons' alike. It is gained at the start of every Game Clock hour.
 
 **Mana Income**:
-What a Side gains each hour: (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons. Mana never drops below 0 or rises above 120.
+What a Side gains each hour: 2 × (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons. Mana never drops below 0 or rises above 120.
 
 **Cost**:
 The Mana needed to Summon a Summon: a multiple of 8, from 16 to 96. It reflects the Summon's power: its stats (Move most of all), Fly, a ranged Attack and its Magic Ability, priced from a reference set of Summons treated as balanced.

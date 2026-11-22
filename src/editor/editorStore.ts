@@ -201,7 +201,7 @@ export const useEditor = create<EditorStore>((set, get) => {
   return {
     draft: blankDraft(),
     tool: 'plain',
-    obstacleDef: 10,
+    obstacleDef: 4,
     mirror: true,
     hover: null,
     undo: [],

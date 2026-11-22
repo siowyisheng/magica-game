@@ -17,7 +17,7 @@ npm run build
 
 | Path | What |
 | --- | --- |
-| `src/rules/` | Pure TypeScript rules core: no React, three.js or DOM, integer math only. Hex math, terrain and movement (Move Types, Height, Water Level, ZOC), combat (damage = 3 × ATK/DEF or MP/MDF × Element × hex-ring Facing Modifier × cover × Alignment; abilities have only a maximum range and no power), AV / Turn Delay, Mana, Summoning, Capture, Stranded, Stone Heal, timeline projection. |
+| `src/rules/` | Pure TypeScript rules core: no React, three.js or DOM, integer math only. Hex math, terrain and movement (Move Types, Height, Water Level, ZOC), combat (damage = ATK − DEF (MP − MDF for Magic) + Element Bonus + hex-ring Facing Bonus − terrain cover, with Alignment shifting the stats; abilities have only a maximum range and no power), AV / Turn Delay, Mana, Summoning, Capture, Stranded, Stone Heal, timeline projection. |
 | `src/rules/data/` | Tuning tables (Base Delay by Speed, Mana and cover constants), the Summoner and the 28 placeholder Summons. |
 | `src/rules/maps/scaffold.ts` | The fixed 15×13 map with 7 Magic Stones and a river (Water Level 2). |
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
@@ -59,11 +59,11 @@ Options → Dev tools edits every Summoner's and summon's name, Cost, Element, A
 ## Maps
 
 - **Terrain:** Plain, Rough, Magic Stone and **Pit** (only Fly crosses; nobody stands on it; never fills with water), plus water by depth.
-- **Obstacles:** neutral objects with 10 HP and DEF = MDF of 5, 10 or 15. They block ground movement and Direct shots; Fly passes over and High shots arc over. Either side can break them.
+- **Obstacles:** neutral objects with 10 HP and DEF = MDF of 2, 4 or 6. They block ground movement and Direct shots; Fly passes over and High shots arc over. Either side can break them.
 - **Trajectory:** every ranged Attack or Magic is **High** (arcs over everything) or **Direct** (needs a Clear Angle past every other Unit and Obstacle, allies included). A blocked Direct shot shows "No clear shot".
 - **Themes:** Meadow, Desert, Ruins, Tundra and Volcanic. Each has two looks for Plain and Rough, a Pit and three Obstacles. Plain is always flat, Rough always has raised clutter, a Pit is always a hole, and bigger Obstacles have more Defense.
 - **Map Editor** (Options → Map Editor):
-  - Tools (keys 1–9): Plain, Rough, Pit, Magic Stone, Height (click raises, right-click lowers), Obstacle (pick 5 / 10 / 15), Look (auto / A / B), and the two spawns (click a spawn again to turn it). Drag to paint; right-click does the opposite of the tool.
+  - Tools (keys 1–9): Plain, Rough, Pit, Magic Stone, Height (click raises, right-click lowers), Obstacle (pick 2 / 4 / 6), Look (auto / A / B), and the two spawns (click a spawn again to turn it). Drag to paint; right-click does the opposite of the tool.
   - Settings: name, Theme, size (7–21 × 7–21), starting Water Level and start time. Mirror copies every edit top ↔ bottom.
   - Undo / Redo (Ctrl+Z / Ctrl+Y), live problem list, Save / Save as new / Delete, Export / Import JSON, and Play this map.
   - Your maps are kept in this browser. Built-in maps can't be overwritten: saving one makes your own copy.

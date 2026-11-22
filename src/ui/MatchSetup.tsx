@@ -2,7 +2,7 @@
 // and whether a person or the AI plays it.
 
 import { useState } from 'react';
-import { SUMMONERS, type SideId } from '../rules';
+import { INCOME_MULTIPLIER, STONE_BASE, SUMMONERS, type SideId } from '../rules';
 import { listMaps } from '../maps/library';
 import { listLoadouts } from '../loadouts/library';
 import { LoadoutStrip } from './LoadoutView';
@@ -155,7 +155,7 @@ function SummonerInfo({ id }: { id: string }) {
     <div className="summoner-info">
       <div>
         <b>{k.name}</b> {k.element && <ElementIcon element={k.element} />} {k.alignment !== 'none' && <AlignmentIcon alignment={k.alignment} />}
-        <span className="muted small"> Mana Income {2 * k.stats.mp}/h before Stones</span>
+        <span className="muted small"> Mana Income {STONE_BASE * INCOME_MULTIPLIER * k.stats.mp}/h before Stones</span>
       </div>
       <StatGrid stats={k.stats} />
     </div>

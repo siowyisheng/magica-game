@@ -153,7 +153,7 @@ export function MapEditor() {
           ))}
           <div className="muted small">Obstacle Defense</div>
           <div className="def-row">
-            {([5, 10, 15] as ObstacleDefense[]).map((d) => (
+            {([2, 4, 6] as ObstacleDefense[]).map((d) => (
               <button key={d} className={`tool small-btn ${tool === 'obstacle' && obstacleDef === d ? 'on' : ''}`} onClick={() => setObstacleDef(d)}>
                 {d}
               </button>
