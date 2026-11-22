@@ -18,7 +18,7 @@ npm run build
 | Path | What |
 | --- | --- |
 | `src/rules/` | Pure TypeScript rules core: no React, three.js or DOM, integer math only. Hex math, terrain and movement (Move Types, Height, Water Level, ZOC), combat (damage = ATK − DEF (MP − MDF for Magic) + Element Bonus + hex-ring Facing Bonus − terrain cover, with Alignment shifting the stats; abilities have only a maximum range and no power), AV / Turn Delay, Mana, Summoning, Capture, Stranded, Stone Heal, timeline projection. |
-| `src/rules/data/` | Tuning tables (Base Delay by Speed, Mana and cover constants), the Summoner and the 28 placeholder Summons. |
+| `src/rules/data/` | Tuning tables (Base Delay by Speed, Mana and cover constants), the 30 Summoners and the 40 Summons. |
 | `src/rules/maps/scaffold.ts` | The fixed 15×13 map with 7 Magic Stones and a river (Water Level 2). |
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
 | `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
@@ -50,7 +50,7 @@ Ten Summoners to pick from, all walk + wade with Bolt, Rise and Ebb: **Sigil** (
 
 ## Loadouts
 
-A Loadout is exactly 18 of the 28 Summons: the only Summons a Side may summon. It is picked separately from the Summoner in **New match…**, where each Side chooses one of your Loadouts, a starter (Balanced, Fire & Air, Earth & Water, Swarm, Heavy Hitters), a random starter, or **Auto** (built for the Summoner: four or five of each Element, cheapest two always in). **Test match** ignores Loadouts and gives both Sides all 28. **Edit Loadouts** builds and saves them in this browser (click Summons to add or remove; Save, Save as new, Delete, Export / Import). During a match, **View Loadouts** shows both Sides' Loadouts, with the Summons each leaves out darkened.
+A Loadout is exactly 20 of the 40 Summons: the only Summons a Side may summon. It is picked separately from the Summoner in **New match…**, where each Side chooses one of your Loadouts, **Random** (any 20 Summons, at least 2 of them an Element's cheapest; the default), or **Auto** (built for the Summoner: five of each Element, cheapest two always in). No Loadouts ship with the game; a Loadout saved when Loadouts held 18 stays listed but needs editing to 20 before it can be picked. **Test match** ignores Loadouts and gives both Sides all 40. **Edit Loadouts** builds and saves them in this browser (click Summons to add or remove; Save, Save as new, Delete, Export / Import). During a match, **View Loadouts** shows both Sides' Loadouts, with the Summons each leaves out darkened.
 
 ## Dev tools
 

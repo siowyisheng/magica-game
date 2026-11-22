@@ -29,7 +29,6 @@ import {
   type MagicPlan,
   type Target,
   SUMMONERS,
-  STARTER_LOADOUTS,
   randomLoadout,
   targetAt,
   targetById,
@@ -39,7 +38,7 @@ import {
   endTemporaryBalance,
 } from './rules';
 import { autoLoadout, chooseAction } from './ai/ai';
-import { getLoadout } from './loadouts/library';
+import { getLoadout, isPlayable } from './loadouts/library';
 import { getMap } from './maps/library';
 import { animWallMs, planTurnAnim, type TurnAnim } from './anim';
 import { ReplayCursor, loadReplay, newReplay, replayProblem, storeReplay, type Replay } from './replay/replay';
@@ -52,7 +51,7 @@ export interface MatchSetup {
   /** Test Match: both Sides may Summon all 28 Summons. */
   test: boolean;
   summoners: [string, string];
-  /** Loadout id per Side, or 'random' (a random starter), 'random18' (18 random Summons) or 'auto' (built for the Summoner). */
+  /** Loadout id per Side, or 'random' (LOADOUT_SIZE random Summons) or 'auto' (built for the Summoner). */
   loadouts: [string, string];
   ai: [boolean, boolean];
   /** AI strength per Side (used when that Side is AI). */
@@ -65,7 +64,7 @@ function loadSetup(): MatchSetup {
     mapId: 'builtin:scaffold-ford',
     test: false,
     summoners: ['regent', 'random'],
-    loadouts: ['starter:balanced', 'random'],
+    loadouts: ['random', 'random'],
     ai: [false, true],
   };
   try {
@@ -85,10 +84,10 @@ export function resolveSummoners(choice: [string, string], rand: () => number = 
 /** Resolve a Loadout choice into its Summons. */
 export function resolveLoadout(choice: string, summonerId: string, rand: () => number = Math.random): string[] {
   if (choice === 'auto') return autoLoadout(summonerId, rand);
-  if (choice === 'random18') return randomLoadout(rand);
-  const l = choice === 'random' ? undefined : getLoadout(choice);
-  if (l) return [...l.summons];
-  return [...STARTER_LOADOUTS[Math.floor(rand() * STARTER_LOADOUTS.length)].summons];
+  const l = getLoadout(choice);
+  if (l && isPlayable(l)) return [...l.summons];
+  // 'random', or a choice that can't be played: an old 'random18' or starter, a deleted or incomplete Loadout
+  return randomLoadout(rand);
 }
 
 /** Summoners and Loadouts for a Match Setup ('random' / 'auto' resolved). */

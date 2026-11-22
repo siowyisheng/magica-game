@@ -43,6 +43,7 @@ import {
   turnDelay,
   MANA_MAX,
   applyTurn,
+  LOADOUT_SIZE,
 } from '../rules';
 
 export const AI_WEIGHTS = {
@@ -750,16 +751,19 @@ export function evaluate(st: MatchState, side: number): number {
 
 
 /**
- * An AI-built Loadout for a Summoner: four or five Summons of each Element
- * (five of the Summoner's own Element if it has one), always including the
- * two cheapest of each so it can summon early, the rest spread over cost.
+ * An AI-built Loadout for a Summoner: an even share of each Element (5 of each
+ * for 20), always including the two cheapest of each so it can summon early,
+ * the rest spread over cost. Any share left over goes first to the
+ * Summoner's own Element.
  */
 export function autoLoadout(summonerId: string, rand: () => number = Math.random): string[] {
   const own = kindOf(summonerId).element;
   const elements = ['fire', 'air', 'earth', 'water'] as const;
   const order = [...elements].sort(() => rand() - 0.5);
   if (own) order.sort((a, b) => (a === own ? -1 : b === own ? 1 : 0));
-  const counts = new Map(order.map((e, i) => [e, i < 2 ? 5 : 4] as const));
+  const share = Math.floor(LOADOUT_SIZE / elements.length);
+  const extra = LOADOUT_SIZE - share * elements.length;
+  const counts = new Map(order.map((e, i) => [e, share + (i < extra ? 1 : 0)] as const));
   const out: string[] = [];
   for (const e of elements) {
     const byCost = SUMMONS.filter((s) => s.element === e).sort((a, b) => a.cost - b.cost);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyTurn, createMatch, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex } from '../rules';
 import { autoLoadout, chooseAction } from './ai';
-import { STARTER_LOADOUTS, loadoutProblems, kindOf } from '../rules';
+import { loadoutProblems, kindOf, randomLoadout, mulberry32 } from '../rules';
 
 describe('AI', () => {
   it('plays legal turns in a headless AI-vs-AI match', () => {
@@ -54,7 +54,7 @@ describe('AI', () => {
       const own = kindOf(id).element;
       if (own) expect(l.filter((k) => kindOf(k).element === own).length).toBe(5);
     }
-    const heavy = STARTER_LOADOUTS.find((x) => x.id === 'starter:heavy')!.summons;
+    const heavy = randomLoadout(mulberry32(3));
     let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy] });
     for (let i = 0; i < 80 && st.winner === null; i++) {
       const a = chooseAction(st);

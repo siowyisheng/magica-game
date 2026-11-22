@@ -2,9 +2,9 @@
 // and whether a person or the AI plays it.
 
 import { useState } from 'react';
-import { INCOME_MULTIPLIER, STONE_BASE, SUMMONERS, type SideId } from '../rules';
+import { INCOME_MULTIPLIER, LOADOUT_SIZE, STONE_BASE, SUMMONERS, SUMMONS, type SideId } from '../rules';
 import { listMaps } from '../maps/library';
-import { listLoadouts } from '../loadouts/library';
+import { isPlayable, listLoadouts } from '../loadouts/library';
 import { LoadoutStrip } from './LoadoutView';
 import { useGame, type MatchSetup as Setup } from '../store';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
@@ -41,8 +41,8 @@ export function MatchSetupDialog() {
             ))}
           </select>
         </label>
-        <label className="dev-check" title="Both Sides may Summon all 28 Summons, ignoring Loadouts">
-          <input type="checkbox" checked={setup.test} onChange={(e) => update((s) => ({ ...s, test: e.target.checked }))} /> Test match (all 28 Summons for both Sides)
+        <label className="dev-check" title={`Both Sides may Summon all ${SUMMONS.length} Summons, ignoring Loadouts`}>
+          <input type="checkbox" checked={setup.test} onChange={(e) => update((s) => ({ ...s, test: e.target.checked }))} /> Test match (all {SUMMONS.length} Summons for both Sides)
         </label>
         <div className="setup-sides">
           {([0, 1] as SideId[]).map((side) => (
@@ -107,20 +107,19 @@ export function MatchSetupDialog() {
                 <>
                   <label className="slider">
                     <span>Loadout</span>
-                    <select value={setup.loadouts[side]} onChange={(e) => update((s) => ((s.loadouts[side] = e.target.value), s))}>
-                      <option value="random">Random starter</option>
-                      <option value="random18" title="18 Summons drawn at random, at least 2 of them an Element's cheapest">Random (any 18 Summons)</option>
+                    <select value={setup.loadouts[side] === 'auto' || loadouts.some((l) => l.id === setup.loadouts[side] && isPlayable(l)) ? setup.loadouts[side] : 'random'} onChange={(e) => update((s) => ((s.loadouts[side] = e.target.value), s))}>
+                      <option value="random" title={`${LOADOUT_SIZE} Summons drawn at random, at least 2 of them an Element's cheapest`}>Random (any {LOADOUT_SIZE} Summons)</option>
                       <option value="auto">Auto (built for the Summoner)</option>
                       {loadouts.map((l) => (
-                        <option key={l.id} value={l.id}>
+                        <option key={l.id} value={l.id} disabled={!isPlayable(l)}>
                           {l.name}
-                          {l.starter ? ' (starter)' : ''}
+                          {isPlayable(l) ? '' : ` (needs ${LOADOUT_SIZE} Summons: edit it)`}
                         </option>
                       ))}
                     </select>
                   </label>
                   {(() => {
-                    const l = loadouts.find((x) => x.id === setup.loadouts[side]);
+                    const l = loadouts.find((x) => x.id === setup.loadouts[side] && isPlayable(x));
                     return l ? <LoadoutStrip summons={l.summons} side={side} /> : <div className="muted small">Chosen when the match starts.</div>;
                   })()}
                 </>

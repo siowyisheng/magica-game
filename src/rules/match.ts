@@ -101,7 +101,7 @@ export interface MatchOptions {
 }
 
 /** Number of Summons in a Loadout. */
-export const LOADOUT_SIZE = 18;
+export const LOADOUT_SIZE = 20;
 
 /** Whether `side` may Summon `kind` (it is in the Side's Loadout, or there is none). */
 export function inRoster(state: MatchState, side: SideId, kind: string): boolean {

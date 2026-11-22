@@ -13,8 +13,8 @@ describe('unit sprite designs', () => {
   const kinds = [...SUMMONERS.map((k) => k.id), ...SUMMONS.map((k) => k.id)];
   const elementOf = (id: string) => [...SUMMONERS, ...SUMMONS].find((s) => s.id === id)?.element ?? null;
 
-  it('has a design for all 30 Summoners and all 28 summons', () => {
-    expect(kinds).toHaveLength(58);
+  it('has a design for all 30 Summoners and all 40 summons', () => {
+    expect(kinds).toHaveLength(70);
     for (const k of kinds) expect(hasDesign(k), k).toBe(true);
   });
 

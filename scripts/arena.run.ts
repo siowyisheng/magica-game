@@ -4,7 +4,7 @@
 // Env: PAIRS (default 8), SEED (default 1), LEVEL (candidate level: normal|hard), OPP (baseline|normal).
 
 import { it } from 'vitest';
-import { SCAFFOLD_MAP, STARTER_LOADOUTS, SUMMONERS, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
+import { SCAFFOLD_MAP, SUMMONERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
 import { AI_WEIGHTS, autoLoadout, chooseAction as chooseRaw } from '../src/ai/ai';
 
 const W = { ...AI_WEIGHTS, ...JSON.parse(process.env.W ?? '{}') };
@@ -56,7 +56,7 @@ it('arena', () => {
   let w = 0, d = 0, l = 0, byTime = 0, turns = 0, candMs = 0, games = 0, summonerKills = 0;
   for (let i = 0; i < pairs; i++) {
     const summoners: [string, string] = [SUMMONERS[Math.floor(r() * SUMMONERS.length)].id, SUMMONERS[Math.floor(r() * SUMMONERS.length)].id];
-    const lo = (s: string) => (r() < 0.5 ? autoLoadout(s, r) : [...STARTER_LOADOUTS[Math.floor(r() * STARTER_LOADOUTS.length)].summons]);
+    const lo = (s: string) => (r() < 0.5 ? autoLoadout(s, r) : randomLoadout(r));
     const setup = { summoners, rosters: [lo(summoners[0]), lo(summoners[1])] as [string[], string[]], seed: Math.floor(r() * 1e6) };
     for (const candSide of [0, 1] as const) {
       const dbg = process.env.DEBUG === `${i}:${candSide}`;

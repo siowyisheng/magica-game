@@ -1,6 +1,6 @@
 // Fire summons.
 import { type V3, add } from './model';
-import { arm, both, breathe, eyes, flame, flick, legs, membrane, mouthAt } from './kit';
+import { arm, both, breathe, eyes, figure, flame, flick, legs, membrane, mouthAt } from './kit';
 import type { Design } from './designs';
 
 export const FIRE: Record<string, Design> = {};
@@ -225,5 +225,125 @@ FIRE.drake = {
       // ribs from the elbow through the membrane
       for (const q of rim.slice(1, 4)) m.tube([elbow, q], [0.012, 0.006], 'side2', g);
     });
+  },
+};
+
+// Salamander: a quick, low fire lizard on four splayed legs with a long tail.
+// Wild: a crest of living flame runs down its spine, and its tail tip is a torch.
+FIRE.salamander = {
+  palette: { iris: '#ffe46a', belly: '#ffb86a' },
+  build(m, p) {
+    const { swell, lift } = breathe(p);
+    const body = m.group();
+    // long low body, belly lighter
+    m.ell([0, 0.17, 0.0], [0.11 * swell, 0.085, 0.2], 'side', [0, 0, 0], body);
+    m.ell([0, 0.13, 0.02], [0.09, 0.05, 0.17], 'belly', [0, 0, 0], body);
+    // splayed legs, elbows out
+    both((s) => {
+      for (const z of [0.12, -0.12]) {
+        const g = m.group();
+        m.tube([[s * 0.08, 0.16, z], [s * 0.17, 0.12, z + 0.02], [s * 0.18, 0.03, z + 0.04]], [0.035, 0.03, 0.025], 'side', g);
+        m.ell([s * 0.19, 0.02, z + 0.06], [0.035, 0.015, 0.04], 'side2');
+      }
+    });
+    // tail sweeping back and up a little
+    const w = flick(p, 2, 0.03);
+    const tail: V3[] = [[0, 0.16, -0.18], [0.03 + w, 0.14, -0.32], [0.08 + w, 0.17, -0.42], [0.1 + w, 0.24, -0.46]];
+    m.tube(tail, [0.07, 0.05, 0.03, 0.02], 'side');
+    flame(m, tail[3], 0.14, 0.04, p, 5);
+    // head: flat, wide, on a short neck, raised a little
+    const hc: V3 = [0, 0.24 + lift, 0.22];
+    m.tube([[0, 0.18, 0.14], hc], [0.07, 0.065], 'side');
+    m.ell(hc, [0.1, 0.07, 0.11], 'side');
+    m.ell(add(hc, [0, -0.025, 0.07]), [0.075, 0.035, 0.06], 'belly');
+    eyes(m, add(hc, [0, 0.02, 0]), 0.085, 'beast', 'iris', 0.75, 0.25);
+    mouthAt(m, hc, 0.1, -0.2);
+    // wild: flame crest from the head down the spine
+    for (let i = 0; i < 6; i++) {
+      const z = 0.2 - i * 0.08;
+      flame(m, [0, 0.25 - Math.abs(z) * 0.12 + (i === 0 ? lift : 0), z], 0.12 - i * 0.012, 0.035, p, i);
+    }
+  },
+};
+
+// Pyromancer: a robed fire mage in a tall pointed hat, a fireball held aloft.
+// Wild: the hat's brim burns, and three embers orbit the mage.
+FIRE.pyromancer = {
+  palette: { iris: '#ff9a3c', skin: '#f2cfb3' },
+  build(m, p) {
+    const f = figure(m, p, {
+      top: 'side',
+      skirt: { mat: 'side', len: 0.26, flare: 0.75, hem: 'gold' },
+      sleeve: 'side2',
+      shoulders: 0.1,
+      arms: (s) => (s > 0 ? [[0.05, 0.02, 0.06], [0.04, 0.14, 0.09]] : [[-0.04, -0.08, 0.05], [-0.02, -0.15, 0.09]]),
+    });
+    const { hc, r, waistY, lift } = f;
+    m.ell([0, waistY + 0.02, 0.0], [0.07, 0.02, 0.055], 'gold'); // sash
+    eyes(m, hc, r, 'anime', 'iris', 0.38, -0.1);
+    mouthAt(m, hc, r, -0.45);
+    // beard
+    m.ell(add(hc, [0, -0.1, 0.07]), [0.07, 0.07, 0.04], 'white', [0.3, 0, 0]);
+    // tall hat, tip bent back
+    m.ell(add(hc, [0, 0.07, -0.01]), [0.2, 0.025, 0.18], 'side2');
+    m.tube([add(hc, [0, 0.08, -0.01]), add(hc, [0, 0.22, -0.03]), add(hc, [0.02, 0.32, -0.08]), add(hc, [0.06, 0.34, -0.14])], [0.11, 0.07, 0.035, 0.012], 'side2');
+    m.ell(add(hc, [0, 0.1, -0.01]), [0.115, 0.02, 0.1], 'gold');
+    // fireball held up in the right hand
+    const fb: V3 = [0.14, waistY + 0.32 + lift, 0.1];
+    m.ball(fb, 0.07 + 0.008 * p.breath, 'flame*');
+    m.ball(fb, 0.04, 'spark*');
+    flame(m, add(fb, [0, 0.04, 0]), 0.1, 0.04, p, 3);
+    // wild: brim of flames and orbiting embers
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.3;
+      flame(m, add(hc, [Math.sin(a) * 0.17, 0.08, Math.cos(a) * 0.15 - 0.01]), 0.06, 0.02, p, i + 6);
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = p.frame * 0.7 + (i * Math.PI * 2) / 3;
+      m.ball([Math.cos(a) * 0.24, waistY + 0.05 + i * 0.06, Math.sin(a) * 0.18], 0.025, 'flame*');
+    }
+  },
+};
+
+// Minotaur: a hulking bull-headed brute with a great double axe.
+// Wild: its horns are molten lava, and smoke curls from its nostrils.
+FIRE.minotaur = {
+  palette: { iris: '#ffcf3a', hide: '#7a4a32', horn: '#ff7a1a' },
+  build(m, p) {
+    const { swell, lift } = breathe(p);
+    // legs with hooves
+    both((s) => {
+      const g = m.group();
+      m.tube([[s * 0.09, 0.24, -0.02], [s * 0.11, 0.13, 0.02], [s * 0.1, 0.05, -0.02]], [0.06, 0.05, 0.042], 'hide', g);
+      m.ell([s * 0.1, 0.03, 0.01], [0.05, 0.03, 0.06], 'dark');
+    });
+    m.ell([0, 0.25, 0.0], [0.14, 0.07, 0.11], 'side', [0, 0, 0]); // kilt
+    m.ell([0, 0.29, 0.0], [0.13, 0.025, 0.1], 'gold'); // belt
+    // broad chest
+    const body = m.group();
+    m.ell([0, 0.42 + lift * 0.5, 0.0], [0.2 * swell, 0.15, 0.13 * swell], 'hide', [0.15, 0, 0], body);
+    m.ell([0, 0.44 + lift * 0.5, 0.08], [0.14, 0.1, 0.06], 'hide', [0.2, 0, 0], body);
+    both((s) => m.ell([s * 0.19, 0.53 + lift, 0.0], [0.09, 0.07, 0.09], 'side', [0.2, 0, s * -0.3])); // pauldrons
+    // arms; right holds the axe haft upright
+    arm(m, [-0.2, 0.5 + lift, 0.02], [-0.26, 0.36 + lift, 0.06], [-0.24, 0.24 + lift, 0.1], 0.05, 'hide', 'hide', 0.055);
+    arm(m, [0.2, 0.5 + lift, 0.02], [0.27, 0.38 + lift, 0.08], [0.25, 0.3 + lift, 0.14], 0.05, 'hide', 'hide', 0.055);
+    const haft0: V3 = [0.25, 0.08, 0.14];
+    const haft1: V3 = [0.25, 0.68 + lift, 0.14];
+    m.tube([haft0, haft1], [0.018, 0.018], 'wood');
+    both((s) => m.poly([add(haft1, [0, 0.0, 0]), add(haft1, [0, 0.1, s * 0.13]), add(haft1, [0, -0.12, s * 0.13])], 'metal'));
+    // bull head, low and forward
+    const hc: V3 = [0, 0.62 + lift, 0.08];
+    m.ell(hc, [0.1, 0.1, 0.1], 'hide');
+    m.ell(add(hc, [0, -0.04, 0.09]), [0.075, 0.06, 0.06], 'side2'); // muzzle
+    both((s) => m.ball(add(hc, [s * 0.03, -0.04, 0.15]), 0.012, 'dark'));
+    m.tube([add(hc, [-0.03, -0.075, 0.14]), add(hc, [0, -0.09, 0.15]), add(hc, [0.03, -0.075, 0.14])], [0.008, 0.008, 0.008], 'gold'); // nose ring
+    eyes(m, hc, 0.1, 'beast', 'iris', 0.55, 0.1);
+    both((s) => m.spike(add(hc, [s * 0.09, 0.03, -0.02]), add(hc, [s * 0.16, 0.06, -0.04]), 0.025, 'hide')); // ears
+    // wild: molten horns curving up, smoke from the nostrils
+    both((s) => m.tube([add(hc, [s * 0.07, 0.07, 0]), add(hc, [s * 0.17, 0.1, 0.01]), add(hc, [s * 0.21, 0.2, 0.03])], [0.035, 0.025, 0.01], 'horn*'));
+    for (let i = 0; i < 3; i++) {
+      const w = flick(p, i + 2, 0.015);
+      both((s) => m.ball(add(hc, [s * (0.04 + i * 0.015) + w, -0.03 + i * 0.03, 0.18 + i * 0.02]), 0.014 + i * 0.006, 'cloud'));
+    }
   },
 };

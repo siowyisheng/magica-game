@@ -1,6 +1,6 @@
 // Air summons.
 import { type V3, add } from './model';
-import { arm, both, breathe, eyes, figure, flame, flick, membrane, mouthAt } from './kit';
+import { arm, beast, both, breathe, eyes, figure, flame, flick, membrane, mouthAt } from './kit';
 import type { Design } from './designs';
 
 export const AIR: Record<string, Design> = {};
@@ -293,5 +293,117 @@ AIR.djinn = {
     m.ell(add(hc, [0, 0.1, 0]), [0.1, 0.03, 0.09], 'gold', [0, 0, 0], crown);
     m.tube([add(hc, [0, 0.12, 0.06]), add(hc, [0, 0.14, 0.12]), add(hc, [0, 0.13, 0.16])], [0.03, 0.02, 0.01], 'gold', crown);
     flame(m, add(hc, [0, 0.14, 0.15]), 0.08, 0.025, p, 3);
+  },
+};
+
+// Bat: a round little fruit bat hovering on wide membrane wings, big ears up.
+// Wild: lightning crackles between its wingtips.
+AIR.bat = {
+  palette: { iris: '#ffe46a', fur: '#5a4a6a' },
+  build(m, p) {
+    const { swell, b } = breathe(p);
+    const y = 0.22 + 0.025 * Math.sin(p.frame * 1.3);
+    const body = m.group();
+    m.ell([0, y + 0.14, 0], [0.11 * swell, 0.12, 0.1 * swell], 'side', [0, 0, 0], body);
+    m.ell([0, y + 0.12, 0.06], [0.07, 0.08, 0.05], 'sideL', [0, 0, 0], body); // belly fluff
+    const hc: V3 = [0, y + 0.3, 0.02];
+    m.ball(hc, 0.1, 'side');
+    // big ears
+    both((s) => {
+      m.spike(add(hc, [s * 0.05, 0.06, -0.01]), add(hc, [s * 0.12, 0.2, -0.02]), 0.045, 'side');
+      m.spike(add(hc, [s * 0.05, 0.065, 0.0]), add(hc, [s * 0.11, 0.17, -0.005]), 0.022, 'pink');
+    });
+    eyes(m, hc, 0.1, 'anime', 'iris', 0.4, 0.0);
+    mouthAt(m, hc, 0.1, -0.4, 'fang');
+    m.ball(add(hc, [0, -0.015, 0.095]), 0.016, 'pink'); // nose
+    // little feet tucked
+    both((s) => m.ell([s * 0.04, y + 0.02, 0.02], [0.025, 0.02, 0.03], 'fur'));
+    // wings, flapping with the breath
+    const tips: V3[] = [];
+    both((s) => {
+      const up = 0.1 * (b - 0.5);
+      const root: V3 = [s * 0.08, y + 0.2, -0.02];
+      const tip: V3 = [s * 0.38, y + 0.34 + up, -0.2];
+      tips.push(tip);
+      membrane(m, root, [[s * 0.16, y + 0.34 + up * 0.5, -0.08], tip, [s * 0.34, y + 0.16 + up, -0.18], [s * 0.24, y + 0.12 + up * 0.5, -0.14], [s * 0.15, y + 0.06, -0.08], [s * 0.09, y + 0.1, -0.04]], 'side2');
+      m.tube([root, [s * 0.16, y + 0.34 + up * 0.5, -0.08], tip], [0.014, 0.01, 0.006], 'fur'); // wing finger
+    });
+    // wild: a zigzag spark between the wingtips, over its head
+    const zig: V3[] = [];
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      const x = tips[0][0] + (tips[1][0] - tips[0][0]) * t;
+      zig.push([x, tips[0][1] + 0.1 * Math.sin(t * Math.PI) + (i % 2 ? 0.03 : -0.02) + flick(p, i, 0.01), -0.2]);
+    }
+    m.tube(zig, zig.map(() => 0.009), 'spark*');
+  },
+};
+
+// Angel (Halo): a winged healer in flowing robes, hovering above the ground.
+// Wild: a golden halo turns above its head, and its wings are made of wind.
+AIR.angel = {
+  palette: { iris: '#7fd6ff', hair: '#f4e3a0', wind: '#dff4ff' },
+  build(m, p) {
+    const hover = 0.06 + 0.02 * Math.sin(p.frame * 1.1);
+    const f = figure(m, p, {
+      top: 'white',
+      skirt: { mat: 'white', len: 0.2, flare: 0.55, hem: 'side' },
+      sleeve: 'side',
+      hover,
+      arms: (s) => [[s * 0.06, -0.05, 0.06], [s * 0.04, 0.0, 0.12]],
+    });
+    const { hc, r, waistY, lift } = f;
+    m.ell([0, waistY + 0.11, 0.06], [0.06, 0.07, 0.02], 'side'); // tabard
+    eyes(m, hc, r, 'anime', 'iris', 0.38, -0.1);
+    mouthAt(m, hc, r, -0.45);
+    // flowing hair
+    m.ell(add(hc, [0, 0.045, -0.03]), [r * 1.02, r * 0.72, r * 0.95], 'hair');
+    m.tube([add(hc, [0, 0.0, -0.09]), add(hc, [0, -0.1, -0.12]), add(hc, [0, -0.17, -0.1])], [0.07, 0.05, 0.025], 'hair');
+    // a glow of healing light between the hands
+    m.ball([0, waistY + 0.15 + lift, 0.17], 0.035 + 0.01 * p.breath, 'spark*');
+    // wild: a golden halo and wings of swirling wind
+    m.tube(Array.from({ length: 13 }, (_, i) => {
+      const a = (i / 12) * Math.PI * 2;
+      return add(hc, [Math.cos(a) * 0.12, 0.2, Math.sin(a) * 0.09 - 0.02]);
+    }), Array(13).fill(0.014), 'gold*');
+    both((s) => {
+      for (let i = 0; i < 4; i++) {
+        const t = i / 3;
+        const w = flick(p, i + (s > 0 ? 0 : 4), 0.015);
+        const root: V3 = [s * 0.06, waistY + 0.16 + lift, -0.06];
+        m.tube([root, [s * (0.18 + t * 0.06), waistY + 0.3 - t * 0.12 + w, -0.12], [s * (0.3 + t * 0.06), waistY + 0.34 - t * 0.2 + w, -0.14]], [0.03, 0.035 - t * 0.008, 0.01], 'wind');
+      }
+    });
+  },
+};
+
+// Griffin: an eagle-headed lion with broad feathered wings.
+// Wild: its wings are storm clouds shot through with lightning.
+AIR.griffin = {
+  palette: { iris: '#ffd23c', beak: '#f0c040' },
+  build(m, p) {
+    const { b } = breathe(p);
+    const { hc, neck0, tail } = beast(m, p, { fur: 'side', light: 'white', pawMat: 'beak', size: 1.1 });
+    // feathered neck and white eagle head over the beast's head
+    m.ell(add(neck0, [0, 0.05, 0.03]), [0.1, 0.1, 0.08], 'white', [0.4, 0, 0]);
+    m.ball(add(hc, [0, 0.01, 0.0]), 0.122, 'white');
+    const beak = m.group();
+    m.tube([add(hc, [0, 0.0, 0.1]), add(hc, [0, -0.02, 0.19]), add(hc, [0, -0.08, 0.21])], [0.05, 0.03, 0.008], 'beak', beak);
+    eyes(m, add(hc, [0, 0.01, 0]), 0.122, 'beast', 'iris', 0.55, 0.15);
+    both((s) => m.spike(add(hc, [s * 0.05, 0.06, -0.05]), add(hc, [s * 0.08, 0.13, -0.11]), 0.02, 'white')); // feather tufts
+    // lion tail with a tuft
+    m.tube([tail[0], tail[1], tail[2]], [0.025, 0.02, 0.015], 'side');
+    m.ball(tail[2], 0.035, 'side2');
+    // wild: storm-cloud wings raised behind, crackling with lightning
+    both((s) => {
+      const up = 0.05 * b;
+      const cloud = m.group();
+      for (let i = 0; i < 5; i++) {
+        const t = i / 4;
+        m.ball([s * (0.12 + t * 0.22), 0.5 + t * 0.2 + up - t * t * 0.1, -0.04 - t * 0.06], 0.075 - t * 0.02, 'cloud', cloud);
+        m.ball([s * (0.1 + t * 0.2), 0.42 + t * 0.12 + up, -0.06 - t * 0.05], 0.06 - t * 0.015, 'side2', cloud);
+      }
+      m.tube([[s * 0.2, 0.62 + up, -0.06], [s * 0.26, 0.54 + up, -0.07], [s * 0.3, 0.6 + up + flick(p, s > 0 ? 1 : 2, 0.01), -0.08], [s * 0.36, 0.5 + up, -0.09]], [0.01, 0.009, 0.008, 0.005], 'spark*');
+    });
   },
 };

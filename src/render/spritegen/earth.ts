@@ -313,3 +313,111 @@ EARTH.titan = {
     void flick;
   },
 };
+
+// Beetle: a broad scarab with a domed, glossy Side-coloured shell, a horn and
+// six jointed legs. Wild: a carved sun disc of amber glows on its back.
+EARTH.beetle = {
+  palette: { iris: '#ffd23c', amber: '#ffb030' },
+  build(m, p) {
+    const { swell, lift } = breathe(p);
+    both((s) => {
+      for (let i = 0; i < 3; i++) {
+        const z = 0.1 - i * 0.1;
+        const g = m.group();
+        m.tube([[s * 0.12, 0.13, z], [s * 0.24, 0.17, z + 0.01], [s * 0.28, 0.02, z + 0.03]], [0.024, 0.02, 0.012], 'dark', g);
+      }
+    });
+    const shell = m.group();
+    m.ell([0, 0.21, -0.02], [0.22 * swell, 0.15, 0.24 * swell], 'side', [0, 0, 0], shell);
+    m.ell([-0.06, 0.31, 0.02], [0.06, 0.03, 0.08], 'sideL', [0, 0, 0], shell); // shine
+    m.tube([[0, 0.34, 0.14], [0, 0.37, -0.02], [0, 0.33, -0.22]], [0.008, 0.008, 0.008], 'side2'); // shell seam
+    // head and horn
+    const hc: V3 = [0, 0.18 + lift, 0.23];
+    m.ell(hc, [0.13, 0.095, 0.1], 'side2');
+    m.tube([add(hc, [0, 0.04, 0.06]), add(hc, [0, 0.15, 0.12]), add(hc, [0, 0.25, 0.07])], [0.035, 0.024, 0.008], 'side2');
+    eyes(m, hc, 0.11, 'beast', 'iris', 0.6, 0.15);
+    both((s) => m.tube([add(hc, [s * 0.04, -0.03, 0.06]), add(hc, [s * 0.07, -0.05, 0.11]), add(hc, [s * 0.04, -0.06, 0.14])], [0.012, 0.01, 0.006], 'dark')); // mandibles
+    // wild: an amber sun disc with rays, glowing on the shell
+    const c: V3 = [0, 0.365, -0.02];
+    m.ell(c, [0.065, 0.015, 0.065], 'amber*');
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      m.spike(add(c, [Math.cos(a) * 0.06, -0.004, Math.sin(a) * 0.06]), add(c, [Math.cos(a) * (0.1 + 0.01 * p.breath), -0.02, Math.sin(a) * (0.1 + 0.01 * p.breath)]), 0.012, 'amber*');
+    }
+  },
+};
+
+// Treant: an old walking tree, a face in its bark, branch arms, roots for feet
+// and a Side-coloured canopy. Wild: glowing mushrooms grow up its trunk.
+EARTH.treant = {
+  palette: { iris: '#ffe46a', cap: '#7ff0c0' },
+  build(m, p) {
+    const { swell, lift } = breathe(p);
+    // roots spreading as feet
+    for (let i = 0; i < 5; i++) {
+      const a = -1.2 + i * 0.6;
+      m.tube([[Math.sin(a) * 0.06, 0.1, Math.cos(a) * 0.05], [Math.sin(a) * 0.16, 0.03, Math.cos(a) * 0.13], [Math.sin(a) * 0.22, 0.01, Math.cos(a) * 0.17]], [0.045, 0.03, 0.014], 'bark');
+    }
+    // trunk, thicker at the base
+    const trunk = m.group();
+    m.tube([[0, 0.05, 0], [0, 0.25, 0], [0, 0.45 + lift, -0.01]], [0.13, 0.12 * swell, 0.12 * swell], 'bark', trunk);
+    // carved face
+    const fc: V3 = [0, 0.38 + lift, 0.1];
+    m.ell(add(fc, [0, 0.03, 0]), [0.09, 0.018, 0.02], 'wood'); // heavy brow
+    eyes(m, fc, 0.04, 'dot', 'iris', 1.2, -0.1);
+    m.ell(add(fc, [0, -0.07, 0.005]), [0.04, 0.02, 0.02], 'dark'); // mouth knot
+    // branch arms, forking at the hands
+    both((s) => {
+      const sh: V3 = [s * 0.1, 0.42 + lift, 0];
+      const el: V3 = [s * 0.22, 0.34 + lift, 0.05];
+      const hd: V3 = [s * 0.25, 0.2 + lift, 0.1];
+      m.tube([sh, el, hd], [0.04, 0.032, 0.025], 'bark');
+      for (const [dx, dy] of [[0.04, -0.06], [-0.02, -0.07], [0.0, -0.04]] as [number, number][]) m.tube([hd, add(hd, [s * dx, dy, 0.03])], [0.014, 0.006], 'bark');
+    });
+    // canopy of Side-coloured leaves
+    const canopy = m.group();
+    for (const [x, y, z, r] of [[0, 0.62, -0.02, 0.17], [0.15, 0.56, -0.04, 0.12], [-0.15, 0.57, -0.03, 0.12], [0.07, 0.7, 0.04, 0.1], [-0.08, 0.7, -0.08, 0.1], [0, 0.55, 0.1, 0.1]] as [number, number, number, number][])
+      m.ball([x, y + lift, z], r, 'side', canopy);
+    for (const [x, y, z] of [[0.1, 0.66, 0.08], [-0.12, 0.62, 0.06], [0.02, 0.76, 0.0]] as [number, number, number][]) m.ball([x, y + lift, z], 0.05, 'sideL', canopy);
+    // wild: glowing mushrooms up the trunk
+    for (const [x, y, z, s] of [[0.11, 0.14, 0.06, 1], [-0.12, 0.22, 0.05, 0.8], [0.12, 0.3, -0.02, 0.7]] as [number, number, number, number][]) {
+      m.tube([[x, y, z], [x * 1.15, y + 0.03 * s, z]], [0.01 * s, 0.01 * s], 'white');
+      m.ell([x * 1.2, y + 0.04 * s, z], [0.035 * s, 0.018 * s, 0.03 * s], 'cap*');
+    }
+  },
+};
+
+// Mammoth: a shaggy war mammoth with a raised trunk, sweeping tusks and a
+// fringe of long hair. Wild: its tusks are glowing crystal.
+EARTH.mammoth = {
+  palette: { iris: '#2c2836', tusk: '#9fe6ff' },
+  build(m, p) {
+    const { swell, lift } = breathe(p);
+    // pillar legs
+    both((s) => {
+      for (const z of [0.12, -0.12]) {
+        const g = m.group();
+        m.tube([[s * 0.11, 0.26, z], [s * 0.115, 0.08, z]], [0.07, 0.065], 'side2', g);
+        m.ell([s * 0.115, 0.03, z + 0.01], [0.07, 0.035, 0.07], 'bone');
+      }
+    });
+    // huge shaggy body with a shoulder hump
+    const body = m.group();
+    m.ell([0, 0.36, -0.02], [0.2 * swell, 0.16, 0.24 * swell], 'side', [0, 0, 0], body);
+    m.ell([0, 0.48 + lift * 0.5, 0.08], [0.16, 0.1, 0.13], 'side', [0.3, 0, 0], body);
+    // hair fringe hanging from the belly and flanks
+    for (let i = 0; i < 7; i++) {
+      const z = 0.18 - i * 0.06;
+      both((s) => m.tube([[s * 0.17, 0.3, z], [s * 0.19, 0.2 + (i % 2) * 0.02, z]], [0.03, 0.012], 'side2'));
+    }
+    m.tube([[0, 0.38, -0.25], [0.02, 0.3, -0.3], [0.03, 0.24, -0.29]], [0.02, 0.015, 0.02], 'side2'); // tail
+    // head with big ears and a raised trunk
+    const hc: V3 = [0, 0.45 + lift, 0.24];
+    m.ball(hc, 0.11, 'side');
+    both((s) => m.ell(add(hc, [s * 0.1, 0.0, -0.04]), [0.025, 0.08, 0.06], 'side2', [0, 0.2 * s, 0]));
+    eyes(m, hc, 0.11, 'dot', 'iris', 0.6, 0.15);
+    m.tube([add(hc, [0, -0.04, 0.08]), add(hc, [0, -0.15, 0.13]), add(hc, [0, -0.17, 0.2]), add(hc, [0, -0.1 + 0.02 * p.breath, 0.25])], [0.045, 0.035, 0.028, 0.022], 'side');
+    // wild: crystal tusks sweeping out and up
+    both((s) => m.tube([add(hc, [s * 0.05, -0.07, 0.06]), add(hc, [s * 0.09, -0.16, 0.14]), add(hc, [s * 0.12, -0.1, 0.24]), add(hc, [s * 0.09, 0.0, 0.27])], [0.025, 0.022, 0.016, 0.006], 'tusk*'));
+  },
+};
