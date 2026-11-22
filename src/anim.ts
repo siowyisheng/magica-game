@@ -15,6 +15,8 @@ import {
   hexEq,
   kindOf,
   pathTo,
+  previewEffects,
+  MAX_HP,
   reachable,
   targetAt,
   trajectoryOf,
@@ -57,7 +59,23 @@ export interface TurnAnim {
   to: Hex;
   /** Facing the actor shows while animating. */
   facing: number;
+  /** When each hit or heal lands: HP bars change and a Damage Number pops then. */
+  impacts: Impact[];
 }
+
+/** One unit's (or Obstacle's) HP change, at animation time `t`. */
+export interface Impact {
+  unitId: number;
+  t: number;
+  kind: 'damage' | 'heal';
+  amount: number;
+  /** HP shown from the impact on. */
+  hpAfter: number;
+  lethal: boolean;
+}
+
+/** A unit brought to 0 HP fades out over this long after the impact. */
+export const KO_FADE_MS = 300;
 
 /** Animation time elapsed at real time `now`. */
 export function animElapsed(anim: TurnAnim, now: number = performance.now()): number {
@@ -110,12 +128,14 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
   }
 
   const cmd = action.command;
+  let impactT: number | null = null; // when the Command's hits or heals land
   if (cmd.type === 'attack') {
     const target = targetAt(before, cmd.target);
     const d = hexDistance(action.to, cmd.target);
     if (d <= 1) {
       steps.push({ kind: 'melee', unitId: unit.id, from: action.to, target: cmd.target, t0: t, t1: t + MELEE_MS });
       const impact = t + MELEE_MS * MELEE_IMPACT;
+      impactT = impact;
       if (target) steps.push({ kind: 'hit', unitIds: [target.id], t0: impact, t1: impact + HIT_MS });
       t += MELEE_MS;
     } else {
@@ -125,6 +145,7 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       steps.push({ kind: 'projectile', from: action.to, to: cmd.target, style: 'arrow', element: kind.element, heal: false, high, t0: t, t1: t + flyMs });
       t += flyMs - fly;
       t += fly;
+      impactT = t;
       if (target) steps.push({ kind: 'hit', unitIds: [target.id], t0: t, t1: t + HIT_MS });
       t += HIT_MS;
     }
@@ -154,8 +175,18 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
         });
         t += fly;
       }
+      impactT = t;
       if (ab.kind === 'damage' && hitIds.length) steps.push({ kind: 'hit', unitIds: hitIds, t0: t, t1: t + HIT_MS });
       t += HIT_MS;
+    }
+  }
+
+  const impacts: Impact[] = [];
+  if (impactT !== null) {
+    for (const e of previewEffects(before, action)) {
+      const hpAfter = e.kind === 'heal' ? Math.min(MAX_HP, e.hpBefore + e.amount) : Math.max(0, e.hpBefore - e.amount);
+      impacts.push({ unitId: e.unitId, t: impactT, kind: e.kind, amount: e.amount, hpAfter, lethal: e.lethal });
+      if (e.lethal) t = Math.max(t, impactT + KO_FADE_MS); // let the fade finish
     }
   }
 
@@ -182,6 +213,6 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
   }
 
   const facing = cmd.type === 'summon' ? cmd.dir : action.facing;
-  return { start, duration: t, steps, actorId: unit.id, to: action.to, facing };
+  return { start, duration: t, steps, actorId: unit.id, to: action.to, facing, impacts };
 }
 

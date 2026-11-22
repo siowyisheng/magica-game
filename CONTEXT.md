@@ -135,7 +135,10 @@ _Avoid_: Backstab bonus, flanking
 A game-wide constant × the attacker's ATK ÷ the defender's DEF (MP ÷ MDF for Magic) × (1 + Facing bonus + Element bonus), then multiplied by cover and Alignment. The Facing and Element bonuses add rather than multiply, with no cap: each is its modifier minus 1 (a hit from behind adds +1.0, a Counter +1.0, being Countered −0.5), so a Counter from behind deals ×3 and a Countered hit from behind ×1.5. Can be 0; never raised to a minimum.
 
 **Damage Preview**:
-The exact result of a Command against a target, shown before the Command is confirmed.
+The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.
+
+**Damage Number**:
+The floating amount of damage (or healing) a Command does to one target: shown in the Damage Preview, and popped briefly again the moment the hit lands. A target's HP changes at that moment, not when the turn ends; a unit brought to 0 HP fades out then.
 
 ## Terrain
 

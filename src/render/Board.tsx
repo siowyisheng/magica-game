@@ -45,7 +45,7 @@ import {
   unitOutlineTexture,
   unitTexture,
 } from './sprites';
-import { FLY_LAND_MS, FLY_RISE_MS, SUMMON_PHASES, animElapsed, fliesKind, moveDurationMs, type AnimStep } from '../anim';
+import { FLY_LAND_MS, FLY_RISE_MS, KO_FADE_MS, SUMMON_PHASES, animElapsed, fliesKind, moveDurationMs, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
 import { anchorPositions, anchorSources } from './anchors';
 import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
@@ -620,9 +620,11 @@ function UnitView({
     const offset = new THREE.Vector3();
     let flash = 0;
     let glow = 0;
+    let fade = 0; // KO: fades out from the lethal impact
 
     if (anim) {
       const t = animElapsed(anim, now);
+      for (const imp of anim.impacts) if (imp.lethal && imp.unitId === unit.id && t >= imp.t) fade = Math.min(1, (t - imp.t) / KO_FADE_MS);
       for (const st of anim.steps) {
         if (st.kind === 'move' && st.unitId === unit.id) {
           const p = (t - st.t0) / (st.t1 - st.t0);
@@ -709,6 +711,18 @@ function UnitView({
       }
     }
     if (outline.current && body.current) outline.current.position.copy(body.current.position);
+    if (bodyMat.current && !ghost) {
+      const a = 1 - fade;
+      // sprites cut out at alphaTest 0.5: lower it while fading so the fade is smooth
+      const test = fade > 0 ? 0.02 : 0.5;
+      if (bodyMat.current.alphaTest !== test) {
+        bodyMat.current.alphaTest = test;
+        bodyMat.current.needsUpdate = true;
+      }
+      bodyMat.current.opacity = a;
+      if (outlineMat.current) outlineMat.current.opacity *= a;
+      if (arrow.current) arrow.current.visible = fade === 0;
+    }
   });
 
   return (

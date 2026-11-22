@@ -1,9 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, isObstacle, hexDistance, kindOf, trajectoryOf, primaryMagic } from '../rules';
 import { blockedShot, hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
-import { DamageTag } from './DamageTag';
+import { DamageNumber, DamageTag } from './DamageTag';
+import { animElapsed, type Impact } from '../anim';
+
+/** How long a Damage Number stays up after impact (fade in, hold, fade out). */
+const POP_MS = 800;
 import { SummonDetail } from './SummonCard';
 
 /** DOM layer over the canvas; children with data-anchor follow 3D anchors. */
@@ -17,10 +21,34 @@ export function Overlay() {
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const choose = useGame((s) => s.choose);
   const hoverSummon = useGame((s) => s.hoverSummon);
+  const anim = useGame((s) => s.anim);
+  // HP shown from each impact on, until the turn's result replaces the state
+  const [struck, setStruck] = useState<Map<number, number>>(() => new Map());
+  // Damage Numbers popping after impacts; they outlive the turn
+  const [pops, setPops] = useState<{ key: string; impact: Impact }[]>([]);
+  const fired = useRef(new Set<string>());
+  useEffect(() => {
+    if (!anim) setStruck((m) => (m.size ? new Map() : m));
+  }, [anim]);
 
   useEffect(() => {
     let raf = 0;
     const loop = () => {
+      const a = useGame.getState().anim;
+      if (a) {
+        const t = animElapsed(a);
+        a.impacts.forEach((imp, i) => {
+          const key = `${a.start}:${i}`;
+          if (t < imp.t || fired.current.has(key)) return;
+          fired.current.add(key);
+          setStruck((m) => new Map(m).set(imp.unitId, imp.hpAfter));
+          setPops((p) => [...p, { key, impact: imp }]);
+          setTimeout(() => {
+            setPops((p) => p.filter((x) => x.key !== key));
+            fired.current.delete(key);
+          }, POP_MS + 50);
+        });
+      }
       const root = ref.current;
       if (root) {
         const W = root.clientWidth;
@@ -47,7 +75,8 @@ export function Overlay() {
         root.querySelectorAll<HTMLElement>('[data-anchor]').forEach((el) => {
           const p = anchorPositions.get(el.dataset.anchor!);
           if (!p) {
-            el.style.visibility = 'hidden';
+            // sticky: a Damage Number stays where its unit was (e.g. after a KO)
+            if (el.dataset.sticky === undefined || !el.style.transform) el.style.visibility = 'hidden';
             return;
           }
           el.style.visibility = 'visible';
@@ -130,24 +159,27 @@ export function Overlay() {
     }
   }
 
+  const perUnit = new Map<number, number>();
+  for (const t of tags) perUnit.set(t.unit.id, (perUnit.get(t.unit.id) ?? 0) + 1);
+
   return (
     <div className="overlay" ref={ref}>
       {showHpBars &&
-        match.units.map((unit) => (
+        match.units.filter((unit) => struck.get(unit.id) !== 0).map((unit) => (
           <div key={unit.id} className="anchor" data-anchor={`unit:${unit.id}`}>
             <div className="center-bottom">
-              <UnitBars unit={unit} />
+              <UnitBars unit={unit} hp={struck.get(unit.id) ?? unit.hp} />
             </div>
           </div>
         ))}
       {showHpBars &&
-        match.obstacles.map((o) => (
+        match.obstacles.filter((o) => struck.get(o.id) !== 0).map((o) => (
           <div key={o.id} className="anchor" data-anchor={`unit:${o.id}`}>
             <div className="center-bottom">
               <div className="unit-bars">
                 <div className="hp-bar obstacle">
                   {Array.from({ length: 10 }, (_, i) => (
-                    <span key={i} className={i < o.hp ? 'on grey' : ''} />
+                    <span key={i} className={i < (struck.get(o.id) ?? o.hp) ? 'on grey' : ''} />
                   ))}
                 </div>
               </div>
@@ -160,8 +192,17 @@ export function Overlay() {
             {tags
               .filter((t) => t.unit.id === id)
               .map((t, i) => (
-                t.effect ? <DamageTag key={i} effect={t.effect} label={t.label} note={t.note} /> : <div key={i} className="dmg-tag blocked">{t.note}</div>
+                t.effect ? <DamageTag key={i} effect={t.effect} label={(perUnit.get(id) ?? 0) > 1 ? t.label : undefined} note={t.note} /> : <div key={i} className="dmg-tag blocked">{t.note}</div>
               ))}
+          </div>
+        </div>
+      ))}
+      {pops.map(({ key, impact }) => (
+        <div key={`pop${key}`} className="anchor top" data-anchor={`tag:${impact.unitId}`} data-sticky="">
+          <div className="center-bottom">
+            <div className="dmg-pop" style={{ animationDuration: `${POP_MS}ms` }}>
+              <DamageNumber kind={impact.kind} amount={impact.amount} lethal={impact.lethal} />
+            </div>
           </div>
         </div>
       ))}
@@ -216,7 +257,7 @@ export function Overlay() {
   );
 }
 
-function UnitBars({ unit }: { unit: Unit }) {
+function UnitBars({ unit, hp }: { unit: Unit; hp: number }) {
   const av = Math.max(0, unit.av);
   const main = Math.min(av, 60) / 60;
   const over = Math.min(Math.max(av - 60, 0), 60) / 60;
@@ -224,7 +265,7 @@ function UnitBars({ unit }: { unit: Unit }) {
     <div className="unit-bars">
       <div className="hp-bar">
         {Array.from({ length: 10 }, (_, i) => (
-          <span key={i} className={i < unit.hp ? (unit.side === 0 ? 'on green' : 'on red') : ''} />
+          <span key={i} className={i < hp ? (unit.side === 0 ? 'on green' : 'on red') : ''} />
         ))}
       </div>
       <div className="av-bar" title={`AV ${av}`}>
