@@ -41,7 +41,7 @@ export type FamiliarRole =
   | 'assassin'; // fast, high-flying physical killer
 
 export interface MagicSpec {
-  kind: 'damage' | 'heal';
+  kind: 'damage' | 'heal' | 'empower';
   range: number;
   radius: 0 | 1 | 2;
   burst?: boolean;
@@ -117,7 +117,8 @@ export const MAGIC_SHAPE = { perRange: 0.2, perRing: 1.5, heal: 0.9 } as const;
 /** What the Magic Ability is worth before scaling: MP × its shape. */
 export function magicWorth(mp: number, m: MagicSpec | null): number {
   if (!m) return 0;
-  if (m.kind === 'heal') return mp * MAGIC_SHAPE.heal;
+  // heals and Empower are priced alike (support for an ally)
+  if (m.kind !== 'damage') return mp * MAGIC_SHAPE.heal;
   return mp * (1 + MAGIC_SHAPE.perRange * m.range + MAGIC_SHAPE.perRing * m.radius);
 }
 

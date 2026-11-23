@@ -10,7 +10,7 @@ import type { Alignment, Element, MagicAbility, MoveType, Stats, Trajectory, Uni
 // letters. The comment after each row names the reference it was built from
 // and the Cost the model gives it.
 
-type Spell = Omit<Extract<MagicAbility, { kind: 'damage' | 'heal' }>, 'id'>;
+type Spell = Omit<Exclude<MagicAbility, { kind: 'water' }>, 'id'>;
 
 type Def = [
   id: string,
@@ -31,7 +31,7 @@ const DEFS: Def[] = [
   ['hound', 'Cinder', 'fire', 24, 'day', 'skirmisher', [4, 2, 0, 4, 8, 6], ['walk'], [1], null], // from Hepitus, model 21
   ['salamander', 'Ember', 'fire', 32, 'none', 'grabber', [6, 3, 0, 3, 12, 6], ['walk'], [1], null], // from Hepitus, hand-tuned, model 32
   ['archer', 'Archon', 'fire', 40, 'day', 'ranged', [7, 4, 0, 4, 8, 5], ['walk'], [4, 'direct'], null], // from Blexe, model 39
-  ['wisp', 'Kindle', 'fire', 48, 'none', 'healer', [3, 4, 6, 6, 10, 5], ['fly'], [1], { name: 'Rekindle', kind: 'heal', range: 1, radius: 0, manaCost: 4 }], // from Fifenall, model 45
+  ['wisp', 'Kindle', 'fire', 48, 'none', 'support', [3, 4, 6, 6, 10, 5], ['fly'], [1], { name: 'Empower', kind: 'empower', range: 1, radius: 0, manaCost: 4, amount: 3 }], // from Fifenall (was a healer with Rekindle), model 45
   ['newt', 'Ashen', 'fire', 56, 'night', 'burster', [2, 4, 9, 8, 10, 7], ['walk'], [1], { name: 'Flashfire', kind: 'damage', range: 0, radius: 1, manaCost: 4, burst: true }], // from Dullmdaler, model 54
   ['golem', 'Magma', 'fire', 64, 'none', 'workhorse', [9, 7, 0, 6, 9, 6], ['walk'], [1], null], // from Da-Colm, model 65
   ['pyromancer', 'Blaze', 'fire', 72, 'none', 'artillery', [7, 7, 10, 8, 10, 5], ['walk'], [1], { name: 'Fireball', kind: 'damage', range: 4, radius: 1, manaCost: 8, trajectory: 'high' }], // from Gia-Bro, hand-tuned, model 71

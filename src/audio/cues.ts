@@ -80,7 +80,7 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
     const ab = actorKind.magic.find((m) => m.id === cmd.ability);
     const moveEnd = anim?.steps.find((s) => s.kind === 'move')?.t1 ?? 0;
     if (ab?.kind === 'water') cues.push({ at: moveEnd, sfx: { name: 'water', rise: ab.delta > 0 } });
-    if (ab?.kind === 'heal' && !anim?.steps.some((s) => s.kind === 'projectile')) {
+    if ((ab?.kind === 'heal' || ab?.kind === 'empower') && !anim?.steps.some((s) => s.kind === 'projectile')) {
       cues.push({ at: moveEnd, sfx: { name: 'cast', element: actorKind.element, heal: true } });
       cues.push({ at: moveEnd + 200, sfx: { name: 'heal', stone: false } });
     }

@@ -47,6 +47,7 @@ import {
 } from './sprites';
 import { FLY_LAND_MS, FLY_RISE_MS, KO_FADE_MS, SUMMON_PHASES, animElapsed, fliesKind, moveDurationMs, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
+import { EMPOWER_COLOR, EmpowerFx, StatusAura } from './effects';
 import { anchorPositions, anchorSources } from './anchors';
 import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
 import { themeOf, type Theme } from './themes';
@@ -371,7 +372,7 @@ function Highlights() {
   );
 }
 
-export type TargetMark = 'attack' | 'magic' | 'both' | 'heal';
+export type TargetMark = 'attack' | 'magic' | 'both' | 'heal' | 'empower';
 
 /** Units the acting unit can act on right now, and how. */
 function useTargetMarks(): Map<number, TargetMark> {
@@ -389,7 +390,7 @@ function useTargetMarks(): Map<number, TargetMark> {
         const m = !!q.magic && q.magic.affordable;
         if (a && m) out.set(t.id, 'both');
         else if (a) out.set(t.id, 'attack');
-        else if (m) out.set(t.id, q.magic!.ability.kind === 'heal' ? 'heal' : 'magic');
+        else if (m) out.set(t.id, q.magic!.ability.kind === 'heal' ? 'heal' : q.magic!.ability.kind === 'empower' ? 'empower' : 'magic');
       }
     } else if (phase.kind === 'target') {
       const ab = phase.command === 'attack' ? null : magicAbility(kindOf(u.kind), phase.command.magic);
@@ -404,7 +405,10 @@ function useTargetMarks(): Map<number, TargetMark> {
           phase.command === 'attack' ? { type: 'attack', target: t.pos } : { type: 'magic', ability: phase.command.magic, target: t.pos };
         if (validateTurn(match, { unitId: u.id, to: phase.to, facing: phase.facing, command })) continue;
         if (phase.command === 'attack') out.set(t.id, 'attack');
-        else out.set(t.id, magicAbility(kindOf(u.kind), phase.command.magic).kind === 'heal' ? 'heal' : 'magic');
+        else {
+          const k = magicAbility(kindOf(u.kind), phase.command.magic).kind;
+          out.set(t.id, k === 'heal' ? 'heal' : k === 'empower' ? 'empower' : 'magic');
+        }
       }
     }
     return out;
@@ -583,6 +587,7 @@ function UnitView({
   const group = useRef<THREE.Group>(null);
   const arrow = useRef<THREE.Mesh>(null);
   const body = useRef<THREE.Sprite>(null);
+  const aura = useRef<THREE.Group>(null);
   const bodyMat = useRef<THREE.SpriteMaterial>(null);
   const [tx, tz] = hexToWorld(displayPos);
   const ty = standY(match, unit.kind, displayPos);
@@ -621,9 +626,16 @@ function UnitView({
     let flash = 0;
     let glow = 0;
     let fade = 0; // KO: fades out from the lethal impact
+    // Empowered: from the moment an Empower lands until the unit's Attack hits
+    let empowered = !!unit.empowered;
 
     if (anim) {
       const t = animElapsed(anim, now);
+      for (const imp of anim.impacts) if (imp.kind === 'empower' && imp.unitId === unit.id && t >= imp.t) empowered = true;
+      if (anim.actorId === unit.id && anim.steps.some((s) => (s.kind === 'melee' && s.unitId === unit.id) || (s.kind === 'projectile' && s.style === 'arrow'))) {
+        const hit = anim.impacts.find((imp) => imp.kind === 'damage');
+        if (!hit || t >= hit.t) empowered = false;
+      }
       for (const imp of anim.impacts) if (imp.lethal && imp.unitId === unit.id && t >= imp.t) fade = Math.min(1, (t - imp.t) / KO_FADE_MS);
       for (const st of anim.steps) {
         if (st.kind === 'move' && st.unitId === unit.id) {
@@ -706,11 +718,12 @@ function UnitView({
           outlineMat.current.needsUpdate = true;
         }
         const both = mark === 'both' && Math.floor(now / 400) % 2 === 1;
-        outlineMat.current.color.set(mark === 'heal' ? '#5fe07a' : mark === 'magic' || both ? LINE_COLORS.magic : LINE_COLORS.attack);
+        outlineMat.current.color.set(mark === 'heal' ? '#5fe07a' : mark === 'empower' ? EMPOWER_COLOR : mark === 'magic' || both ? LINE_COLORS.magic : LINE_COLORS.attack);
         outlineMat.current.opacity = 0.75 + 0.25 * Math.sin(now / 160);
       }
     }
     if (outline.current && body.current) outline.current.position.copy(body.current.position);
+    if (aura.current) aura.current.visible = empowered && fade === 0;
     if (bodyMat.current && !ghost) {
       const a = 1 - fade;
       // sprites cut out at alphaTest 0.5: lower it while fading so the fade is smooth
@@ -737,6 +750,11 @@ function UnitView({
         <mesh ref={ring} geometry={ringGeo} position={[0, 0.04, 0]} raycast={() => null}>
           <meshBasicMaterial color={hovered ? '#ffe066' : inspected ? '#9fd0ff' : '#ffffff'} transparent opacity={0.9} />
         </mesh>
+      )}
+      {!ghost && (
+        <group ref={aura} visible={false}>
+          <StatusAura color={EMPOWER_COLOR} height={scale} seed={unit.id} />
+        </group>
       )}
       {mark && !ghost && (
         <sprite ref={outline} scale={[size, size, 1]} position={[0, lift, 0]} raycast={() => null} renderOrder={9}>
@@ -987,6 +1005,13 @@ function BurstFx({ step }: { step: Extract<AnimStep, { kind: 'burst' }> }) {
   );
 }
 
+function EmpowerStep({ step }: { step: Extract<AnimStep, { kind: 'empower' }> }) {
+  const match = useGame((s) => s.match);
+  const from = useMemo(() => worldAt(match, step.from), [match, step.from]);
+  const to = useMemo(() => worldAt(match, step.to), [match, step.to]);
+  return <EmpowerFx step={step} from={from} to={to} />;
+}
+
 function Projectiles() {
   const anim = useGame((s) => s.anim);
   if (!anim) return null;
@@ -999,6 +1024,8 @@ function Projectiles() {
           <SummonFx key={`${anim.start}:${i}`} step={st} />
         ) : st.kind === 'burst' ? (
           <BurstFx key={`${anim.start}:${i}`} step={st} />
+        ) : st.kind === 'empower' ? (
+          <EmpowerStep key={`${anim.start}:${i}`} step={st} />
         ) : null,
       )}
     </>

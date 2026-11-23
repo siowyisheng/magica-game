@@ -17,16 +17,17 @@ const O = '#10121a'; // outline
 const ICONS = {
   atk: {
     title: 'Attack',
-    palette: { o: O, s: '#e8ecf5', h: '#b08a3a' },
+    // a sword: two-tone blade (bright edge, shaded flat), gold crossguard, leather grip, gold pommel
+    palette: { o: O, w: '#f4f7ff', b: '#8f9bb8', g: '#f6cf5a', d: '#b8862a', h: '#7a4a2a', p: '#f6cf5a' },
     grid: [
-      '......oo.',
-      '.....oso.',
-      '....oso..',
-      '...oso...',
-      'o.oso....',
-      '.ooo.....',
-      '.oho.....',
-      'oo.oo....',
+      '......owo',
+      '.....owbo',
+      '..o.owbo.',
+      '.ogowbo..',
+      '..odbo...',
+      '.ohodo...',
+      'oho.ogo..',
+      'po...o...',
       'o........',
     ],
   },

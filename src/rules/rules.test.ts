@@ -829,3 +829,43 @@ describe('random Loadouts', () => {
     expect(seen.size).toBeGreaterThan(150);
   });
 });
+
+describe('Empower', () => {
+  it("adds +3 ATK to a friendly unit (or the caster) until its next Attack, which uses it up", () => {
+    const state = createMatch(testMap(8, 8));
+    state.clock = 18 * 60;
+    state.units = state.units.filter((u) => kindOf(u.kind).isMaster);
+    for (const u of state.units) u.pos = u.side === 0 ? hex(0, 7) : hex(7, 0);
+    const kindle = place(state, 'wisp', 0, 3, 3);
+    const ally = place(state, 'hound', 0, 4, 3);
+    const foe = place(state, 'clod', 1, 5, 3, 3);
+    expect(kindOf('wisp').magic.map((m) => m.id)).toEqual(['empower']);
+    state.sides[0].mana = 50;
+    activate(state, kindle);
+    // an enemy can't be Empowered
+    expect(validateTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'magic', ability: 'empower', target: hex(5, 3) } })).not.toBeNull();
+    const before = computeDamage(state, ally, ally.pos, foe, 'physical').amount;
+    const r = applyTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'magic', ability: 'empower', target: ally.pos } });
+    expect(r.events.some((e) => e.type === 'empower' && e.unitId === ally.id && e.amount === 3)).toBe(true);
+    expect(r.state.sides[0].mana).toBe(46);
+    const s2 = r.state;
+    const a2 = getUnit(s2, ally.id);
+    expect(a2.empowered).toBe(3);
+    expect(computeDamage(s2, a2, a2.pos, getUnit(s2, foe.id), 'physical').amount).toBe(before + 3);
+    // Magic doesn't use it up; an Attack does
+    activate(s2, a2);
+    const r2 = applyTurn(s2, { unitId: a2.id, to: a2.pos, facing: 0, command: { type: 'attack', target: hex(5, 3) } });
+    expect(r2.events.find((e) => e.type === 'damage')).toMatchObject({ amount: before + 3 });
+    expect(getUnit(r2.state, ally.id).empowered).toBeUndefined();
+    // the caster may Empower itself; a second Empower doesn't stack
+    const s3 = r2.state;
+    activate(s3, getUnit(s3, kindle.id));
+    s3.sides[0].mana = 50;
+    const self = { unitId: kindle.id, to: getUnit(s3, kindle.id).pos, facing: 0 as const, command: { type: 'magic' as const, ability: 'empower', target: getUnit(s3, kindle.id).pos } };
+    expect(validateTurn(s3, self)).toBeNull();
+    const r3 = applyTurn(s3, self);
+    expect(getUnit(r3.state, kindle.id).empowered).toBe(3);
+    activate(r3.state, getUnit(r3.state, kindle.id));
+    expect(getUnit(applyTurn(r3.state, { ...self, to: getUnit(r3.state, kindle.id).pos }).state, kindle.id).empowered).toBe(3);
+  });
+});

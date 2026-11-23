@@ -10,7 +10,7 @@ import {
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { DEFAULT_MASTER, kindOf } from './kinds';
-import { affectedUnits, attackTargets, computeDamage, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
+import { affectedUnits, attackTargets, computeDamage, computeEmpower, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
 import { canPlace, isStranded, mapHexAt, reachable, surfaceOf, targetAt } from './terrain';
 import { isObstacle, type GameEvent, type MagicAbility, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
 
@@ -231,7 +231,7 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
     const ab = kind.magic.find((m) => m.id === cmd.ability);
     if (!ab || ab.kind === 'water') return [];
     return affectedUnits(view, caster, ab, cmd.target).map((t) =>
-      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : computeDamage(view, caster, magicHitOrigin(ab, action.to, cmd.target, t), t, 'magic'),
+      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : ab.kind === 'empower' && !isObstacle(t) ? computeEmpower(ab, t) : computeDamage(view, caster, magicHitOrigin(ab, action.to, cmd.target, t), t, 'magic'),
     );
   }
   return [];
@@ -314,11 +314,16 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
       if (e.kind === 'damage') {
         t.hp = Math.max(0, t.hp - e.amount);
         events.push({ type: 'damage', unitId: t.id, amount: e.amount, source: unit.id });
+      } else if (e.kind === 'empower') {
+        t.empowered = Math.max(t.empowered ?? 0, e.amount);
+        events.push({ type: 'empower', unitId: t.id, amount: e.amount, source: unit.id });
       } else {
         t.hp = Math.min(MAX_HP, t.hp + e.amount);
         events.push({ type: 'heal', unitId: t.id, amount: e.amount, source: unit.id });
       }
     }
+    // an Attack uses up Empower (its damage above already counted it)
+    if (cmd.type === 'attack') delete unit.empowered;
   } else if (cmd.type === 'summon') {
     const sk = kindOf(cmd.kind);
     state.sides[unit.side].mana -= sk.cost;

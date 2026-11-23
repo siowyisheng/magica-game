@@ -51,6 +51,10 @@ export const AI_WEIGHTS = {
   kill: 60,
   killMaster: 100000,
   heal: 7,
+  /** Value of an Empower (× its ATK × damage): the extra damage it should add to the target's next Attack. */
+  empower: 1.2,
+  /** Share of that value when no enemy is within the target's reach next turn. */
+  empowerIdle: 0.3,
   friendlyFire: 14,
   threat: 9,
   deathRisk: 70,
@@ -572,6 +576,15 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
                   // allies can finish it before it acts, healing included
                   score += w.kill * v * w.setupKill;
                 }
+              }
+            } else if (e.kind === 'empower') {
+              // worth the extra damage on its next Attack; nothing if it already has it
+              if (t.side === me.side && (t.empowered ?? 0) < e.amount) {
+                const tk = kindOf(t.kind);
+                const pos = t.id === me.id ? dest : t.pos;
+                const reach = tk.stats.mov + tk.attack.range + 1;
+                const soon = state.units.some((u) => u.side !== me.side && hexDistance(u.pos, pos) <= reach);
+                score += w.empower * e.amount * w.damage * (soon ? 1 : w.empowerIdle);
               }
             } else {
               score += (t.side === me.side ? 1 : -1) * e.amount * w.heal * v;

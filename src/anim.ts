@@ -44,6 +44,12 @@ export type AnimStep =
   /** Master glows and approaches, a light blooms on the hex, the familiar fades in, the Master backs off. */
   /** A light swells on the Magic Stone (ease in/out); the stone changes colour at the peak. */
   | { kind: 'capture'; hex: Hex; side: SideId; t0: number; t1: number }
+  /**
+   * Empower: golden motes spiral from the caster to the target, then a column
+   * of light rises round the target with sparks climbing it; the ATK bonus
+   * lands at the column's peak (EMPOWER_PEAK).
+   */
+  | { kind: 'empower'; from: Hex; to: Hex; t0: number; t1: number }
   | { kind: 'summon'; unitId: number; from: Hex; target: Hex; summonKind: string; side: SideId; facing: Dir; t0: number; t1: number };
 
 export interface TurnAnim {
@@ -67,7 +73,7 @@ export interface TurnAnim {
 export interface Impact {
   unitId: number;
   t: number;
-  kind: 'damage' | 'heal';
+  kind: 'damage' | 'heal' | 'empower';
   amount: number;
   /** HP shown from the impact on. */
   hpAfter: number;
@@ -107,6 +113,9 @@ const MELEE_IMPACT = 0.55; // fraction of the melee step when the bonk lands
 const HIT_MS = 220;
 export const SUMMON_MS = 1250;
 export const CAPTURE_MS = 900;
+export const EMPOWER_MS = 950;
+/** Fraction of the Empower step when the bonus lands. */
+export const EMPOWER_PEAK = 0.6;
 /** Phases of the summon step as fractions of its duration. */
 export const SUMMON_PHASES = { approachEnd: 0.24, lightStart: 0.18, fadeStart: 0.36, fadeEnd: 0.74, backStart: 0.8 } as const;
 
@@ -155,7 +164,11 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       const view = { ...before, units: before.units.map((u) => (u.id === unit.id ? { ...u, pos: action.to } : u)) };
       const hitIds = affectedUnits(view, getUnit(view, unit.id), ab, cmd.target).map((u) => u.id);
       const d = hexDistance(action.to, cmd.target);
-      if (ab.kind === 'damage' && ab.burst) {
+      if (ab.kind === 'empower') {
+        steps.push({ kind: 'empower', from: action.to, to: cmd.target, t0: t, t1: t + EMPOWER_MS });
+        impactT = t + EMPOWER_MS * EMPOWER_PEAK;
+        t += EMPOWER_MS;
+      } else if (ab.kind === 'damage' && ab.burst) {
         const ms = 320 + 120 * ab.radius;
         steps.push({ kind: 'burst', at: action.to, radius: ab.radius, element: kind.element, t0: t, t1: t + ms });
         t += Math.round(ms * 0.6); // units are hit as the wave passes
@@ -175,16 +188,18 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
         });
         t += fly;
       }
-      impactT = t;
-      if (ab.kind === 'damage' && hitIds.length) steps.push({ kind: 'hit', unitIds: hitIds, t0: t, t1: t + HIT_MS });
-      t += HIT_MS;
+      if (ab.kind !== 'empower') {
+        impactT = t;
+        if (ab.kind === 'damage' && hitIds.length) steps.push({ kind: 'hit', unitIds: hitIds, t0: t, t1: t + HIT_MS });
+        t += HIT_MS;
+      }
     }
   }
 
   const impacts: Impact[] = [];
   if (impactT !== null) {
     for (const e of previewEffects(before, action)) {
-      const hpAfter = e.kind === 'heal' ? Math.min(MAX_HP, e.hpBefore + e.amount) : Math.max(0, e.hpBefore - e.amount);
+      const hpAfter = e.kind === 'heal' ? Math.min(MAX_HP, e.hpBefore + e.amount) : e.kind === 'empower' ? e.hpBefore : Math.max(0, e.hpBefore - e.amount);
       impacts.push({ unitId: e.unitId, t: impactT, kind: e.kind, amount: e.amount, hpAfter, lethal: e.lethal });
       if (e.lethal) t = Math.max(t, impactT + KO_FADE_MS); // let the fade finish
     }

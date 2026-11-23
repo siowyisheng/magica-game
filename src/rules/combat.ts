@@ -83,7 +83,7 @@ export interface Effect {
   unitId: number;
   /** True when the target is an Obstacle. */
   obstacle?: boolean;
-  kind: 'damage' | 'heal';
+  kind: 'damage' | 'heal' | 'empower';
   amount: number;
   hpBefore: number;
   lethal: boolean;
@@ -105,7 +105,8 @@ export function computeDamage(
 ): Effect {
   const ak = kindOf(attacker.kind);
   const aAlign = alignmentBonus(ak.alignment, state.clock);
-  const aStat = (hit === 'physical' ? ak.stats.atk : ak.stats.mp) + aAlign;
+  // Empower adds to ATK (Attacks only) until the Attack is made
+  const aStat = (hit === 'physical' ? ak.stats.atk + (attacker.empowered ?? 0) : ak.stats.mp) + aAlign;
   let dStat: number;
   let dAlign = 0;
   let element: number;
@@ -145,6 +146,14 @@ export function computeDamage(
     },
   };
 }
+
+/** Empower: the target's next Attack gets +`amount` ATK. It doesn't stack: a second one only refreshes it. */
+export function computeEmpower(ability: { amount?: number }, target: Unit): Effect {
+  return { unitId: target.id, kind: 'empower', amount: ability.amount ?? EMPOWER_DEFAULT, hpBefore: target.hp, lethal: false };
+}
+
+/** ATK an Empower gives when its ability names no amount. */
+export const EMPOWER_DEFAULT = 3;
 
 export function computeHeal(state: MatchState, caster: Unit, target: Unit): Effect {
   const ck = kindOf(caster.kind);
@@ -236,13 +245,13 @@ export function attackTargets(state: MatchState, unit: Unit, from: Hex): Target[
   return out;
 }
 
-type AreaAbility = Extract<MagicAbility, { kind: 'damage' | 'heal' }>;
+type AreaAbility = Exclude<MagicAbility, { kind: 'water' }>;
 
 /** Damage hits enemies and Obstacles; heals hit allies (the caster included). */
 function matchesTargets(ability: AreaAbility, caster: Unit, t: Target): boolean {
   if (isObstacle(t)) return ability.kind === 'damage';
   if (ability.kind === 'damage' && ability.burst) return t.id !== caster.id; // a Burst spares only its caster
-  return ability.kind === 'heal' ? t.side === caster.side : t.side !== caster.side;
+  return ability.kind === 'damage' ? t.side !== caster.side : t.side === caster.side;
 }
 
 /** Closest hex a Magic Ability may be aimed at: damage never at the caster's own hex. */

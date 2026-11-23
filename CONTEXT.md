@@ -108,7 +108,7 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 19 of the 40 Familiars have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Masters have none.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals and Empower hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 19 of the 40 Familiars have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Masters have none.
 _Avoid_: Skill, spell (as a code term)
 
 **Burst**:
@@ -136,6 +136,9 @@ _Avoid_: Backstab bonus, flanking
 
 **Damage**:
 Attacker's ATK − defender's DEF + Element Bonus + Facing Bonus − the defender's terrain cover; MP and MDF for Magic. Alignment changes the stats first. A result of 0 or less deals 0: there is no minimum. It is not limited by the defender's remaining HP (the Damage Number shows it all), but HP never drops below 0. For example, ATK 5 against DEF 1 with a Counter from behind deals 5 − 1 + 4 + 2 = 10.
+
+**Empower**:
+A Magic Ability (Kindle's) that targets one friendly Unit within range 1, the caster included, and gives it +3 ATK until its next Attack. The Unit is then **Empowered**, and shows a golden aura: the bonus counts in that Attack's damage and is then used up. Magic doesn't use it up, and a second Empower doesn't stack.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.

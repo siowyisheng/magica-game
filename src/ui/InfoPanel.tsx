@@ -178,7 +178,8 @@ function UnitCard({ unitId }: { unitId: number }) {
           <div className="muted">Move Type: {k.moveTypes.join(' + ')}</div>
         </div>
       </div>
-      <StatGrid stats={k.stats} align={align} />
+      <StatGrid stats={k.stats} align={align} atkBonus={u.empowered ?? 0} />
+      {!!u.empowered && <div className="good small">Empowered: +{u.empowered} ATK until its next Attack</div>}
       <div className="muted small">Attack: range {k.attack.range}</div>
       {k.magic.map((m) => (
         <div key={m.id} className="muted small">
