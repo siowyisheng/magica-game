@@ -113,6 +113,9 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 .dmg-num.lethal { color: #ff5a44; text-shadow: 0 2px 0 #1c0c06, 0 0 10px #ff2a2aaa; }
 .dmg-num.heal { color: #8dffa4; -webkit-text-stroke-color: #062010; text-shadow: 0 2px 0 #062010, 0 0 8px #3aff7a88; }
+.dmg-num.empower { flex-direction: row; align-items: center; gap: 2px; color: #ffd77a; -webkit-text-stroke-color: #2a1606; text-shadow: 0 2px 0 #2a1606, 0 0 10px #ffb02e99; }
+.dmg-num .dmg-icon { display: inline-flex; filter: drop-shadow(0 0 1px #2a1606) drop-shadow(0 1px 0 #2a1606) drop-shadow(0 0 6px #ffb02e88); }
+.dmg-num .dmg-icon .px-icon { vertical-align: middle; }
 .dmg-num.zero { color: #c4c4cc; text-shadow: 0 2px 0 #1c0c06; }
 .dmg-num .ko { display: block; font-size: 0.38em; margin-bottom: 1px; letter-spacing: 0.08em; text-align: center; color: #ffd0c8; -webkit-text-stroke-width: 3px; }
 .dmg-pop { animation-name: dmg-pop; animation-timing-function: linear; animation-fill-mode: both; }

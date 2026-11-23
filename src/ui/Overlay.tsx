@@ -156,7 +156,7 @@ export function Overlay() {
   // quick-action hover on a target that only a blocked Direct shot could reach
   if (u && !quick && phase.kind === 'move' && phase.selected) {
     const t = (hoverUnitId !== null ? targetById(match, hoverUnitId) : undefined) ?? (hoverHex ? targetAt(match, hoverHex) : undefined);
-    if (t && t.id !== u.id && (isObstacle(t) || t.side !== u.side || primaryMagic(u)?.kind === 'heal') && blockedShot(match, u, t)) {
+    if (t && t.id !== u.id && (isObstacle(t) || t.side !== u.side || primaryMagic(u)?.kind === 'heal' || primaryMagic(u)?.kind === 'empower') && blockedShot(match, u, t)) {
       tags.push({ unit: t, note: 'No clear shot' });
     }
   }

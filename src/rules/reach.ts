@@ -6,7 +6,7 @@ import { kindOf } from './kinds';
 import { mapHexAt, reachable } from './terrain';
 import { isObstacle, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
 
-type TargetedMagic = Extract<MagicAbility, { kind: 'damage' | 'heal' }>;
+type TargetedMagic = Exclude<MagicAbility, { kind: 'water' }>;
 
 /** The targeted Magic Ability used for Magic Reach and quick actions (the first one). */
 export function primaryMagic(unit: Unit): TargetedMagic | null {

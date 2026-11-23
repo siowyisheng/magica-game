@@ -30,14 +30,17 @@ export interface AttackAbility {
 export type Trajectory = 'high' | 'direct';
 
 /**
- * Magic Ability. Damage hits enemies only; heals hit allies (caster
- * included). Strength comes from the caster's MP — abilities have no power.
+ * Magic Ability. Damage hits enemies only; heals and Empower hit allies
+ * (caster included). Damage and heals take their strength from the caster's
+ * MP; Empower gives a fixed ATK bonus (`amount`).
  */
 export type MagicAbility =
   | {
       id: string;
       name: string;
-      kind: 'damage' | 'heal';
+      kind: 'damage' | 'heal' | 'empower';
+      /** Empower only: ATK added to the target until its next Attack. */
+      amount?: number;
       /** Maximum distance to the aimed hex. */
       range: number;
       /** 0 = single hex, 1 = aimed hex and its neighbours, 2 = two rings (Burst only). */
@@ -119,6 +122,8 @@ export interface Unit {
   av: number;
   /** Set at start of turn when the Unit stands on a hex it may not enter. */
   stranded: boolean;
+  /** Empowered: ATK added to this Unit's next Attack, then cleared. */
+  empowered?: number;
 }
 
 /** A neutral map object with HP; ids share the Unit id space. */
@@ -190,6 +195,7 @@ export type GameEvent =
   | { type: 'move'; unitId: number; from: Hex; to: Hex }
   | { type: 'damage'; unitId: number; amount: number; source: number }
   | { type: 'heal'; unitId: number; amount: number; source: number | 'stone' }
+  | { type: 'empower'; unitId: number; amount: number; source: number }
   | { type: 'stranded'; unitId: number }
   | { type: 'summon'; unitId: number; kind: string; by: number }
   | { type: 'capture'; side: SideId; hex: Hex }

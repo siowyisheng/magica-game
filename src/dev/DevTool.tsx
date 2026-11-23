@@ -448,11 +448,15 @@ function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicA
         <>
           <label className="dev-field">
             <span>Effect</span>
-            <select value={m.kind} onChange={(e) => onChange((x) => void (x.kind === 'water' || (x.kind = e.target.value as 'damage' | 'heal')))}>
+            <select value={m.kind} onChange={(e) => onChange((x) => void (x.kind === 'water' || (x.kind = e.target.value as 'damage' | 'heal' | 'empower')))}>
               <option value="damage">Damage</option>
               <option value="heal">Heal</option>
+              <option value="empower">Empower (+ATK until the next Attack)</option>
             </select>
           </label>
+          {m.kind === 'empower' && (
+            <Num label="ATK" value={m.amount ?? 3} min={1} max={9} onChange={(v) => onChange((x) => void (x.kind === 'empower' && (x.amount = v)))} />
+          )}
           <Num
             label="Range"
             value={m.range}

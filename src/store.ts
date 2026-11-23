@@ -240,6 +240,8 @@ function describe(match: MatchState, e: GameEvent): string | null {
       return `${name(e.source)} → ${name(e.unitId)}: ${e.amount} dmg`;
     case 'heal':
       return `${name(e.unitId)} healed ${e.amount}${e.source === 'stone' ? ' (stone)' : ''}`;
+    case 'empower':
+      return `${name(e.source)} empowered ${name(e.unitId)}: +${e.amount} ATK until its next Attack`;
     case 'summon':
       return `${name(e.by)} summoned ${kindOf(e.kind).name}`;
     case 'capture':

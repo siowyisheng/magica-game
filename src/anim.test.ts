@@ -114,3 +114,16 @@ describe('impacts', () => {
     expect(planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 1, command: { type: 'wait' } }, 0).impacts).toEqual([]);
   });
 });
+
+describe('Empower animation', () => {
+  it('plays an Empower step and lands +3 at its peak, with no HP change', async () => {
+    const { EMPOWER_MS, EMPOWER_PEAK } = await import('./anim');
+    const s = createMatch(flatMap(6, 6));
+    const me = getUnit(s, s.activeUnitId!);
+    s.units = s.units.map((u) => (u.id === me.id ? { ...u, kind: 'wisp' } : u));
+    s.sides[me.side].mana = 50;
+    const a = planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'magic', ability: 'empower', target: me.pos } }, 0, true);
+    expect(a.steps.map((x) => x.kind)).toEqual(['empower']);
+    expect(a.impacts).toEqual([{ unitId: me.id, t: EMPOWER_MS * EMPOWER_PEAK, kind: 'empower', amount: 3, hpAfter: me.hp, lethal: false }]);
+  });
+});

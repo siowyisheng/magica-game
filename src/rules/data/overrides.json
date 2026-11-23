@@ -197,7 +197,9 @@
         "spd": 12,
         "mov": 3
       },
-      "magicIds": []
+      "magicIds": [
+        "empower"
+      ]
     },
     "newt": {
       "stats": {
