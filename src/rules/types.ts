@@ -60,14 +60,14 @@ export type MagicAbility =
       manaCost: number;
     };
 
-/** Static definition of a kind of Unit (one Summoner kind, 28 Summon kinds). */
+/** Static definition of a kind of Unit (a Master or a Familiar). */
 export interface UnitKind {
   id: string;
   name: string;
-  isSummoner: boolean;
+  isMaster: boolean;
   element: Element | null;
   alignment: Alignment;
-  /** Summon cost in Mana; 0 for Summoners. */
+  /** Familiar cost in Mana; 0 for Masters. */
   cost: number;
   stats: Stats;
   moveTypes: MoveType[];
@@ -146,7 +146,7 @@ export interface SideState {
   ai: boolean;
   /** AI strength when `ai` is set (default Normal). */
   aiLevel?: 'normal' | 'hard';
-  /** Summon kinds this Side may Summon (its Loadout); absent = all (Test Match). */
+  /** Familiar kinds this Side may Summon (its Loadout); absent = all (Test Match). */
   roster?: string[];
 }
 

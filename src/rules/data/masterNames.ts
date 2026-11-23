@@ -1,11 +1,11 @@
 import type { NameEntry } from '../statgen';
 
-// Names for generated Summoners, each tagged with the stat profile it suits
-// (z-scores against the reference Summoners: +1 is one spread above
+// Names for generated Masters, each tagged with the stat profile it suits
+// (z-scores against the reference Masters: +1 is one spread above
 // average). Every one is humanoid or demi-human; `look` is its sprite brief.
 // The eight with an Element or Alignment always appear.
 
-export const SUMMONER_NAMES: NameEntry[] = [
+export const MASTER_NAMES: NameEntry[] = [
   // ranged (the range they suit)
   { name: 'Savage', ranged: 4, profile: { atk: 1, def: 1, spd: 1 }, look: 'tusked wild-folk huntress in bone armour hurling a crackling spear of green fire' },
   { name: 'Corsair', ranged: 3, profile: { atk: 0.5, mov: 1 }, look: 'sky-pirate with a tricorne and a brass spell-pistol, a little ghost parrot on the shoulder' },

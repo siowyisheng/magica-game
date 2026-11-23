@@ -1,4 +1,5 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { withSpells } from './testing/spells';
+import { onTestFinished, describe, expect, it, beforeEach, vi } from 'vitest';
 import { closestFacing, quickPlans, useGame } from './store';
 import { activeUnit, getUnit, hex } from './rules';
 
@@ -15,7 +16,7 @@ describe('closestFacing', () => {
 
 describe('facing is set while the command menu is open', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
   });
 
@@ -52,7 +53,7 @@ describe('facing is set while the command menu is open', () => {
 
 describe('selection, quick actions and range toggles', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
   });
 
@@ -66,6 +67,7 @@ describe('selection, quick actions and range toggles', () => {
   };
 
   it('left-clicking a unit in Magic Reach (Bolt) moves to the chosen hex and casts', () => {
+    onTestFinished(withSpells());
     // find a spot out of melee reach but within Bolt reach
     let found: ReturnType<typeof placeFoe> | null = null;
     for (const [dq, dr] of [[0, -6], [1, -6], [2, -6], [0, -5], [3, -6], [-1, -5], [2, -7]]) {
@@ -90,6 +92,7 @@ describe('selection, quick actions and range toggles', () => {
   });
 
   it('offers a choice when both Attack and Magic can hit the target', () => {
+    onTestFinished(withSpells());
     const { foe } = placeFoe(2, -2);
     useGame.getState().clickHex(foe.pos);
     expect(useGame.getState().phase.kind).toBe('quickChoice');
@@ -138,7 +141,7 @@ describe('selection, quick actions and range toggles', () => {
 describe('choosing a summon hex', () => {
   it('selects the valid adjacent hex closest in angle to the cursor, even through crowded hexes', async () => {
     const { summonDirToward, validSummonDirs } = await import('./store');
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     useGame.getState().newMatch();
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
@@ -181,7 +184,7 @@ describe('handing a Side to a person', () => {
     vi.useFakeTimers();
     try {
       useGame.setState({ animate: true, anim: null, aiThinking: false });
-      useGame.getState().startFromSetup({ mapId: 'builtin:scaffold-ford', test: true, summoners: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, true] });
+      useGame.getState().startFromSetup({ mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, true] });
       for (let i = 0; i < 40 && !useGame.getState().anim; i++) {
         useGame.getState().tickAi();
         vi.advanceTimersByTime(500);

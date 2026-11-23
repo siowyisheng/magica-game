@@ -8,7 +8,7 @@ import { isObstacle, type MagicAbility, type MatchState, type Target, type Traje
 
 type TargetedMagic = Extract<MagicAbility, { kind: 'damage' | 'heal' }>;
 
-/** The targeted Magic Ability used for Magic Reach and quick actions (first one; Bolt for Summoners). */
+/** The targeted Magic Ability used for Magic Reach and quick actions (the first one). */
 export function primaryMagic(unit: Unit): TargetedMagic | null {
   for (const m of kindOf(unit.kind).magic) if (m.kind !== 'water') return m;
   return null;

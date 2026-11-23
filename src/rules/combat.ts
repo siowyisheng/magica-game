@@ -21,15 +21,10 @@ export function elementRelation(attacker: Element | null, defender: Element | nu
   return 'neutral';
 }
 
-/**
- * Element Bonus for a hit. Summoners always attack as a Counter and are
- * always hit as neutral, whatever their own Element; Obstacles (`defender`
- * null) are hit as neutral.
- */
+/** Element Bonus for a hit, by the two Elements (Obstacles, `defender` null, have none). */
 export function elementBonus(attacker: UnitKind, defender: UnitKind | null): number {
-  if (attacker.isSummoner) return ELEMENT_BONUS.counter;
-  if (!defender || defender.isSummoner) return ELEMENT_BONUS.neutral;
-  return ELEMENT_BONUS[elementRelation(attacker.element, defender.element)];
+  // Masters and Familiars alike, by their Elements; no Element (or an Obstacle) is neutral
+  return ELEMENT_BONUS[elementRelation(attacker.element, defender?.element ?? null)];
 }
 
 // ---------- Facing ----------
@@ -130,8 +125,8 @@ export function computeDamage(
     facingAngle = facingAngleDegrees(defender.pos, defender.facing, attackerPos);
     cover = coverAt(state, defender.pos);
   }
-  const raw = Math.max(0, aStat - dStat + element + facing - cover);
-  const amount = Math.min(defender.hp, raw);
+  // the full damage, even past the defender's remaining HP (HP itself stops at 0)
+  const amount = Math.max(0, aStat - dStat + element + facing - cover);
   return {
     unitId: defender.id,
     obstacle: isObstacle(defender),

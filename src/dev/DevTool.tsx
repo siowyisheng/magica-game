@@ -1,4 +1,4 @@
-// Dev tool: hand-edit every Summoner's and summon's stats, Move Types, Attack
+// Dev tool: hand-edit every Master's and Familiar's stats, Move Types, Attack
 // and Magic. Edits are kept in this browser and apply to new matches; they
 // can be exported / imported as JSON, reset, or (on the dev server) written
 // into the repo's balance file.
@@ -6,8 +6,8 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   ELEMENTS,
-  SUMMONERS,
-  SUMMONS,
+  MASTERS,
+  FAMILIARS,
   kindOf,
   kindWarnings,
   shippedKind,
@@ -64,7 +64,7 @@ export function DevTool() {
     setTimeout(() => setMessage((cur) => (cur === m ? null : cur)), 3000);
   };
 
-  const roster = useMemo(() => [...SUMMONERS, ...SUMMONS], [rev]); // eslint-disable-line react-hooks/exhaustive-deps
+  const roster = useMemo(() => [...MASTERS, ...FAMILIARS], [rev]); // eslint-disable-line react-hooks/exhaustive-deps
   // the selection is a unit kind id, or 'ability:<id>' for a Magic Ability
   const abilitySel = selected.startsWith('ability:') ? selected.slice(8) : null;
   const kind = abilitySel ? null : kindOf(selected);
@@ -85,8 +85,8 @@ export function DevTool() {
   };
 
   const groups: { label: string; color?: string; kinds: UnitKind[] }[] = [
-    { label: 'Summoners', kinds: SUMMONERS },
-    ...ELEMENTS.map((e) => ({ label: e[0].toUpperCase() + e.slice(1), color: ELEMENT_COLORS[e], kinds: SUMMONS.filter((k) => k.element === e && true) })),
+    { label: 'Masters', kinds: MASTERS },
+    ...ELEMENTS.map((e) => ({ label: e[0].toUpperCase() + e.slice(1), color: ELEMENT_COLORS[e], kinds: FAMILIARS.filter((k) => k.element === e && true) })),
   ];
 
   return (
@@ -277,7 +277,7 @@ function TrajectorySelect({ value, onChange }: { value?: Trajectory; onChange: (
 
 function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: UnitKind) => void) => void; openAbility: (id: string) => void }) {
   const shipped = shippedKind(kind.id);
-  const summon = !kind.isSummoner;
+  const summon = !kind.isMaster;
   return (
     <>
       <div className="dev-head">
@@ -286,7 +286,7 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
         <div>
           <div className="title">{kind.name}</div>
           <div className="muted small">
-            {kind.isSummoner ? 'Summoner' : `${kind.element} summon · ${kind.role}`} · id {kind.id}
+            {kind.isMaster ? 'Master' : `${kind.element} Familiar · ${kind.role}`} · id {kind.id}
           </div>
         </div>
       </div>
@@ -324,7 +324,7 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
           <Num key={s} label={s.toUpperCase()} value={kind.stats[s]} min={0} max={40} shipped={shipped.stats[s]} onChange={(v) => edit((k) => void (k.stats[s] = v))} />
         ))}
       </div>
-      {kind.isSummoner && <BudgetRow kind={kind} edit={edit} />}
+      {kind.isMaster && <BudgetRow kind={kind} edit={edit} />}
 
       <div className="title">Move Types</div>
       <div className="dev-section">
@@ -370,7 +370,7 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
       <div className="muted small">Magic Abilities are shared: edit one under Magic Abilities and every unit using it changes.</div>
       {(summon ? [0] : kind.magic.map((_, i) => i)).map((slot) => {
         const cur = kind.magic[slot];
-        const options = allAbilities().filter((a) => kind.isSummoner || a.kind !== 'water');
+        const options = allAbilities().filter((a) => kind.isMaster || a.kind !== 'water');
         return (
           <div key={slot} className="dev-section magic">
             <label className="dev-field">
@@ -507,7 +507,7 @@ function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicA
   );
 }
 
-/** A Summoner's distance from the Stat Budget, and a button to roll a new balanced spread. */
+/** A Master's distance from the Stat Budget, and a button to roll a new balanced spread. */
 function BudgetRow({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => void) => void }) {
   const err = budgetError(kind.stats, kind.attack.range);
   return (
@@ -517,7 +517,7 @@ function BudgetRow({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => 
         {err.toFixed(2)} MP {Math.abs(err) <= 0.5 ? '(balanced)' : err > 0 ? '(too strong)' : '(too weak)'}
       </span>
       <button
-        title="Replace the stats with a random spread on the Stat Budget, for this Summoner's Attack range"
+        title="Replace the stats with a random spread on the Stat Budget, for this Master's Attack range"
         onClick={() => {
           const s = generateSpread(mulberry32((Date.now() ^ (Math.random() * 1e9)) >>> 0), kind.attack.range);
           if (s) edit((k) => void (k.stats = s));

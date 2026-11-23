@@ -14,7 +14,7 @@ export const BASE_DELAY_BY_SPEED: readonly number[] = [
 export const MAX_HP = 10;
 export const MANA_MAX = 120;
 export const MANA_START = 120;
-/** Mana Income per hour = INCOME_MULTIPLIER × (STONE_BASE + stones) × Summoner MP − Upkeep. */
+/** Mana Income per hour = INCOME_MULTIPLIER × (STONE_BASE + stones) × Master MP − Upkeep. */
 export const STONE_BASE = 2;
 /** MP is half the size it once was, so Mana Income doubles it back. */
 export const INCOME_MULTIPLIER = 2;

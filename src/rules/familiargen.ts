@@ -1,34 +1,34 @@
-// The Summon Cost model and a generator of roughly power-balanced Summons.
+// The Familiar Cost model and a generator of roughly power-balanced Familiars.
 //
 // The reference table below (from the game that inspired this one, with the
 // designer's notes on how each played) is treated as roughly balanced.
-// Fitting it prices a Summon's stats in Mana:
+// Fitting it prices a Familiar's stats in Mana:
 //
 //   Cost ≈ c + w·ATK + w·DEF + w·MDF + w·SPD + w·MOV + Fly + ranged Attack + Magic
 //
 // It fits to about ±8 Mana, one step of Cost. 22 references can't price
 // every detail of a Magic Ability on their own, so Magic has a fixed shape
 // (MP × (1 + per hex of range + per ring of area), heals less) whose scale
-// the fit sets. Petrify isn't in this game, so the two Summons built around it
+// the fit sets. Petrify isn't in this game, so the two Familiars built around it
 // are left out of the fit.
 //
 // The generator fills fixed slots (an Element, a Cost and a sprite, whose
 // look sets the Move Types). For each slot it picks a reference whose role
 // suits the sprite and Cost, perturbs its stats, then nudges the stats
 // (raising what the role is good at, trimming what it neglects) until the
-// model prices the Summon at the slot's Cost. It keeps the reference's
-// kind of Magic and names the Summon from a catalogue tagged by role and
+// model prices the Familiar at the slot's Cost. It keeps the reference's
+// kind of Magic and names the Familiar from a catalogue tagged by role and
 // look.
 
 import { leastSquares, mulberry32 } from './statgen';
 import type { Alignment, Element, MoveType, Stats, Trajectory } from './types';
 
-/** What a Summon is for, from the designer's notes. */
-export type SummonRole =
+/** What a Familiar is for, from the designer's notes. */
+export type FamiliarRole =
   | 'grabber' // cheap and quick: takes Stones early, sits on them
   | 'screener' // cheap flyer: blocks with its ZOC, soaks a hit
   | 'workhorse' // tough all-rounder that holds Stones and gains ground
-  | 'striker' // offence-heavy fighter: threatens the Summoner and frail Summons
+  | 'striker' // offence-heavy fighter: threatens the Master and frail Familiars
   | 'skirmisher' // cheap fighter
   | 'sniper' // very long-range Attack
   | 'ranged' // ranged Attack
@@ -49,7 +49,7 @@ export interface MagicSpec {
   manaCost: number;
 }
 
-export interface ReferenceSummon {
+export interface ReferenceFamiliar {
   name: string;
   cost: number;
   element: Element;
@@ -58,12 +58,12 @@ export interface ReferenceSummon {
   moveTypes: MoveType[];
   attack: { range: number; trajectory?: Trajectory };
   magic: MagicSpec | null;
-  role: SummonRole;
+  role: FamiliarRole;
   /** Left out of the Cost fit (built around Petrify, which this game doesn't have). */
   excluded?: boolean;
 }
 
-type Ref = [name: string, cost: number, element: Element, alignment: Alignment, s: [number, number, number, number, number, number], move: MoveType[], attack: [number, Trajectory?], magic: MagicSpec | null, role: SummonRole, excluded?: boolean];
+type Ref = [name: string, cost: number, element: Element, alignment: Alignment, s: [number, number, number, number, number, number], move: MoveType[], attack: [number, Trajectory?], magic: MagicSpec | null, role: FamiliarRole, excluded?: boolean];
 
 const dmg = (range: number, radius: 0 | 1, manaCost: number, trajectory?: Trajectory): MagicSpec => ({ kind: 'damage', range, radius, manaCost, ...(range > 1 ? { trajectory: trajectory ?? 'high' } : {}) });
 const burst = (radius: 1 | 2, manaCost: number): MagicSpec => ({ kind: 'damage', range: 0, radius, burst: true, manaCost });
@@ -96,7 +96,7 @@ const REFERENCE_ROWS: Ref[] = [
   ['Regna-Croxe', 80, 'air', 'none', [9, 5, 9, 5, 11, 6], ['fly'], [1], burst(2, 12), 'stallbreaker'],
 ];
 
-export const REFERENCE_SUMMONS: readonly ReferenceSummon[] = REFERENCE_ROWS.map(([name, cost, element, alignment, s, moveTypes, [range, trajectory], magic, role, excluded]) => ({
+export const REFERENCE_FAMILIARS: readonly ReferenceFamiliar[] = REFERENCE_ROWS.map(([name, cost, element, alignment, s, moveTypes, [range, trajectory], magic, role, excluded]) => ({
   name,
   cost,
   element,
@@ -121,7 +121,7 @@ export function magicWorth(mp: number, m: MagicSpec | null): number {
   return mp * (1 + MAGIC_SHAPE.perRange * m.range + MAGIC_SHAPE.perRing * m.radius);
 }
 
-export interface SummonCostModel {
+export interface FamiliarCostModel {
   atk: number;
   def: number;
   mdf: number;
@@ -133,7 +133,7 @@ export interface SummonCostModel {
   base: number;
 }
 
-type Priced = Pick<ReferenceSummon, 'stats' | 'moveTypes' | 'attack' | 'magic'>;
+type Priced = Pick<ReferenceFamiliar, 'stats' | 'moveTypes' | 'attack' | 'magic'>;
 
 const FEATURES = (s: Priced): number[] => [
   s.stats.atk,
@@ -146,7 +146,7 @@ const FEATURES = (s: Priced): number[] => [
   magicWorth(s.stats.mp, s.magic),
 ];
 
-export function fitSummonCost(refs: readonly ReferenceSummon[] = REFERENCE_SUMMONS): SummonCostModel {
+export function fitFamiliarCost(refs: readonly ReferenceFamiliar[] = REFERENCE_FAMILIARS): FamiliarCostModel {
   const used = refs.filter((r) => !r.excluded);
   const x = leastSquares(
     used.map((r) => [...FEATURES(r), 1]),
@@ -155,10 +155,10 @@ export function fitSummonCost(refs: readonly ReferenceSummon[] = REFERENCE_SUMMO
   return { atk: x[0], def: x[1], mdf: x[2], spd: x[3], mov: x[4], fly: x[5], ranged: x[6], magic: x[7], base: x[8] };
 }
 
-export const SUMMON_COST: SummonCostModel = fitSummonCost();
+export const FAMILIAR_COST: FamiliarCostModel = fitFamiliarCost();
 
-/** The Cost the model gives a Summon, in Mana (not rounded to a step). */
-export function predictCost(s: Priced, m: SummonCostModel = SUMMON_COST): number {
+/** The Cost the model gives a Familiar, in Mana (not rounded to a step). */
+export function predictCost(s: Priced, m: FamiliarCostModel = FAMILIAR_COST): number {
   const f = FEATURES(s);
   return m.base + m.atk * f[0] + m.def * f[1] + m.mdf * f[2] + m.spd * f[3] + m.mov * f[4] + m.fly * f[5] + m.ranged * f[6] + m.magic * f[7];
 }
@@ -166,27 +166,27 @@ export function predictCost(s: Priced, m: SummonCostModel = SUMMON_COST): number
 // ---------- slots ----------
 
 /** A place in the roster: Element, Cost, and the sprite whose look sets the Move Types. */
-export interface SummonSlot {
-  /** The sprite's key, which is also the Summon's id. */
+export interface FamiliarSlot {
+  /** The sprite's key, which is also the Familiar's id. */
   sprite: string;
   element: Element;
   cost: number;
   moveTypes: MoveType[];
   /** Roles the sprite's look suits. */
-  suits: SummonRole[];
+  suits: FamiliarRole[];
   /** Words describing the look, for naming. */
   look: string[];
 }
 
 // ---------- generation ----------
 
-export interface GeneratedSummon {
+export interface GeneratedFamiliar {
   id: string;
   name: string;
   element: Element;
   alignment: Alignment;
   cost: number;
-  role: SummonRole;
+  role: FamiliarRole;
   /** The reference it was built from. */
   from: string;
   stats: Stats;
@@ -195,10 +195,10 @@ export interface GeneratedSummon {
   magic: MagicSpec | null;
 }
 
-export const SUMMON_BOUNDS: Record<keyof Stats, [number, number]> = {
+export const FAMILIAR_BOUNDS: Record<keyof Stats, [number, number]> = {
   atk: [1, 10],
   def: [0, 9],
-  mp: [0, 10], // 0 for a Summon with no Magic Ability: MP does nothing without one
+  mp: [0, 10], // 0 for a Familiar with no Magic Ability: MP does nothing without one
   mdf: [2, 8],
   spd: [6, 14],
   mov: [3, 7],
@@ -207,10 +207,10 @@ export const SUMMON_BOUNDS: Record<keyof Stats, [number, number]> = {
 /** Furthest a reference is stretched from its own Cost to fill a slot, in Mana. */
 export const MAX_STRETCH = 32;
 
-/** Most Summons of one role in a roster. */
+/** Most Familiars of one role in a roster. */
 export const MAX_PER_ROLE = 4;
 
-/** How close the model must price a generated Summon to its slot's Cost, in Mana. */
+/** How close the model must price a generated Familiar to its slot's Cost, in Mana. */
 export const COST_TOLERANCE = 4;
 
 const STAT_KEYS = ['atk', 'def', 'mp', 'mdf', 'spd', 'mov'] as const;
@@ -219,7 +219,7 @@ function gauss(rng: () => number): number {
   return Math.sqrt(-2 * Math.log(Math.max(rng(), 1e-12))) * Math.cos(2 * Math.PI * rng());
 }
 
-const MEAN = Object.fromEntries(STAT_KEYS.map((k) => [k, REFERENCE_SUMMONS.reduce((a, r) => a + r.stats[k], 0) / REFERENCE_SUMMONS.length])) as Record<keyof Stats, number>;
+const MEAN = Object.fromEntries(STAT_KEYS.map((k) => [k, REFERENCE_FAMILIARS.reduce((a, r) => a + r.stats[k], 0) / REFERENCE_FAMILIARS.length])) as Record<keyof Stats, number>;
 
 /** Which references can fill a slot: flyers from flyers, swimmers from swimmers, walkers from walkers. */
 function moveClass(moveTypes: MoveType[]): 'fly' | 'swim' | 'ground' {
@@ -228,7 +228,7 @@ function moveClass(moveTypes: MoveType[]): 'fly' | 'swim' | 'ground' {
   return 'ground';
 }
 
-function compatible(slot: SummonSlot, r: ReferenceSummon): boolean {
+function compatible(slot: FamiliarSlot, r: ReferenceFamiliar): boolean {
   const s = moveClass(slot.moveTypes);
   const c = moveClass(r.moveTypes);
   // walk + swim sprites can take either
@@ -236,22 +236,22 @@ function compatible(slot: SummonSlot, r: ReferenceSummon): boolean {
   return s === c;
 }
 
-/** Nudge stats until the model prices the Summon within tolerance of `target`. */
-export function fitToCost(s: Priced, target: number, ref: ReferenceSummon): Stats {
+/** Nudge stats until the model prices the Familiar within tolerance of `target`. */
+export function fitToCost(s: Priced, target: number, ref: ReferenceFamiliar): Stats {
   const stats = { ...s.stats };
   const z = (k: keyof Stats) => ref.stats[k] - MEAN[k];
   const adjustable = STAT_KEYS.filter((k) => k !== 'mov' && (k !== 'mp' || s.magic));
   const strong = [...adjustable].sort((a, b) => z(b) - z(a));
   const weak = [...strong].reverse();
   for (let i = 0; i < 80; i++) {
-    const p = predictCost({ ...s, stats }, SUMMON_COST);
+    const p = predictCost({ ...s, stats }, FAMILIAR_COST);
     const gap = target - p;
     if (Math.abs(gap) <= COST_TOLERANCE) break;
     // Move only when far off: a point of MOV is worth a lot
-    if (Math.abs(gap) > SUMMON_COST.mov * 1.5) {
+    if (Math.abs(gap) > FAMILIAR_COST.mov * 1.5) {
       const k = 'mov';
       const next = stats[k] + Math.sign(gap);
-      if (next >= SUMMON_BOUNDS[k][0] && next <= SUMMON_BOUNDS[k][1]) {
+      if (next >= FAMILIAR_BOUNDS[k][0] && next <= FAMILIAR_BOUNDS[k][1]) {
         stats[k] = next;
         continue;
       }
@@ -259,7 +259,7 @@ export function fitToCost(s: Priced, target: number, ref: ReferenceSummon): Stat
     // spread the change round the role's three strongest (raising) or weakest (trimming) stats
     const order = (gap > 0 ? strong : weak).filter((x) => {
       const next = stats[x] + Math.sign(gap);
-      return next >= SUMMON_BOUNDS[x][0] && next <= SUMMON_BOUNDS[x][1];
+      return next >= FAMILIAR_BOUNDS[x][0] && next <= FAMILIAR_BOUNDS[x][1];
     });
     if (!order.length) break;
     const k = order[i % Math.min(3, order.length)];
@@ -268,12 +268,12 @@ export function fitToCost(s: Priced, target: number, ref: ReferenceSummon): Stat
   return stats;
 }
 
-/** One Summon for a slot, built from reference `ref`. */
-export function generateSummon(rng: () => number, slot: SummonSlot, ref: ReferenceSummon): Omit<GeneratedSummon, 'name' | 'alignment'> {
+/** One Familiar for a slot, built from reference `ref`. */
+export function generateFamiliar(rng: () => number, slot: FamiliarSlot, ref: ReferenceFamiliar): Omit<GeneratedFamiliar, 'name' | 'alignment'> {
   const stats = { ...ref.stats };
   for (const k of STAT_KEYS) {
     if (k === 'mov') continue;
-    const [lo, hi] = SUMMON_BOUNDS[k];
+    const [lo, hi] = FAMILIAR_BOUNDS[k];
     // ATK, DEF, MP and MDF are half the size of SPD, so they wobble half as much
     const wobble = k === 'spd' ? 1.3 : 0.65;
     const jittered = Math.max(lo, Math.min(hi, Math.round(stats[k] + gauss(rng) * wobble))); // always drawn, so the seeded stream is stable
@@ -302,15 +302,15 @@ export function generateSummon(rng: () => number, slot: SummonSlot, ref: Referen
 // ---------- names ----------
 
 /** A name, the roles it suits and the looks it suits. */
-export interface SummonName {
+export interface FamiliarName {
   name: string;
-  roles: SummonRole[];
+  roles: FamiliarRole[];
   looks: string[];
   /** Elements the word belongs to (absent: any). */
   elements?: Element[];
 }
 
-function nameScore(n: SummonName, g: { role: SummonRole; element: Element }, slot: SummonSlot): number {
+function nameScore(n: FamiliarName, g: { role: FamiliarRole; element: Element }, slot: FamiliarSlot): number {
   if (n.elements && !n.elements.includes(g.element)) return -Infinity;
   return (n.roles.includes(g.role) ? 2 : 0) + n.looks.filter((l) => slot.look.includes(l)).length + (n.elements ? 1 : 0);
 }
@@ -318,28 +318,28 @@ function nameScore(n: SummonName, g: { role: SummonRole; element: Element }, slo
 // ---------- the roster ----------
 
 export interface RosterRules {
-  /** How many Summons have a Magic Ability. */
+  /** How many Familiars have a Magic Ability. */
   withMagic: number;
-  /** Day and Night Summons per Element. */
+  /** Day and Night Familiars per Element. */
   alignments: Record<Element, { day: number; night: number }>;
 }
 
-/** Score of the last roster generateSummonRoster returned (for choosing a seed). */
+/** Score of the last roster generateFamiliarRoster returned (for choosing a seed). */
 export let lastRosterScore = 0;
 
 /**
- * A whole roster: one Summon per slot. Tries `tries` assignments of
+ * A whole roster: one Familiar per slot. Tries `tries` assignments of
  * references to slots, keeps those that meet the rules, and returns the most
  * diverse (most distinct roles, then most unlike stats).
  */
-export function generateSummonRoster(seed: number, slots: SummonSlot[], names: SummonName[], rules: RosterRules, tries = 200): GeneratedSummon[] {
-  const refs = REFERENCE_SUMMONS.filter((r) => !r.excluded);
-  let best: { roster: GeneratedSummon[]; score: number } | null = null;
+export function generateFamiliarRoster(seed: number, slots: FamiliarSlot[], names: FamiliarName[], rules: RosterRules, tries = 200): GeneratedFamiliar[] {
+  const refs = REFERENCE_FAMILIARS.filter((r) => !r.excluded);
+  let best: { roster: GeneratedFamiliar[]; score: number } | null = null;
   for (let t = 0; t < tries; t++) {
     const rng = mulberry32(seed * 7919 + t);
     const usedIn = new Map<string, Set<Element>>();
     const uses = new Map<string, number>();
-    const roleCount = new Map<SummonRole, number>();
+    const roleCount = new Map<FamiliarRole, number>();
     const built = slots.map((slot) => {
       const options = refs
         .filter((r) => compatible(slot, r))
@@ -359,16 +359,16 @@ export function generateSummonRoster(seed: number, slots: SummonSlot[], names: S
       uses.set(pick.r.name, (uses.get(pick.r.name) ?? 0) + 1);
       usedIn.set(pick.r.name, new Set([...(usedIn.get(pick.r.name) ?? []), slot.element]));
       roleCount.set(pick.r.role, (roleCount.get(pick.r.role) ?? 0) + 1);
-      return generateSummon(rng, slot, pick.r);
+      return generateFamiliar(rng, slot, pick.r);
     });
     if (built.some((b) => !b)) continue;
-    const ok = built as Omit<GeneratedSummon, 'name' | 'alignment'>[];
+    const ok = built as Omit<GeneratedFamiliar, 'name' | 'alignment'>[];
     if (ok.filter((b) => b.magic).length !== rules.withMagic) continue;
     if (ok.some((b) => Math.abs(predictCost(b) - b.cost) > COST_TOLERANCE)) continue;
     const roles = new Set(ok.map((b) => b.role)).size;
     const perElementRoles = (['fire', 'air', 'earth', 'water'] as Element[]).reduce((a, e) => a + new Set(ok.filter((b) => b.element === e).map((b) => b.role)).size, 0);
     // stats far from the reference they came from read as a different unit: prefer small stretches
-    const stretch = ok.reduce((a, b) => a + Math.abs(REFERENCE_SUMMONS.find((r) => r.name === b.from)!.cost - b.cost), 0) / 8;
+    const stretch = ok.reduce((a, b) => a + Math.abs(REFERENCE_FAMILIARS.find((r) => r.name === b.from)!.cost - b.cost), 0) / 8;
     const suited = ok.filter((b, i) => slots[i].suits.includes(b.role)).length;
     const score = roles * 10 + perElementRoles * 2 + suited * 3 - stretch;
     if (!best || score > best.score) best = { roster: ok.map((b) => ({ ...b, name: '', alignment: 'none' as Alignment })), score };
@@ -381,7 +381,7 @@ export function generateSummonRoster(seed: number, slots: SummonSlot[], names: S
   for (const e of ['fire', 'air', 'earth', 'water'] as Element[]) {
     const { day, night } = rules.alignments[e];
     const mine = roster.filter((g) => g.element === e);
-    const refAlign = (g: GeneratedSummon) => REFERENCE_SUMMONS.find((r) => r.name === g.from)!.alignment;
+    const refAlign = (g: GeneratedFamiliar) => REFERENCE_FAMILIARS.find((r) => r.name === g.from)!.alignment;
     const order = mine.map((g) => ({ g, k: (refAlign(g) !== 'none' ? 0 : 1) + rng() })).sort((a, b) => a.k - b.k).map((x) => x.g);
     const chosen = order.slice(0, day + night);
     // Day to those whose reference was Day, Night to Night, the rest by order
@@ -398,7 +398,7 @@ export function generateSummonRoster(seed: number, slots: SummonSlot[], names: S
   const free = [...names];
   const pairs = roster.map((g, i) => ({ g, slot: slots[i] }));
   while (pairs.some((p) => !p.g.name)) {
-    let pick: { p: (typeof pairs)[number]; n: SummonName; s: number } | null = null;
+    let pick: { p: (typeof pairs)[number]; n: FamiliarName; s: number } | null = null;
     for (const p of pairs) {
       if (p.g.name) continue;
       for (const n of free) {

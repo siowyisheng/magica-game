@@ -1,4 +1,4 @@
-// Water summons.
+// Water familiars.
 import { type V3, add } from './model';
 import { arm, beast, both, breathe, eyes, figure, flick, membrane, mouthAt } from './kit';
 import type { Design } from './designs';

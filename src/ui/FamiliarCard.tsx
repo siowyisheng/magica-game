@@ -5,8 +5,8 @@ import { AnimatedSprite } from './AnimatedSprite';
 import { AlignmentIcon, ElementIcon } from './icons';
 import { StatGrid, magicText } from './Stats';
 
-/** Detailed stats for one summon kind. */
-export function SummonDetail({ kindId, side }: { kindId: string; side: SideId }) {
+/** Detailed stats for one familiar kind. */
+export function FamiliarDetail({ kindId, side }: { kindId: string; side: SideId }) {
   const match = useGame((s) => s.match);
   const k = kindOf(kindId);
   const align = alignmentBonus(k.alignment, match.clock);
@@ -46,14 +46,14 @@ export function SummonDetail({ kindId, side }: { kindId: string; side: SideId })
 }
 
 /** While placing a chosen summon, keep its card visible at the top-left of the board. */
-export function SummonCard() {
+export function FamiliarCard() {
   const match = useGame((s) => s.match);
   const phase = useGame((s) => s.phase);
   const active = match.units.find((u) => u.id === match.activeUnitId);
   if (phase.kind !== 'summonDir' || !active) return null;
   return (
     <div className="placing-card">
-      <SummonDetail kindId={phase.summonKind} side={active.side} />
+      <FamiliarDetail kindId={phase.summonKind} side={active.side} />
     </div>
   );
 }

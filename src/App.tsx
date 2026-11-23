@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Board } from './render/Board';
 import { Timeline } from './ui/Timeline';
 import { InfoPanel } from './ui/InfoPanel';
-import { SummonCard } from './ui/SummonCard';
+import { FamiliarCard } from './ui/FamiliarCard';
 import { useGame } from './store';
 import { activeUnit, kindOf } from './rules';
 import { MapEditor } from './editor/MapEditor';
@@ -107,7 +107,7 @@ export function App() {
         <div className="board">
           <Board />
           <Timeline />
-          <SummonCard />
+          <FamiliarCard />
           <PhaseHint />
           <PauseButton />
           <PausedBanner />

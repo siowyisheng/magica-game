@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { withSpells } from './testing/spells';
+import { onTestFinished, describe, expect, it } from 'vitest';
 import { planTurnAnim } from './anim';
 import { createMatch, getUnit, hex, type MapDef, type MapHex } from './rules';
 
@@ -21,6 +22,7 @@ describe('turn animation plan', () => {
   });
 
   it('fires a projectile for ranged attacks and magic; skips the move when already previewed', () => {
+    onTestFinished(withSpells());
     const s = createMatch(flatMap(8, 8));
     const me = getUnit(s, s.activeUnitId!); // (0,7)
     const foe = s.units.find((u) => u.side === 1)!;
@@ -106,7 +108,7 @@ describe('impacts', () => {
     expect(k.duration).toBeGreaterThanOrEqual(k.impacts[0].t + KO_FADE_MS);
   });
 
-  it('has no impacts for Waits and Summons', () => {
+  it('has no impacts for Waits and Familiars', () => {
     const s = createMatch(flatMap(6, 6));
     const me = getUnit(s, s.activeUnitId!);
     expect(planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 1, command: { type: 'wait' } }, 0).impacts).toEqual([]);

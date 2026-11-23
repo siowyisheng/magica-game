@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import {
   SCAFFOLD_MAP,
   randomLoadout,
-  SUMMONERS,
+  MASTERS,
   applyTurn,
   createMatch,
   hexDistance,
@@ -30,9 +30,9 @@ function rng(seed: number) {
 }
 
 interface SideStats {
-  summoner: string;
+  master: string;
   loadout: string;
-  summons: string[];
+  familiars: string[];
   waits: number;
   idleWaits: number; // Wait without moving
   attacks: number;
@@ -42,16 +42,16 @@ interface SideStats {
   damageDealt: number;
   damageTaken: number;
   kills: number;
-  summonerDamageTaken: number;
-  summonerHpMin: number;
+  masterDamageTaken: number;
+  masterHpMin: number;
   captures: number;
   manaWastedAtCap: number;
   manaSpentSummons: number;
   manaSpentMagic: number;
   stoneHours: number;
   turnsWithEnemyInReachButWaited: number;
-  summonerActedOffensively: number;
-  avgDistSummonerToEnemySummoner: number;
+  masterActedOffensively: number;
+  avgDistMasterToEnemyMaster: number;
   turns: number;
   zeroDamageHits: number;
   friendlyDamage: number;
@@ -60,12 +60,12 @@ interface SideStats {
   msPerTurn: number;
 }
 
-function blank(summoner: string, loadout: string): SideStats {
+function blank(master: string, loadout: string): SideStats {
   return {
-    summoner, loadout, summons: [], waits: 0, idleWaits: 0, attacks: 0, magics: 0, waterSpells: 0, summonTurns: 0,
-    damageDealt: 0, damageTaken: 0, kills: 0, summonerDamageTaken: 0, summonerHpMin: 10, captures: 0, manaWastedAtCap: 0,
-    manaSpentSummons: 0, manaSpentMagic: 0, stoneHours: 0, turnsWithEnemyInReachButWaited: 0, summonerActedOffensively: 0,
-    avgDistSummonerToEnemySummoner: 0, turns: 0, zeroDamageHits: 0, friendlyDamage: 0, strandedTurns: 0, deaths: [], msPerTurn: 0,
+    master, loadout, familiars: [], waits: 0, idleWaits: 0, attacks: 0, magics: 0, waterSpells: 0, summonTurns: 0,
+    damageDealt: 0, damageTaken: 0, kills: 0, masterDamageTaken: 0, masterHpMin: 10, captures: 0, manaWastedAtCap: 0,
+    manaSpentSummons: 0, manaSpentMagic: 0, stoneHours: 0, turnsWithEnemyInReachButWaited: 0, masterActedOffensively: 0,
+    avgDistMasterToEnemyMaster: 0, turns: 0, zeroDamageHits: 0, friendlyDamage: 0, strandedTurns: 0, deaths: [], msPerTurn: 0,
   };
 }
 
@@ -75,16 +75,16 @@ it('self-play', () => {
   const results: unknown[] = [];
   for (let g = 0; g < games; g++) {
     const r = rng(1000 + g * 7919);
-    const summoners: [string, string] = [SUMMONERS[Math.floor(r() * SUMMONERS.length)].id, SUMMONERS[Math.floor(r() * SUMMONERS.length)].id];
+    const masters: [string, string] = [MASTERS[Math.floor(r() * MASTERS.length)].id, MASTERS[Math.floor(r() * MASTERS.length)].id];
     const lo = (i: number) => {
       const x = r();
-      if (x < 0.4) return { name: 'auto', summons: autoLoadout(summoners[i], r) };
-      return { name: 'random', summons: randomLoadout(r) };
+      if (x < 0.4) return { name: 'auto', familiars: autoLoadout(masters[i], r) };
+      return { name: 'random', familiars: randomLoadout(r) };
     };
     const l0 = lo(0);
     const l1 = lo(1);
-    let st: MatchState = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 42 + g, summoners, rosters: [l0.summons, l1.summons] });
-    const stats: [SideStats, SideStats] = [blank(summoners[0], l0.name), blank(summoners[1], l1.name)];
+    let st: MatchState = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 42 + g, masters, rosters: [l0.familiars, l1.familiars] });
+    const stats: [SideStats, SideStats] = [blank(masters[0], l0.name), blank(masters[1], l1.name)];
     const timeline: { turn: number; clock: number; units: [number, number]; mana: [number, number]; hp: [number, number]; stones: [number, number] }[] = [];
     const kindById = new Map<number, { kind: string; side: SideId }>();
     for (const u of st.units) kindById.set(u.id, { kind: u.kind, side: u.side });
@@ -103,9 +103,9 @@ it('self-play', () => {
       const a = chooseAction(st);
       S.msPerTurn += Date.now() - tA;
       const moved = a.to.q !== me.pos.q || a.to.r !== me.pos.r;
-      const isSummoner = kindOf(me.kind).isSummoner;
-      const es = st.units.find((u) => u.side !== side && kindOf(u.kind).isSummoner);
-      const ms = st.units.find((u) => u.side === side && kindOf(u.kind).isSummoner);
+      const isMaster = kindOf(me.kind).isMaster;
+      const es = st.units.find((u) => u.side !== side && kindOf(u.kind).isMaster);
+      const ms = st.units.find((u) => u.side === side && kindOf(u.kind).isMaster);
       if (es && ms) distSum[side] += hexDistance(es.pos, ms.pos);
       switch (a.command.type) {
         case 'wait':
@@ -114,19 +114,19 @@ it('self-play', () => {
           break;
         case 'attack':
           S.attacks++;
-          if (isSummoner) S.summonerActedOffensively++;
+          if (isMaster) S.masterActedOffensively++;
           break;
         case 'magic': {
           const ab = kindOf(me.kind).magic.find((m) => m.id === (a.command as { ability: string }).ability)!;
           if (ab.kind === 'water') S.waterSpells++;
           else S.magics++;
-          if (isSummoner && ab.kind === 'damage') S.summonerActedOffensively++;
+          if (isMaster && ab.kind === 'damage') S.masterActedOffensively++;
           S.manaSpentMagic += ab.manaCost;
           break;
         }
         case 'summon': {
           S.summonTurns++;
-          S.summons.push(a.command.kind);
+          S.familiars.push(a.command.kind);
           S.manaSpentSummons += kindOf(a.command.kind).cost;
           break;
         }
@@ -140,8 +140,8 @@ it('self-play', () => {
           if (e.type === 'summon') return `summoned ${e.kind}`;
           return `capture`;
         });
-        const hpS = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u.kind).isSummoner)?.hp;
-        log.push(`t${turns} ${Math.floor(st.clock / 60)}:${String(st.clock % 60).padStart(2, '0')} S${side} ${me.kind}#${me.id} hp${me.hp} (${me.pos.q},${me.pos.r})→(${a.to.q},${a.to.r}) ${JSON.stringify(a.command)} mana ${st.sides[side].mana} | ${dmg.join(', ')} | summonerHP ${hpS(0)}/${hpS(1)}`);
+        const hpS = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u.kind).isMaster)?.hp;
+        log.push(`t${turns} ${Math.floor(st.clock / 60)}:${String(st.clock % 60).padStart(2, '0')} S${side} ${me.kind}#${me.id} hp${me.hp} (${me.pos.q},${me.pos.r})→(${a.to.q},${a.to.r}) ${JSON.stringify(a.command)} mana ${st.sides[side].mana} | ${dmg.join(', ')} | masterHP ${hpS(0)}/${hpS(1)}`);
       }
       st = res.state;
       for (const u of st.units) if (!kindById.has(u.id)) kindById.set(u.id, { kind: u.kind, side: u.side });
@@ -149,17 +149,17 @@ it('self-play', () => {
       turns++;
       if (turns % 10 === 0) {
         const count = (s: SideId) => st.units.filter((u) => u.side === s).length;
-        const hp = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u.kind).isSummoner)?.hp ?? 0;
+        const hp = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u.kind).isMaster)?.hp ?? 0;
         const stones = (s: SideId) => st.stones.filter((x) => x.owner === s).length;
         timeline.push({ turn: turns, clock: st.clock, units: [count(0), count(1)], mana: [st.sides[0].mana, st.sides[1].mana], hp: [hp(0), hp(1)], stones: [stones(0), stones(1)] });
       }
     }
     for (const s of [0, 1] as SideId[]) {
       stats[s].msPerTurn = Math.round(stats[s].msPerTurn / Math.max(1, stats[s].turns));
-      stats[s].avgDistSummonerToEnemySummoner = +(distSum[s] / Math.max(1, stats[s].turns)).toFixed(1);
+      stats[s].avgDistMasterToEnemyMaster = +(distSum[s] / Math.max(1, stats[s].turns)).toFixed(1);
     }
     results.push({ game: g, winner: st.winner, turns, clock: st.clock, hours: +((st.clock - 360) / 60).toFixed(1), seconds: (Date.now() - t0) / 1000, stats, timeline, log, finalIncome: [manaIncome(st, 0), manaIncome(st, 1)] });
-    console.log(`game ${g}: ${summoners[0]}(${l0.name}) vs ${summoners[1]}(${l1.name}) → winner ${st.winner} in ${turns} turns, ${((st.clock - 360) / 60).toFixed(1)} h`);
+    console.log(`game ${g}: ${masters[0]}(${l0.name}) vs ${masters[1]}(${l1.name}) → winner ${st.winner} in ${turns} turns, ${((st.clock - 360) / 60).toFixed(1)} h`);
   }
   writeFileSync(process.env.OUT ?? 'selfplay.json', JSON.stringify(results, null, 1));
 });
@@ -186,10 +186,10 @@ function analyseEvents(
         stats[src.side].damageDealt += e.amount;
         stats[t.side].damageTaken += e.amount;
         if (e.amount === 0) stats[src.side].zeroDamageHits++;
-        if (kindOf(t.kind).isSummoner) {
-          stats[t.side].summonerDamageTaken += e.amount;
+        if (kindOf(t.kind).isMaster) {
+          stats[t.side].masterDamageTaken += e.amount;
           const u = after.units.find((x) => x.id === e.unitId);
-          stats[t.side].summonerHpMin = Math.min(stats[t.side].summonerHpMin, u?.hp ?? 0);
+          stats[t.side].masterHpMin = Math.min(stats[t.side].masterHpMin, u?.hp ?? 0);
         }
       }
     } else if (e.type === 'death') {

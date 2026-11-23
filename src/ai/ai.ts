@@ -28,7 +28,7 @@ import {
   neighbor,
   previewEffects,
   reachable,
-  SUMMONS,
+  FAMILIARS,
   validateTurn,
   attackTargets,
   activeUnit,
@@ -49,26 +49,26 @@ import {
 export const AI_WEIGHTS = {
   damage: 10,
   kill: 60,
-  killSummoner: 100000,
+  killMaster: 100000,
   heal: 7,
   friendlyFire: 14,
   threat: 9,
   deathRisk: 70,
-  summonerDeathRisk: 5000,
+  masterDeathRisk: 5000,
   capture: 80,
   onStone: 6,
   /** Holding an own Stone that an enemy could take next turn (standing on it blocks the capture). */
   guard: 90,
   approach: 3,
-  summonerSafety: 8,
-  /** Hits-to-kill at which a Summoner keeps the standard distance (fewer: more careful, more: bolder). */
+  masterSafety: 8,
+  /** Hits-to-kill at which a Master keeps the standard distance (fewer: more careful, more: bolder). */
   postureHits: 4,
-  /** How strongly a durable, hard-hitting Summoner is pulled toward objectives (× approach). */
-  summonerAggression: 1,
-  /** Least share of an enemy's damage a Summon is charged with, however many other targets it has. */
+  /** How strongly a durable, hard-hitting Master is pulled toward objectives (× approach). */
+  masterAggression: 1,
+  /** Least share of an enemy's damage a Familiar is charged with, however many other targets it has. */
   threatShareMin: 0.25,
-  /** Weight of second-round threat to the Summoner (enemies acting before its turn after next). */
-  summonerSecondRound: 1,
+  /** Weight of second-round threat to the Master (enemies acting before its turn after next). */
+  masterSecondRound: 1,
   /** Bonus (× kill) for damage that leaves a target finishable by allies before it acts. */
   setupKill: 0.3,
   /** How much a material / Stone lead raises the pull toward the enemy. */
@@ -81,31 +81,33 @@ export const AI_WEIGHTS = {
   tradeCredit: 0.5,
   /** 0: damage penalty linear in HP lost; 1: quadratic (scrapes cheap, near-deaths dear). */
   hurtCurve: 0.5,
-  /** Share of a Summon's pull that goes to the side's shared target (the rest to its nearest objective). */
+  /** Share of a Familiar's pull that goes to the side's shared target (the rest to its nearest objective). */
   focus: 0.5,
   /** Value of hitting a healer, per point of its heal × the best patient it can reach (÷ 4). */
   support: 0.5,
   /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
   healedDamage: 0.15,
-  /** Damage to an enemy Summoner that healing is reaching and that can't be finished this round (× normal). */
-  pokeSummoner: 0.35,
+  /** Damage to an enemy Master that healing is reaching and that can't be finished this round (× normal). */
+  pokeMaster: 0.35,
   /** Value of heal blocked by standing in a healer's way (× damage of the same amount). */
   healBlock: 0.5,
-  /** Lead above which the shared target is the enemy Summoner. */
+  /** Lead above which the shared target is the enemy Master. */
   focusLead: 0.15,
-  summonBase: 40,
+  /** A Master's own hits on enemies count this many times over (it should use its ATK, not only summon). */
+  masterHit: 1.5,
+  summonBase: 20,
   summonCostValue: 0.45,
   summonCounter: 18,
-  /** Hours ahead over which an aligned Summon's Time of Day is judged, and the most it moves the Summon's value. */
+  /** Hours ahead over which an aligned Familiar's Time of Day is judged, and the most it moves the Familiar's value. */
   alignmentHours: 8,
   alignmentValue: 0.15,
-  /** Distance (hexes) at which a Unit stops mattering to the Summon choice. */
+  /** Distance (hexes) at which a Unit stops mattering to the Familiar choice. */
   summonRadius: 12,
-  /** Extra weight for countering an enemy that counters own Summons near it. */
+  /** Extra weight for countering an enemy that counters own Familiars near it. */
   summonProtect: 0.5,
   summonNegativeIncome: 35,
   manaSpend: 0.25,
-  /** Save for an unaffordable Summon whose value is at least this × the best affordable one… */
+  /** Save for an unaffordable Familiar whose value is at least this × the best affordable one… */
   saveMargin: 1.25,
   /** …and that income will pay for within this many hours. */
   saveHours: 2,
@@ -137,7 +139,7 @@ function mulberry32(seed: number): () => number {
 
 function unitValue(u: Unit): number {
   const k = kindOf(u.kind);
-  return k.isSummoner ? 6 : 1 + k.cost / 48;
+  return k.isMaster ? 6 : 1 + k.cost / 48;
 }
 
 interface EnemyReach {
@@ -219,7 +221,7 @@ interface Candidate {
   score: number;
 }
 
-function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
+export function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
   const me = activeUnit(state);
   if (!me) throw new Error('no active unit');
   const kind = kindOf(me.kind);
@@ -243,8 +245,8 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
     for (const a of allies) sq += maxDamage(e, a, a.pos, a.facing) ** 2;
     otherSq.set(e.unit.id, sq);
   }
-  // The Summoner also looks one enemy round further ahead.
-  const secondWindow = kind.isSummoner ? turnDelay(kind, true, true) : 0;
+  // The Master also looks one enemy round further ahead.
+  const secondWindow = kind.isMaster ? turnDelay(kind, true, true) : 0;
 
   const threatAt = (h: Hex, f: Dir, delay: number, killed: Set<number>): number => {
     const key = `${hexKey(h)}|${f}|${delay}|${[...killed].join(',')}`;
@@ -254,7 +256,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
     for (const e of reaches) {
       if (killed.has(e.unit.id)) continue;
       const first = e.unit.av < delay;
-      const second = !first && kind.isSummoner && e.unit.av < delay + secondWindow;
+      const second = !first && kind.isMaster && e.unit.av < delay + secondWindow;
       if (!first && !second) continue; // acts after the window
       let d = maxDamage(e, me, h, f);
       // a fast enemy may act more than once before my next turn: it can close in first
@@ -265,11 +267,11 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         const reach = ek.stats.mov * turnsBefore + Math.max(ek.attack.range, ...ek.magic.map((m) => (m.kind === 'water' ? 0 : m.range + m.radius)));
         if (hexDistance(e.unit.pos, h) <= reach) d = approxDamage(state, e.unit, me, h, f);
       }
-      // enemies go for the Summoner; a Summon only bears its share of an enemy that has other targets
-      if (!kind.isSummoner && d > 0) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
+      // enemies go for the Master; a Familiar only bears its share of an enemy that has other targets
+      if (!kind.isMaster && d > 0) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
       // a trade, not just a loss: an enemy my side can finish before it acts again pays for its hit
-      if (!kind.isSummoner && d > 0) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
-      total += second ? d * w.summonerSecondRound : d;
+      if (!kind.isMaster && d > 0) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
+      total += second ? d * w.masterSecondRound : d;
     }
     threatCache.set(key, total);
     return total;
@@ -325,7 +327,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const manaLead = (state.sides[me.side].mana - state.sides[1 - me.side].mana) / MANA_MAX;
   const lead = (sideValue(me.side) - sideValue(1 - me.side)) / Math.max(10, sideValue(me.side) + sideValue(1 - me.side)) + 0.08 * (myStones - theirStones) + 0.2 * manaLead;
   const pressure = Math.max(1, Math.min(w.maxPush, 1 + w.leadPush * lead));
-  /** Boldness: how much less a Summon minds taking damage when its side is ahead. */
+  /** Boldness: how much less a Familiar minds taking damage when its side is ahead. */
   const boldness = 1 / pressure;
 
   const bestFacing = (h: Hex, delay: number, killed: Set<number>): { facing: Dir; threat: number } => {
@@ -361,38 +363,38 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
     return out;
   };
   const objs = objectives();
-  const enemySummoner = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isSummoner);
-  // One shared target for the whole side: the enemy Summoner when ahead or when it's within
-  // reach of our army, otherwise the enemy-held (or free) Stone nearest our Summons.
-  const mySummons = state.units.filter((u) => u.side === me.side && !kindOf(u.kind).isSummoner);
+  const enemyMaster = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isMaster);
+  // One shared target for the whole side: the enemy Master when ahead or when it's within
+  // reach of our army, otherwise the enemy-held (or free) Stone nearest our Familiars.
+  const myFamiliars = state.units.filter((u) => u.side === me.side && !kindOf(u.kind).isMaster);
   const focusTarget: Hex | null = (() => {
-    if (!enemySummoner) return null;
-    const near = mySummons.some((u) => hexDistance(u.pos, enemySummoner.pos) <= kindOf(u.kind).stats.mov * 2 + kindOf(u.kind).attack.range);
-    // peel: while a healer keeps the enemy Summoner up, the healer is the target
+    if (!enemyMaster) return null;
+    const near = myFamiliars.some((u) => hexDistance(u.pos, enemyMaster.pos) <= kindOf(u.kind).stats.mov * 2 + kindOf(u.kind).attack.range);
+    // peel: while a healer keeps the enemy Master up, the healer is the target
     const medic = healers
-      .filter((h) => healReach(h, enemySummoner.pos))
-      .sort((a, b) => hexDistance(a.unit.pos, enemySummoner.pos) - hexDistance(b.unit.pos, enemySummoner.pos) || a.unit.id - b.unit.id)[0];
+      .filter((h) => healReach(h, enemyMaster.pos))
+      .sort((a, b) => hexDistance(a.unit.pos, enemyMaster.pos) - hexDistance(b.unit.pos, enemyMaster.pos) || a.unit.id - b.unit.id)[0];
     if (medic && (lead > w.focusLead || near)) return medic.unit.pos;
-    if (lead > w.focusLead || near || !mySummons.length) return enemySummoner.pos;
+    if (lead > w.focusLead || near || !myFamiliars.length) return enemyMaster.pos;
     const open = state.stones.filter((st) => st.owner !== me.side);
-    if (!open.length) return enemySummoner.pos;
-    const dist = (st: (typeof open)[number]) => mySummons.reduce((a, u) => a + hexDistance(u.pos, st.hex), 0);
+    if (!open.length) return enemyMaster.pos;
+    const dist = (st: (typeof open)[number]) => myFamiliars.reduce((a, u) => a + hexDistance(u.pos, st.hex), 0);
     return open.reduce((a, b) => (dist(b) < dist(a) || (dist(b) === dist(a) && hexKey(b.hex) < hexKey(a.hex)) ? b : a)).hex;
   })();
 
-  // Summoner posture from the matchup: how many hits the strongest enemies need
+  // Master posture from the matchup: how many hits the strongest enemies need
   // to kill it (fragile ones keep away), and how hard it hits back (durable
   // hitters move up to threaten).
   let fragility = 1;
   let aggression = 0;
-  if (kind.isSummoner) {
+  if (kind.isMaster) {
     const enemies = state.units.filter((u) => u.side !== me.side);
     const incoming = enemies.map((e) => approxDamage(state, e, me, me.pos, me.facing)).sort((a, b) => b - a).slice(0, 3);
     const perHit = incoming.length ? incoming.reduce((a, b) => a + b, 0) / incoming.length : 0;
     const hitsToKill = me.hp / Math.max(0.5, perHit);
     fragility = Math.max(0.35, Math.min(1.5, w.postureHits / hitsToKill));
     const outgoing = enemies
-      .filter((e) => !kindOf(e.kind).isSummoner)
+      .filter((e) => !kindOf(e.kind).isMaster)
       .map((e) => computeDamage(state, me, neighbor(e.pos, facingToward(e.pos, me.pos)), e, 'physical').amount);
     const myHit = outgoing.length ? outgoing.reduce((a, b) => a + b, 0) / outgoing.length : 0;
     aggression = Math.max(0, Math.min(1, (myHit - 1.5) / 2)) * Math.max(0, Math.min(1, (hitsToKill - 3) / 3));
@@ -409,15 +411,15 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
       else if (needsGuard(h)) s += w.guard;
       s += w.onStone * (10 - me.hp + 1) * 0.3;
     }
-    if (kind.isSummoner) {
+    if (kind.isMaster) {
       // Keep distance from enemies (but not infinitely).
       let minD = 99;
       for (const u of state.units) if (u.side !== me.side) minD = Math.min(minD, hexDistance(u.pos, h));
-      s += w.summonerSafety * fragility * Math.min(minD, 7);
+      s += w.masterSafety * fragility * Math.min(minD, 7);
       if (aggression > 0 && objs.length) {
         let minO = 99;
         for (const o of objs) minO = Math.min(minO, hexDistance(o, h));
-        s -= w.approach * pressure * aggression * w.summonerAggression * minO;
+        s -= w.approach * pressure * aggression * w.masterAggression * minO;
       }
     } else if (objs.length) {
       let minD = 99;
@@ -440,23 +442,23 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
   const prox = (d: number) => Math.max(0, 1 - d / w.summonRadius);
   const counters = (a: UnitKind['element'], b: UnitKind['element']) => elementRelation(a, b) === 'counter';
   // Rank summon kinds once (placement-independent), affordable or not.
-  const rankedKinds = kind.isSummoner
-    ? SUMMONS.filter((s) => inRoster(state, me.side, s.id))
+  const rankedKinds = kind.isMaster
+    ? FAMILIARS.filter((s) => inRoster(state, me.side, s.id))
         .map((s) => {
           let counter = 0;
           for (const u of state.units) {
             if (u.side === me.side) continue;
             const uk = kindOf(u.kind);
-            // about 1 for an average Summon, as the old ±1 per enemy was
-            const base = prox(hexDistance(u.pos, me.pos)) * (uk.isSummoner ? 1.5 : unitValue(u) / 2);
+            // about 1 for an average Familiar, as the old ±1 per enemy was
+            const base = prox(hexDistance(u.pos, me.pos)) * (uk.isMaster ? 1.5 : unitValue(u) / 2);
             if (base <= 0) continue;
             if (counters(s.element, uk.element)) {
-              // covered: own Summons near it already counter it; threatening: it counters own Summons near it
+              // covered: own Familiars near it already counter it; threatening: it counters own Familiars near it
               let covered = 0;
               let threatening = 0;
               for (const a of allies) {
                 const ak = kindOf(a.kind);
-                if (ak.isSummoner) continue;
+                if (ak.isMaster) continue;
                 const p = prox(hexDistance(a.pos, u.pos));
                 if (counters(ak.element, uk.element)) covered += p;
                 if (counters(uk.element, ak.element)) threatening += p;
@@ -478,7 +480,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         .sort((a, b) => b.value - a.value || a.kind.cost - b.kind.cost)
     : [];
   const summonKinds = rankedKinds.filter((k) => k.kind.cost <= myMana).slice(0, 4);
-  // Saving up: a clearly better Summon that income will soon pay for reserves its Cost.
+  // Saving up: a clearly better Familiar that income will soon pay for reserves its Cost.
   const overflow = myMana + Math.max(0, income) >= MANA_MAX;
   let reserve = 0;
   {
@@ -545,25 +547,27 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
           if (isDamage && !effects.some((e) => e.kind === 'damage' && e.amount > 0 && (e.obstacle || state.units.find((u) => u.id === e.unitId)?.side !== me.side))) continue;
           for (const e of effects) {
             if (e.obstacle) {
-              score += obstacleValue(state, me, dest, e.unitId, e.amount, e.lethal, w);
+              score += obstacleValue(state, me, dest, e.unitId, Math.min(e.amount, e.hpBefore), e.lethal, w);
               continue;
             }
             const t = state.units.find((u) => u.id === e.unitId)!;
             const v = t.side === me.side ? unitValue(t) : targetValue(t);
             if (e.kind === 'damage') {
-              if (t.side === me.side) score -= e.amount * w.friendlyFire * v;
+              // only the HP it can actually take counts: overkill is worth nothing
+              const dealt = Math.min(e.amount, t.hp);
+              if (t.side === me.side) score -= dealt * w.friendlyFire * v;
               else {
                 const heal = healIn.get(t.id) ?? 0;
                 // only damage that outlasts the healing coming its way counts in full
-                const net = e.lethal ? e.amount : Math.max(0, e.amount - heal);
-                const canFinish = !e.lethal && t.hp - e.amount + heal <= (followUp.get(t.id) ?? 0);
-                let dmgValue = (net + (e.amount - net) * w.healedDamage) * w.damage * v;
-                // a Summoner that can't be finished this round just gets healed up: don't pour the lead into it
-                if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeSummoner;
+                const net = e.lethal ? dealt : Math.max(0, dealt - heal);
+                const canFinish = !e.lethal && t.hp - dealt + heal <= (followUp.get(t.id) ?? 0);
+                let dmgValue = (net + (dealt - net) * w.healedDamage) * w.damage * v * (kind.isMaster ? w.masterHit : 1);
+                // a Master that can't be finished this round just gets healed up: don't pour the lead into it
+                if (kindOf(t.kind).isMaster && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeMaster;
                 score += dmgValue;
                 if (e.lethal) {
                   killed.add(t.id);
-                  score += kindOf(t.kind).isSummoner ? w.killSummoner : w.kill * v;
+                  score += kindOf(t.kind).isMaster ? w.killMaster : w.kill * v;
                 } else if (canFinish) {
                   // allies can finish it before it acts, healing included
                   score += w.kill * v * w.setupKill;
@@ -578,7 +582,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         const sk = summonKinds.find((s) => s.kind.id === command.kind)!;
         score += sk.value - spendCost(sk.kind.cost);
         const h = neighbor(dest, command.dir);
-        if (enemySummoner) score -= hexDistance(h, enemySummoner.pos) * 0.5;
+        if (enemyMaster) score -= hexDistance(h, enemyMaster.pos) * 0.5;
         const stone = state.stones.find((s) => hexEq(s.hex, h));
         if (stone && stone.owner !== me.side) score += w.capture * 0.4;
       }
@@ -602,9 +606,9 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
       const v = unitValue(me);
       // scrapes a Unit can absorb cost little; damage that nearly kills it costs the most
       const x = Math.min(threat, me.hp) / me.hp;
-      const hurt = kind.isSummoner ? x : (1 - w.hurtCurve) * x + w.hurtCurve * x * x;
-      score -= hurt * me.hp * w.threat * v * (kind.isSummoner ? 1 : boldness);
-      if (threat >= me.hp) score -= kind.isSummoner ? w.summonerDeathRisk : w.deathRisk * v;
+      const hurt = kind.isMaster ? x : (1 - w.hurtCurve) * x + w.hurtCurve * x * x;
+      score -= hurt * me.hp * w.threat * v * (kind.isMaster ? 1 : boldness);
+      if (threat >= me.hp) score -= kind.isMaster ? w.masterDeathRisk : w.deathRisk * v;
 
       candidates.push({ action: { ...draft, facing }, score });
     }
@@ -643,11 +647,11 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
         after += Math.min(t, a.hp) * unitValue(a);
       }
       v = (baseThreat - after) * w.threat * w.screen;
-      // cutting the heal line: healing the enemy Summoner (or a hurt enemy) can no longer receive
+      // cutting the heal line: healing the enemy Master (or a hurt enemy) can no longer receive
       if (healers.length) {
         const hs = rs.filter((e) => healers.some((h) => h.unit.id === e.unit.id));
         for (const t of state.units) {
-          if (t.side === me.side || (t.hp >= 10 && !kindOf(t.kind).isSummoner)) continue;
+          if (t.side === me.side || (t.hp >= 10 && !kindOf(t.kind).isMaster)) continue;
           const lost = (healIn.get(t.id) ?? 0) - incomingHealFrom(hs, t);
           if (lost > 0) v += lost * w.damage * unitValue(t) * w.healBlock;
         }
@@ -732,14 +736,14 @@ function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): Turn
   return best?.action ?? null;
 }
 
-/** Static value of a position for `side`: material and HP, Summoners, Stones, Mana. */
+/** Static value of a position for `side`: material and HP, Masters, Stones, Mana. */
 export function evaluate(st: MatchState, side: number): number {
   if (st.winner === side) return 1e6;
   if (st.winner !== null && st.winner !== 'draw') return -1e6;
   let v = 0;
   for (const u of st.units) {
     const k = kindOf(u.kind);
-    const worth = k.isSummoner ? 40 + u.hp * 12 : unitValue(u) * (8 + u.hp * 4);
+    const worth = k.isMaster ? 40 + u.hp * 12 : unitValue(u) * (8 + u.hp * 4);
     v += u.side === side ? worth : -worth;
   }
   // Stones count for their Mana, not for the Time Limit: the AI never plays for time.
@@ -751,13 +755,13 @@ export function evaluate(st: MatchState, side: number): number {
 
 
 /**
- * An AI-built Loadout for a Summoner: an even share of each Element (5 of each
+ * An AI-built Loadout for a Master: an even share of each Element (5 of each
  * for 20), always including the two cheapest of each so it can summon early,
  * the rest spread over cost. Any share left over goes first to the
- * Summoner's own Element.
+ * Master's own Element.
  */
-export function autoLoadout(summonerId: string, rand: () => number = Math.random): string[] {
-  const own = kindOf(summonerId).element;
+export function autoLoadout(masterId: string, rand: () => number = Math.random): string[] {
+  const own = kindOf(masterId).element;
   const elements = ['fire', 'air', 'earth', 'water'] as const;
   const order = [...elements].sort(() => rand() - 0.5);
   if (own) order.sort((a, b) => (a === own ? -1 : b === own ? 1 : 0));
@@ -766,7 +770,7 @@ export function autoLoadout(summonerId: string, rand: () => number = Math.random
   const counts = new Map(order.map((e, i) => [e, share + (i < extra ? 1 : 0)] as const));
   const out: string[] = [];
   for (const e of elements) {
-    const byCost = SUMMONS.filter((s) => s.element === e).sort((a, b) => a.cost - b.cost);
+    const byCost = FAMILIARS.filter((s) => s.element === e).sort((a, b) => a.cost - b.cost);
     const picked = byCost.slice(0, 2);
     const rest = byCost.slice(2).sort(() => rand() - 0.5);
     picked.push(...rest.slice(0, counts.get(e)! - 2));

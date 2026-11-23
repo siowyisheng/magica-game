@@ -41,7 +41,7 @@ export type AnimStep =
   | { kind: 'hit'; unitIds: number[]; t0: number; t1: number }
   /** A Burst: a shockwave ring expanding from the caster to `radius` hexes. */
   | { kind: 'burst'; at: Hex; radius: number; element: Element | null; t0: number; t1: number }
-  /** Summoner glows and approaches, a light blooms on the hex, the summon fades in, the Summoner backs off. */
+  /** Master glows and approaches, a light blooms on the hex, the familiar fades in, the Master backs off. */
   /** A light swells on the Magic Stone (ease in/out); the stone changes colour at the peak. */
   | { kind: 'capture'; hex: Hex; side: SideId; t0: number; t1: number }
   | { kind: 'summon'; unitId: number; from: Hex; target: Hex; summonKind: string; side: SideId; facing: Dir; t0: number; t1: number };

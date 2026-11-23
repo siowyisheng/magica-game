@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderSprite, hasDesign, type FrameIndex, type ViewIndex } from './index';
-import { SUMMONS, SUMMONERS } from '../../rules/kinds';
+import { FAMILIARS, MASTERS } from '../../rules/kinds';
 
 const opaque = (d: Uint8ClampedArray) => {
   let n = 0;
@@ -10,10 +10,10 @@ const opaque = (d: Uint8ClampedArray) => {
 const same = (a: Uint8ClampedArray, b: Uint8ClampedArray) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 describe('unit sprite designs', () => {
-  const kinds = [...SUMMONERS.map((k) => k.id), ...SUMMONS.map((k) => k.id)];
-  const elementOf = (id: string) => [...SUMMONERS, ...SUMMONS].find((s) => s.id === id)?.element ?? null;
+  const kinds = [...MASTERS.map((k) => k.id), ...FAMILIARS.map((k) => k.id)];
+  const elementOf = (id: string) => [...MASTERS, ...FAMILIARS].find((s) => s.id === id)?.element ?? null;
 
-  it('has a design for all 30 Summoners and all 40 summons', () => {
+  it('has a design for all 30 Masters and all 40 familiars', () => {
     expect(kinds).toHaveLength(70);
     for (const k of kinds) expect(hasDesign(k), k).toBe(true);
   });

@@ -1,4 +1,4 @@
-// Fire summons.
+// Fire familiars.
 import { type V3, add } from './model';
 import { arm, both, breathe, eyes, figure, flame, flick, legs, membrane, mouthAt } from './kit';
 import type { Design } from './designs';

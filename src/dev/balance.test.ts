@@ -18,12 +18,16 @@ describe('balance edits', () => {
   });
 
   it('shares Magic Abilities: one edit changes every kind that uses it', () => {
-    // all Summoners share Bolt
-    const bolt = abilityOf('bolt')!;
-    expect(abilityUsers('bolt').length).toBe(30);
-    saveAbility({ ...bolt, manaCost: 16 });
-    expect(kindOf('regent').magic[0].manaCost).toBe(16);
-    expect(kindOf('oni').magic[0].manaCost).toBe(16);
+    // Coral and Mender share Healing Rain
+    const rain = abilityOf('healing-rain')!;
+    expect(abilityUsers('healing-rain').map((k) => k.id).sort()).toEqual(['crab', 'undine']);
+    saveAbility({ ...rain, manaCost: 6 });
+    expect(kindOf('crab').magic[0].manaCost).toBe(6);
+    expect(kindOf('undine').magic[0].manaCost).toBe(6);
+    // Masters have none, but their old spells are still known abilities
+    expect(kindOf('regent').magic).toEqual([]);
+    expect(abilityUsers('bolt')).toEqual([]);
+    expect(abilityOf('rise')?.kind).toBe('water');
     // give the Hound the Wisp's Rekindle: both use the same record
     const hound = JSON.parse(JSON.stringify(kindOf('hound')));
     hound.magic = [abilityOf('rekindle')!];
@@ -41,13 +45,13 @@ describe('balance edits', () => {
     const hermit = JSON.parse(JSON.stringify(kindOf('hermit')));
     hermit.stats.mp = 10;
     saveKind(hermit);
-    saveAbility({ ...abilityOf('rise')!, manaCost: 24 });
+    saveAbility({ ...abilityOf('healing-rain')!, manaCost: 6 });
     const json = exportBalanceJson();
     resetAll();
     expect(kindOf('hermit').stats.mp).toBe(7);
     importBalanceJson(json);
     expect(kindOf('hermit').stats.mp).toBe(10);
-    expect(kindOf('hermit').magic[1].manaCost).toBe(24);
+    expect(kindOf('crab').magic[0].manaCost).toBe(6);
     resetKind('hermit');
     expect(kindOf('hermit').stats.mp).toBe(7);
     expect(() => importBalanceJson('{"nope": {}}')).toThrow();

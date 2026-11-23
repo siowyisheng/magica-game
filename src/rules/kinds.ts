@@ -6,11 +6,11 @@
 // Two layers of overrides sit on the built-in data: the repo's
 // `data/overrides.json` (baked-in balance changes, written by the dev tool
 // through the dev server) and the browser's local overrides (experiments).
-// SUMMONS and SUMMONERS are live arrays, updated in place, so every importer
+// FAMILIARS and MASTERS are live arrays, updated in place, so every importer
 // sees the current values. Overrides apply to new matches.
 
-import { BASE_SUMMONERS, DEFAULT_SUMMONER } from './data/summoner';
-import { BASE_SUMMONS } from './data/summons';
+import { BASE_MASTERS, DEFAULT_MASTER, UNATTACHED_ABILITIES } from './data/masters';
+import { BASE_FAMILIARS } from './data/familiars';
 import repoOverridesJson from './data/overrides.json';
 import type { MagicAbility, UnitKind } from './types';
 
@@ -43,13 +43,13 @@ export function normalizeBalance(raw: unknown): Balance {
 }
 
 const BASE_ABILITIES = new Map<string, MagicAbility>();
-for (const k of [...BASE_SUMMONERS, ...BASE_SUMMONS]) for (const m of k.magic) if (!BASE_ABILITIES.has(m.id)) BASE_ABILITIES.set(m.id, clone(m));
+for (const m of [...UNATTACHED_ABILITIES, ...[...BASE_MASTERS, ...BASE_FAMILIARS].flatMap((k) => k.magic)]) if (!BASE_ABILITIES.has(m.id)) BASE_ABILITIES.set(m.id, clone(m));
 
 let repo: Balance = normalizeBalance(repoOverridesJson);
 let local: Balance = { kinds: {}, abilities: {} };
 
-export const SUMMONS: UnitKind[] = [];
-export const SUMMONERS: UnitKind[] = [];
+export const FAMILIARS: UnitKind[] = [];
+export const MASTERS: UnitKind[] = [];
 const KINDS = new Map<string, UnitKind>();
 
 /** A Magic Ability as the game currently uses it (local edit, else repo, else built-in). */
@@ -81,15 +81,15 @@ function compose(base: UnitKind, layers: Balance[], resolve: (id: string) => Mag
     k = { ...k, ...clone(rest) };
     if (magicIds) ids = [...magicIds];
   }
-  return { ...k, id: base.id, isSummoner: base.isSummoner, role: base.role, magic: ids.map(resolve).filter((m): m is MagicAbility => !!m) };
+  return { ...k, id: base.id, isMaster: base.isMaster, role: base.role, magic: ids.map(resolve).filter((m): m is MagicAbility => !!m) };
 }
 
 function rebuild() {
   const merged = (b: UnitKind) => compose(b, [repo, local], abilityOf);
-  SUMMONS.splice(0, SUMMONS.length, ...BASE_SUMMONS.map(merged));
-  SUMMONERS.splice(0, SUMMONERS.length, ...BASE_SUMMONERS.map(merged));
+  FAMILIARS.splice(0, FAMILIARS.length, ...BASE_FAMILIARS.map(merged));
+  MASTERS.splice(0, MASTERS.length, ...BASE_MASTERS.map(merged));
   KINDS.clear();
-  for (const k of [...SUMMONERS, ...SUMMONS]) KINDS.set(k.id, k);
+  for (const k of [...MASTERS, ...FAMILIARS]) KINDS.set(k.id, k);
 }
 rebuild();
 
@@ -101,7 +101,7 @@ export function kindOf(id: string): UnitKind {
 
 /** A kind as built in, before any overrides. */
 export function baseKind(id: string): UnitKind {
-  const k = [...BASE_SUMMONERS, ...BASE_SUMMONS].find((x) => x.id === id);
+  const k = [...BASE_MASTERS, ...BASE_FAMILIARS].find((x) => x.id === id);
   if (!k) throw new Error(`unknown unit kind ${id}`);
   return clone(k);
 }
@@ -113,7 +113,7 @@ export function shippedKind(id: string): UnitKind {
 
 /** Kinds that currently use a Magic Ability. */
 export function abilityUsers(id: string): UnitKind[] {
-  return [...SUMMONERS, ...SUMMONS].filter((k) => k.magic.some((m) => m.id === id));
+  return [...MASTERS, ...FAMILIARS].filter((k) => k.magic.some((m) => m.id === id));
 }
 
 export function getRepoBalance(): Balance {
@@ -140,7 +140,7 @@ export function setLocalOverrides(kinds: Record<string, KindPatch>) {
   setLocalBalance({ ...local, kinds: clone(kinds) });
 }
 
-export { BASE_SUMMONERS, BASE_SUMMONS, DEFAULT_SUMMONER };
+export { BASE_MASTERS, BASE_FAMILIARS, DEFAULT_MASTER };
 
 /** Everything in force that differs from the built-in data: repo overrides with local edits on top. */
 export function activeBalance(): Balance {

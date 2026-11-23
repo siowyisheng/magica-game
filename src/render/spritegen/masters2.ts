@@ -1,4 +1,4 @@
-// The thirty Summoners, part 2: casters, spirits and demi-humans.
+// The thirty Masters, part 2: casters, spirits and demi-humans.
 
 import { type Model, type Pose, type V3, add } from './model';
 import { both, eyes, figure, flick, membrane, mouthAt } from './kit';
@@ -722,4 +722,4 @@ S.shadow = {
   },
 };
 
-export const SUMMONER_DESIGNS_2 = S;
+export const MASTER_DESIGNS_2 = S;

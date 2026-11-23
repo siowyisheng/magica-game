@@ -1,10 +1,10 @@
-import type { SummonName, SummonSlot } from '../summongen';
+import type { FamiliarName, FamiliarSlot } from '../familiargen';
 
-// The 28 Summon slots: each Element keeps its agreed Costs, and each slot
+// The 28 Familiar slots: each Element keeps its agreed Costs, and each slot
 // keeps its sprite. The sprite's look sets the Move Types and the roles it
 // suits; the generator fills in everything else.
 
-const slot = (sprite: string, element: SummonSlot['element'], cost: number, moveTypes: SummonSlot['moveTypes'], suits: SummonSlot['suits'], look: string[]): SummonSlot => ({
+const slot = (sprite: string, element: FamiliarSlot['element'], cost: number, moveTypes: FamiliarSlot['moveTypes'], suits: FamiliarSlot['suits'], look: string[]): FamiliarSlot => ({
   sprite,
   element,
   cost,
@@ -13,7 +13,7 @@ const slot = (sprite: string, element: SummonSlot['element'], cost: number, move
   look,
 });
 
-export const SUMMON_SLOTS: SummonSlot[] = [
+export const FAMILIAR_SLOTS: FamiliarSlot[] = [
   // Fire: walkers, two flyers
   slot('imp', 'fire', 16, ['walk'], ['grabber', 'skirmisher'], ['small', 'devil']),
   slot('hound', 'fire', 24, ['walk'], ['skirmisher', 'grabber', 'striker'], ['beast']),
@@ -48,8 +48,8 @@ export const SUMMON_SLOTS: SummonSlot[] = [
   slot('kraken', 'water', 96, ['slow', 'swim'], ['stallbreaker', 'workhorse'], ['serpent', 'big']),
 ];
 
-/** Summon names (at most 6 letters), tagged with the roles and looks they suit. */
-export const SUMMON_NAMES: SummonName[] = [
+/** Familiar names (at most 6 letters), tagged with the roles and looks they suit. */
+export const FAMILIAR_NAMES: FamiliarName[] = [
   // more, so every Element has enough
   { name: 'Nimbus', roles: ['artillery', 'caster'], looks: ['humanoid', 'spirit'], elements: ['air'] },
   { name: 'Shriek', roles: ['artillery', 'assassin', 'ranged'], looks: ['bird'], elements: ['air'] },

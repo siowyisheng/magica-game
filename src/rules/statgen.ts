@@ -1,15 +1,15 @@
-// The Stat Budget and a generator of power-balanced Summoner stat spreads.
+// The Stat Budget and a generator of power-balanced Master stat spreads.
 //
 // The reference table below is treated as balanced. Fitting it shows that a
-// Summoner's stats sum to a hidden constant once each stat is priced in MP
+// Master's stats sum to a hidden constant once each stat is priced in MP
 // (the stat that pays for everything, because it sets Mana Income):
 //
 //   MP + w_spd·SPD + w_mov·MOV + w_def·DEF + w_mdf·MDF + w_atk·ATK·reach ≈ total
 //
 // ATK is priced by its reach: Move + Attack range, beyond FREE_REACH. ATK
-// that can't get anywhere is worth little: a melee Summoner with Move 3
+// that can't get anywhere is worth little: a melee Master with Move 3
 // pays nothing for it, one with Move 5 pays twice what Move 4 pays, and a
-// ranged Summoner pays for every hex of range. This one rule fits the
+// ranged Master pays for every hex of range. This one rule fits the
 // references about as well as separate melee and ranged prices, and it
 // prices Move-and-ATK fighters correctly. The generator samples ATK, DEF, MDF, SPD and MOV with the
 // references' correlations (casters are frail and slow; fighters are tough
@@ -27,7 +27,7 @@ export interface ReferenceSpread {
 
 type Row = [atk: number, def: number, mp: number, mdf: number, spd: number, mov: number, range: number, trajectory?: Trajectory];
 
-/** The reference Summoners the Stat Budget is fitted to (treated as balanced). */
+/** The reference Masters the Stat Budget is fitted to (treated as balanced). */
 const REFERENCE_ROWS: Row[] = [
   [8, 6, 5, 5, 15, 5, 1],
   [5, 3, 6, 4, 15, 3, 1],
@@ -63,7 +63,7 @@ export const REFERENCE_SPREADS: readonly ReferenceSpread[] = REFERENCE_ROWS.map(
   ...(trajectory ? { trajectory } : {}),
 }));
 
-/** MP-equivalent prices of each stat, and the total every Summoner sums to. */
+/** MP-equivalent prices of each stat, and the total every Master sums to. */
 export interface StatBudget {
   spd: number;
   mov: number;
@@ -77,7 +77,7 @@ export interface StatBudget {
 /** Reach (Move + Attack range) that ATK gets for free. */
 export const FREE_REACH = 4;
 
-/** How far beyond FREE_REACH a Summoner's ATK reaches: Move + Attack range − FREE_REACH, at least 0. */
+/** How far beyond FREE_REACH a Master's ATK reaches: Move + Attack range − FREE_REACH, at least 0. */
 export function atkReach(s: Stats, range: number): number {
   return Math.max(0, s.mov + range - FREE_REACH);
 }
@@ -127,9 +127,9 @@ const KEYS = ['atk', 'def', 'mdf', 'spd', 'mov'] as const;
 const ALL_KEYS = ['atk', 'def', 'mp', 'mdf', 'spd', 'mov'] as const;
 
 /**
- * Magic Defense floor for Summoners. Magic reaches further than most
- * Attacks, so a Summoner with very low MDF would die before it could act:
- * generated spreads stay at 7 or above (soft), and no Summoner may go below
+ * Magic Defense floor for Masters. Magic reaches further than most
+ * Attacks, so a Master with very low MDF would die before it could act:
+ * generated spreads stay at 7 or above (soft), and no Master may go below
  * 6 (hard), with at most one at 6.
  */
 export const MDF_FLOOR = { soft: 3, hard: 2, atHardFloor: 1 } as const;
@@ -194,14 +194,14 @@ export function zScores(s: Stats): number[] {
   return SD.map(({ k, mean, sd }) => (s[k] - mean) / sd);
 }
 
-/** ATK of ranged Summoners: the references' 4–7, widened by one (a ranged Summoner must be able to hurt). */
+/** ATK of ranged Masters: the references' 4–7, widened by one (a ranged Master must be able to hurt). */
 export const RANGED_ATK: [number, number] = [3, 8];
 
 /** Largest distance from the budget a generated spread may have (MP; the references sit within about ±0.5). */
 export const MAX_BUDGET_ERROR = 0.3;
 
 /**
- * One power-balanced stat spread for a Summoner with the given Attack range.
+ * One power-balanced stat spread for a Master with the given Attack range.
  * Returns null if no spread within bounds was found in `tries` attempts.
  */
 export function generateSpread(rng: () => number, range = 1, tries = 400): Stats | null {
@@ -223,7 +223,7 @@ export function generateSpread(rng: () => number, range = 1, tries = 400): Stats
 const dist = (a: number[], b: number[]) => Math.hypot(...a.map((x, i) => x - b[i]));
 
 /**
- * `n` spreads for Summoners with the given ranges (one per entry), chosen
+ * `n` spreads for Masters with the given ranges (one per entry), chosen
  * from a large pool so each is as unlike the others as possible.
  */
 export function generateDiverseSpreads(seed: number, ranges: number[], poolPerSpread = 120): Stats[] {
@@ -260,11 +260,11 @@ export function generateDiverseSpreads(seed: number, ranges: number[], poolPerSp
 export interface NameEntry {
   name: string;
   profile: Partial<Record<keyof Stats, number>>;
-  /** Only for ranged Summoners (with the range it suits), or only for melee ones. */
+  /** Only for ranged Masters (with the range it suits), or only for melee ones. */
   ranged?: number;
   element?: Element;
   alignment?: Alignment;
-  /** What the Summoner looks like, and the one item or trait that makes it memorable. */
+  /** What the Master looks like, and the one item or trait that makes it memorable. */
   look: string;
 }
 
@@ -336,7 +336,7 @@ export function assignNames(spreads: { stats: Stats; range: number }[], catalogu
 
 // ---------- a whole roster ----------
 
-export interface GeneratedSummoner {
+export interface GeneratedMaster {
   name: string;
   stats: Stats;
   range: number;
@@ -346,14 +346,14 @@ export interface GeneratedSummoner {
   look: string;
 }
 
-/** Ranged Summoners' Attack ranges; up to 4 fly Direct, longer ones High. */
+/** Ranged Masters' Attack ranges; up to 4 fly Direct, longer ones High. */
 export const RANGED_RANGES = [3, 4, 4, 5, 6];
 
 /**
- * A roster of `count` Summoners: RANGED_RANGES.length of them ranged, the
+ * A roster of `count` Masters: RANGED_RANGES.length of them ranged, the
  * rest melee, each spread power-balanced and named from the catalogue.
  */
-export function generateRoster(seed: number, catalogue: NameEntry[], count = 30): GeneratedSummoner[] {
+export function generateRoster(seed: number, catalogue: NameEntry[], count = 30): GeneratedMaster[] {
   const ranges = [...RANGED_RANGES, ...new Array(count - RANGED_RANGES.length).fill(1)];
   const spreads = generateDiverseSpreads(seed, ranges);
   const named = assignNames(
