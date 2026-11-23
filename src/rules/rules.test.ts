@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { withSpells } from '../testing/spells';
+import { onTestFinished, describe, expect, it } from 'vitest';
 import {
   applyTurn,
   computeDamage,
@@ -170,7 +171,7 @@ describe('damage', () => {
     expect(computeDamage(state, hound, hex(4, 3), hound2, 'physical').amount).toBe(2);
   });
 
-  it('Summoners always attack as a Counter, and are hit by their own Element (none: neutral)', () => {
+  it('Summoners attack Summons as a Counter; Summoners against Summoners go by their Elements (none: neutral)', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60;
     const drake = place(state, 'drake', 0, 1, 1); // fire ATK 9
@@ -185,10 +186,13 @@ describe('damage', () => {
     const hydra = place(state, 'hydra', 0, 4, 1); // water ATK 10
     const dwarf = place(state, 'dwarf', 1, 5, 1, 3); // Earth Summoner DEF 5, faces W
     expect(computeDamage(state, hydra, hydra.pos, dwarf, 'physical').amount).toBe(1); // 10 − 5 − 4
-    // a Summoner hitting a Summoner is always a Counter, whatever its Element
-    const oni2 = place(state, 'oni', 0, 4, 3);
-    const dwarf2 = place(state, 'dwarf', 1, 5, 3, 3);
-    expect(computeDamage(state, oni2, oni2.pos, dwarf2, 'physical').amount).toBe(8); // 9 − 5 + 4
+    // Summoner against Summoner: by their Elements
+    const oni2 = place(state, 'oni', 0, 4, 3); // no Element, ATK 9
+    const dwarf2 = place(state, 'dwarf', 1, 5, 3, 3); // Earth, DEF 5
+    expect(computeDamage(state, oni2, oni2.pos, dwarf2, 'physical').amount).toBe(4); // 9 − 5 + 0
+    const sylph = place(state, 'sylph', 0, 4, 5); // Air Summoner, ATK 2 (Air counters Earth)
+    const dwarf3 = place(state, 'dwarf', 1, 5, 5, 3);
+    expect(computeDamage(state, sylph, sylph.pos, dwarf3, 'physical').amount).toBe(Math.max(0, kindOf('sylph').stats.atk - 5 + 4));
   });
 
   it('shows the full damage, past the remaining HP; HP stops at 0', () => {
@@ -216,13 +220,13 @@ describe('damage', () => {
     state.clock = 18 * 60;
     const a = place(state, 'oni', 0, 1, 1); // Summoner ATK 9
     const b = place(state, 'regent', 1, 2, 1, 3); // DEF 3
-    // 9 − 3 + 4 (a Summoner attacks as a Counter) = 10; rough → 9
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(9);
+    // 9 − 3 + 0 (Summoner against Summoner, no Elements: neutral) = 6; rough → 5
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
     b.pos = hex(2, 2);
     a.pos = hex(1, 2);
-    // stone → 9
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(9);
+    // stone → 5
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
   });
 
@@ -365,6 +369,7 @@ describe('match flow', () => {
   });
 
   it('strands units after Rise, dealing 1 damage and forcing Wait', () => {
+    onTestFinished(withSpells());
     // water level 2 over height-1 ground: everything is Shallow (Summoners wade);
     // Rise makes it Deep, which strands them.
     const s = createMatch(testMap(6, 6, () => ({ height: 1 }), 2));
@@ -424,6 +429,7 @@ describe('match flow', () => {
 
 describe('facing toward target and reach', () => {
   it('turns attackers toward their target; ties go to the preferred facing', async () => {
+    onTestFinished(withSpells());
     const { facingTowardTarget, planAttack, planMagic, unitReach } = await import('./index');
     expect(facingTowardTarget(hex(0, 0), hex(3, 0), 4)).toBe(0);
     // (1,-2) is exactly between NE (1) and NW (2)
@@ -657,14 +663,14 @@ function withLine(): MatchState {
 // ---------- Summoners and balance overrides ----------
 
 describe('summoners', () => {
-  it('has thirty Summoners with short names, all walk + wade with Bolt, Rise and Ebb, each on the Stat Budget', async () => {
+  it('has thirty Summoners with short names, all walk + wade with no Magic Abilities, each on the Stat Budget', async () => {
     const { SUMMONERS, kindWarnings, budgetError } = await import('./index');
     expect(SUMMONERS).toHaveLength(30);
     expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(30);
     for (const k of SUMMONERS) {
       expect(k.name.length).toBeLessThanOrEqual(7);
       expect(k.moveTypes).toEqual(['walk', 'wade']);
-      expect(k.magic.map((m) => m.id)).toEqual(['bolt', 'rise', 'ebb']);
+      expect(k.magic).toEqual([]);
       expect(kindWarnings(k, SUMMONERS)).toEqual([]);
       expect(Math.abs(budgetError(k.stats, k.attack.range))).toBeLessThanOrEqual(0.3);
     }

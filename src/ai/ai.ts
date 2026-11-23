@@ -93,7 +93,9 @@ export const AI_WEIGHTS = {
   healBlock: 0.5,
   /** Lead above which the shared target is the enemy Summoner. */
   focusLead: 0.15,
-  summonBase: 40,
+  /** A Summoner's own hits on enemies count this many times over (it should use its ATK, not only summon). */
+  summonerHit: 1.5,
+  summonBase: 20,
   summonCostValue: 0.45,
   summonCounter: 18,
   /** Hours ahead over which an aligned Summon's Time of Day is judged, and the most it moves the Summon's value. */
@@ -219,7 +221,7 @@ interface Candidate {
   score: number;
 }
 
-function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
+export function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
   const me = activeUnit(state);
   if (!me) throw new Error('no active unit');
   const kind = kindOf(me.kind);
@@ -559,7 +561,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
                 // only damage that outlasts the healing coming its way counts in full
                 const net = e.lethal ? dealt : Math.max(0, dealt - heal);
                 const canFinish = !e.lethal && t.hp - dealt + heal <= (followUp.get(t.id) ?? 0);
-                let dmgValue = (net + (dealt - net) * w.healedDamage) * w.damage * v;
+                let dmgValue = (net + (dealt - net) * w.healedDamage) * w.damage * v * (kind.isSummoner ? w.summonerHit : 1);
                 // a Summoner that can't be finished this round just gets healed up: don't pour the lead into it
                 if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeSummoner;
                 score += dmgValue;

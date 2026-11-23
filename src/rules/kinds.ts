@@ -9,7 +9,7 @@
 // SUMMONS and SUMMONERS are live arrays, updated in place, so every importer
 // sees the current values. Overrides apply to new matches.
 
-import { BASE_SUMMONERS, DEFAULT_SUMMONER } from './data/summoner';
+import { BASE_SUMMONERS, DEFAULT_SUMMONER, UNATTACHED_ABILITIES } from './data/summoner';
 import { BASE_SUMMONS } from './data/summons';
 import repoOverridesJson from './data/overrides.json';
 import type { MagicAbility, UnitKind } from './types';
@@ -43,7 +43,7 @@ export function normalizeBalance(raw: unknown): Balance {
 }
 
 const BASE_ABILITIES = new Map<string, MagicAbility>();
-for (const k of [...BASE_SUMMONERS, ...BASE_SUMMONS]) for (const m of k.magic) if (!BASE_ABILITIES.has(m.id)) BASE_ABILITIES.set(m.id, clone(m));
+for (const m of [...UNATTACHED_ABILITIES, ...[...BASE_SUMMONERS, ...BASE_SUMMONS].flatMap((k) => k.magic)]) if (!BASE_ABILITIES.has(m.id)) BASE_ABILITIES.set(m.id, clone(m));
 
 let repo: Balance = normalizeBalance(repoOverridesJson);
 let local: Balance = { kinds: {}, abilities: {} };

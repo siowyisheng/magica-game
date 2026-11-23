@@ -27,6 +27,9 @@ export function elementRelation(attacker: Element | null, defender: Element | nu
  * null) are hit as neutral.
  */
 export function elementBonus(attacker: UnitKind, defender: UnitKind | null): number {
+  // Summoner against Summoner: by their Elements, like Summons (none: neutral)
+  if (attacker.isSummoner && defender?.isSummoner) return ELEMENT_BONUS[elementRelation(attacker.element, defender.element)];
+  // a Summoner hits everything else as a Counter
   if (attacker.isSummoner) return ELEMENT_BONUS.counter;
   if (!defender) return ELEMENT_BONUS.neutral;
   // a Summoner is hit by its own Element (none: neutral), like a Summon

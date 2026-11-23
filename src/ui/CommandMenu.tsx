@@ -110,12 +110,12 @@ export function CommandMenu() {
       <>
         <button onClick={() => choose('wait')} {...hover('wait')}>Wait</button>
         <button disabled={stuck || !canAttack} onClick={() => choose('attack')} {...hover('attack')}>Attack</button>
-        {kind.isSummoner ? (
+        {kind.magic.length > 1 ? (
           <button disabled={stuck} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
         ) : (
           (() => {
             const ab = kind.magic[0];
-            if (!ab) return null; // this summon has no Magic Ability
+            if (!ab) return null; // no Magic Ability
             const usable =
               !stuck &&
               mana >= ab.manaCost &&

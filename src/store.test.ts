@@ -1,4 +1,5 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { withSpells } from './testing/spells';
+import { onTestFinished, describe, expect, it, beforeEach, vi } from 'vitest';
 import { closestFacing, quickPlans, useGame } from './store';
 import { activeUnit, getUnit, hex } from './rules';
 
@@ -66,6 +67,7 @@ describe('selection, quick actions and range toggles', () => {
   };
 
   it('left-clicking a unit in Magic Reach (Bolt) moves to the chosen hex and casts', () => {
+    onTestFinished(withSpells());
     // find a spot out of melee reach but within Bolt reach
     let found: ReturnType<typeof placeFoe> | null = null;
     for (const [dq, dr] of [[0, -6], [1, -6], [2, -6], [0, -5], [3, -6], [-1, -5], [2, -7]]) {
@@ -90,6 +92,7 @@ describe('selection, quick actions and range toggles', () => {
   });
 
   it('offers a choice when both Attack and Magic can hit the target', () => {
+    onTestFinished(withSpells());
     const { foe } = placeFoe(2, -2);
     useGame.getState().clickHex(foe.pos);
     expect(useGame.getState().phase.kind).toBe('quickChoice');

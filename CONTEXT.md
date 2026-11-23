@@ -9,7 +9,7 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Summoner**:
-The single leader Unit of each Side. It casts several Magic Abilities (Bolt, Rise and Ebb) and is the only Unit that can Summon. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Summoners before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Summoner's stats fit the Stat Budget. Both Sides may pick the same one.
+The single leader Unit of each Side. It has no Magic Abilities and is the only Unit that can Summon; its MP sets its Side's Mana Income. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Summoners before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Summoner's stats fit the Stat Budget. Both Sides may pick the same one.
 _Avoid_: Master, hero, commander
 
 **Loadout**:
@@ -70,7 +70,7 @@ One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has no
 Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. Opposite Elements (Fire–Earth, Air–Water) are neutral.
 
 **Element Bonus**:
-A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. A Summoner always attacks as a Counter, whatever its own Element or its target's (another Summoner included). When a Summon hits a Summoner, the Summoner's own Element counts like a Summon's; a Summoner with no Element is hit as neutral. An Obstacle is hit as neutral.
+A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. A Summoner attacks every Summon as a Counter, whatever the Elements. Between a Summoner and another Summoner, and when a Summon hits a Summoner, the Elements count as they do between Summons; a Summoner with no Element is neutral. An Obstacle is hit as neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
@@ -108,7 +108,7 @@ What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 19 of the 40 Summons have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Summoners have several.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 19 of the 40 Summons have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Summoners have none.
 _Avoid_: Skill, spell (as a code term)
 
 **Burst**:
@@ -149,7 +149,7 @@ The floating amount of damage (or healing) a Command does to one target: shown i
 How high a hex is. Walk and Slow can climb at most 1 Height per hex they move, at +1 Move Point; going down 1 Height is free. Fly ignores Height.
 
 **Water Level**:
-The map's water surface Height. Rise and Ebb change it by one step at a time, from 1 below its starting value to 1 above it. Every map with water keeps some Deep Water at the lowest level, and the highest level floods at most 40% of the map. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
+The map's water surface Height. No unit can change it at present: Rise and Ebb, which change it by one step at a time from 1 below its starting value to 1 above it, are defined but no unit has them. Every map with water keeps some Deep Water at the lowest level, and the highest level floods at most 40% of the map. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
 
 **Plain**:
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.

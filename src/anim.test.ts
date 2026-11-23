@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { withSpells } from './testing/spells';
+import { onTestFinished, describe, expect, it } from 'vitest';
 import { planTurnAnim } from './anim';
 import { createMatch, getUnit, hex, type MapDef, type MapHex } from './rules';
 
@@ -21,6 +22,7 @@ describe('turn animation plan', () => {
   });
 
   it('fires a projectile for ranged attacks and magic; skips the move when already previewed', () => {
+    onTestFinished(withSpells());
     const s = createMatch(flatMap(8, 8));
     const me = getUnit(s, s.activeUnitId!); // (0,7)
     const foe = s.units.find((u) => u.side === 1)!;

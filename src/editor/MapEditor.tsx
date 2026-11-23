@@ -116,7 +116,7 @@ export function MapEditor() {
           ×
           <input type="number" min={MIN_SIZE} max={MAX_SIZE} value={draft.height} onChange={(e) => resize(draft.width, Number(e.target.value))} />
         </label>
-        <label title="Starting Water Level. Rise and Ebb move it by 1.">
+        <label title="Starting Water Level (Rise and Ebb, if a unit has them, move it by 1).">
           Water{' '}
           <input type="number" min={MIN_HEIGHT} max={MAX_HEIGHT} value={draft.waterLevel} onChange={(e) => update((d) => void (d.waterLevel = Math.round(Number(e.target.value))))} />
         </label>

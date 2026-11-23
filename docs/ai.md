@@ -34,6 +34,7 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
   - Damage to the enemy **Summoner** that healing is reaching, and that can't be finished this round net of that healing, is worth only `pokeSummoner` (35%). Without a healer in reach, chip damage on a Summoner counts in full. The lead goes into lining up a kill instead of being poured into a target that gets healed back up.
   - The "set up a kill" check below counts that healing too.
 - **Support value.** Hitting an enemy healer is worth more than its Cost says. It adds `support` (0.5) × its heal amount × the value of the best patient it can reach (÷ 4), so a Mender beside a hurt Summoner is a priority target.
+- **A Summoner's own hits** count `summonerHit` (1.5) times over, so one with a good ATK uses it rather than only summoning. It still won't step where it could be killed.
 - **Kills** get a large bonus on top of the damage. Killing an enemy Summon is worth `kill` (60) × its value. Killing an enemy Summoner is worth `killSummoner` (100,000), which is effectively "win the game."
 - **Setting up a kill.** If the hit doesn't kill but leaves the target low enough that an ally can finish it before it acts again, that counts for part of a kill (`setupKill`, 0.3).
 - **Healing** allies is valued a little less than damage (`heal`, 7).
@@ -85,7 +86,7 @@ Summoning is decided in two steps.
 
 **Step one: which Summons are worth considering.** Before looking at placements, the AI ranks every Summon kind it can afford and that is in its Loadout. Each gets a value:
 
-- Starts at `summonBase` (40).
+- Starts at `summonBase` (20; it was 40, which made a Summoner summon even when a good hit of its own was on offer).
 - Adds `summonCostValue` (0.45) × cost, so more expensive Summons are a little more attractive.
 - Adds `summonCounter` (18) × an element score. Every enemy Unit counts, including an enemy Summoner with an Element. Each one is weighted by its value (an average Summon ≈ 1, a Summoner 1.5) and by its distance from the Summoner, fading to nothing at `summonRadius` (12) hexes.
   - Countering an enemy adds to the score, and being countered by one subtracts.
