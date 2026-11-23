@@ -1,6 +1,7 @@
 // Headless AI-vs-AI self-play with per-game statistics, for tuning the AI.
 //   npx vitest run --config scripts/vitest.config.ts
-// Env: GAMES (default 10), MAX_TURNS (default 600), OUT (JSON path).
+// Env: GAMES (default 10), MAX_TURNS (default 600), OUT (JSON path),
+//      AI=baseline to play the frozen arena baseline instead (for comparing the plan metrics).
 
 import { it } from 'vitest';
 import { writeFileSync } from 'node:fs';
@@ -17,7 +18,23 @@ import {
   type MatchState,
   type SideId,
 } from '../src/rules';
-import { autoLoadout, chooseAction } from '../src/ai/ai';
+import { autoLoadout, chooseAction as currentAI } from '../src/ai/ai';
+import { chooseAction as baselineAI } from './baseline/ai';
+import { makePlan } from '../src/ai/plan';
+import { hexEq, hexKey, neighbor } from '../src/rules';
+
+const chooseAction = process.env.AI === 'baseline' ? baselineAI : currentAI;
+
+/** The Plan metrics (docs/ai-plan.md §7), summed over a game per Side. */
+interface PlanStats {
+  masterFrontDist: number;
+  masterTurns: number;
+  summonObjDist: number;
+  summons: number;
+  idleOnSafeOwnStone: number;
+  familiarTurns: number;
+  firstCaptureHour: number | null;
+}
 
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -91,6 +108,8 @@ it('self-play', () => {
     let turns = 0;
     const t0 = Date.now();
     let distSum: [number, number] = [0, 0];
+    const blank2 = (): PlanStats => ({ masterFrontDist: 0, masterTurns: 0, summonObjDist: 0, summons: 0, idleOnSafeOwnStone: 0, familiarTurns: 0, firstCaptureHour: null });
+    const planStats: [PlanStats, PlanStats] = [blank2(), blank2()];
     const log: string[] = [];
     const logThis = (process.env.LOG ?? '').split(',').includes(String(g));
     while (st.winner === null && turns < maxTurns) {
@@ -101,6 +120,27 @@ it('self-play', () => {
       if (me.stranded) S.strandedTurns++;
       const tA = Date.now();
       const a = chooseAction(st);
+      {
+        // Plan metrics, measured with the Plan's own definitions (also when the baseline plays)
+        const P = planStats[side];
+        const plan = makePlan(st, side);
+        if (kindOf(me.kind).isMaster) {
+          P.masterTurns++;
+          if (plan.front) P.masterFrontDist += hexDistance(a.to, plan.front);
+          if (a.command.type === 'summon') {
+            const h = neighbor(a.to, a.command.dir);
+            const objs = [...st.stones.filter((x) => x.owner !== side).map((x) => x.hex), ...st.units.filter((u) => u.side !== side).map((u) => u.pos)];
+            if (objs.length) {
+              P.summonObjDist += Math.min(...objs.map((o) => hexDistance(o, h)));
+              P.summons++;
+            }
+          }
+        } else {
+          P.familiarTurns++;
+          const onOwn = st.stones.find((x) => x.owner === side && hexEq(x.hex, me.pos));
+          if (onOwn && hexEq(a.to, me.pos) && a.command.type === 'wait' && !plan.threatenedStones.has(hexKey(onOwn.hex))) P.idleOnSafeOwnStone++;
+        }
+      }
       S.msPerTurn += Date.now() - tA;
       const moved = a.to.q !== me.pos.q || a.to.r !== me.pos.r;
       const isMaster = kindOf(me.kind).isMaster;
@@ -146,6 +186,7 @@ it('self-play', () => {
       st = res.state;
       for (const u of st.units) if (!kindById.has(u.id)) kindById.set(u.id, { kind: u.kind, side: u.side });
       analyseEvents(res.events, before, st, side, stats, kindById, turns, me.kind);
+      for (const e of res.events) if (e.type === 'capture' && planStats[e.side].firstCaptureHour === null) planStats[e.side].firstCaptureHour = +((st.clock - 360) / 60).toFixed(1);
       turns++;
       if (turns % 10 === 0) {
         const count = (s: SideId) => st.units.filter((u) => u.side === s).length;
@@ -158,7 +199,7 @@ it('self-play', () => {
       stats[s].msPerTurn = Math.round(stats[s].msPerTurn / Math.max(1, stats[s].turns));
       stats[s].avgDistMasterToEnemyMaster = +(distSum[s] / Math.max(1, stats[s].turns)).toFixed(1);
     }
-    results.push({ game: g, winner: st.winner, turns, clock: st.clock, hours: +((st.clock - 360) / 60).toFixed(1), seconds: (Date.now() - t0) / 1000, stats, timeline, log, finalIncome: [manaIncome(st, 0), manaIncome(st, 1)] });
+    results.push({ planStats, game: g, winner: st.winner, turns, clock: st.clock, hours: +((st.clock - 360) / 60).toFixed(1), seconds: (Date.now() - t0) / 1000, stats, timeline, log, finalIncome: [manaIncome(st, 0), manaIncome(st, 1)] });
     console.log(`game ${g}: ${masters[0]}(${l0.name}) vs ${masters[1]}(${l1.name}) → winner ${st.winner} in ${turns} turns, ${((st.clock - 360) / 60).toFixed(1)} h`);
   }
   writeFileSync(process.env.OUT ?? 'selfplay.json', JSON.stringify(results, null, 1));

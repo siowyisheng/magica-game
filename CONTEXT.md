@@ -197,3 +197,23 @@ The Mana needed to Summon a Familiar: a multiple of 8, from 16 to 88; each Eleme
 
 **Upkeep**:
 A Familiar's hourly drain on its Side's Mana Income. It is always its Cost ÷ 8.
+
+## AI
+
+**Plan**:
+What an AI Side is trying to do this turn: its Posture, its Front, its summon Needs, its Reserve and each Familiar's Job. Worked out fresh every turn from the board, and shown on screen for AI Sides.
+
+**Posture**:
+The blend of aims behind a Plan: Defend (the Master could die within about two turns), Expand (take unclaimed Stones first), Contest (take Stones where the Side is locally stronger), Squeeze (ahead on income with its Stones safe: hold and push patiently) and Kill (overwhelmingly ahead: go for the enemy Master).
+
+**Front**:
+The hex an AI Side works toward: usually a Stone it doesn't hold; the enemy Master when going for the kill; the threatening enemy when defending. The Master stays behind the Front, so the Familiars it summons appear near it.
+
+**Need**:
+What the next Familiar should be good at (grabbing Stones, answering a particular enemy, healing, holding, hunting the Master, fighting), with a weight from the Posture. A Familiar's summon value is how well it fits the Needs, less what its Cost is worth: never its Cost for its own sake.
+
+**Reserve**:
+Mana an AI Side keeps back so that it can still summon an answer to the most dangerous Familiar the opponent could summon next.
+
+**Job**:
+The one objective an AI Side gives each of its Familiars: a Stone to take or guard, an enemy to hunt, or the Front.

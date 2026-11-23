@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   activeUnit,
   alignmentBonus,
@@ -17,6 +18,7 @@ import {
   type SideId,
 } from '../rules';
 import { type HpBarsMode, useGame } from '../store';
+import { makePlan } from '../ai/plan';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { AlignmentIcon, ElementIcon, Icon } from './icons';
 import { StatGrid, magicText } from './Stats';
@@ -31,6 +33,8 @@ export function InfoPanel() {
   const hoverUnitId = useGame((s) => s.hoverUnitId);
   const hoverHex = useGame((s) => s.hoverHex);
   const hpBars = useGame((s) => s.hpBars);
+  const showPlans = useGame((s) => s.showPlans);
+  const setShowPlans = useGame((s) => s.setShowPlans);
   const setHpBars = useGame((s) => s.setHpBars);
   const setAi = useGame((s) => s.setAi);
   const watching = useGame((s) => s.replay !== null);
@@ -70,6 +74,7 @@ export function InfoPanel() {
                 {aiThinking && activeUnit(match)?.side === side && <span className="muted"> thinking…</span>}
               </div>
               <ManaBars side={side} />
+              {showPlans && match.sides[side].ai && match.winner === null && <AiPlanLine side={side} />}
             </div>
           );
         })}
@@ -106,6 +111,9 @@ export function InfoPanel() {
 
       <div className="window">
         <div className="title">Options</div>
+        <label title="Show what each AI Side is trying to do: its Posture, Front, summon Needs and Reserve">
+          <input type="checkbox" checked={showPlans} onChange={(e) => setShowPlans(e.target.checked)} /> Show AI plans
+        </label>
         <label>
           Floating HP bars{' '}
           <select value={hpBars} onChange={(e) => setHpBars(e.target.value as HpBarsMode)}>
@@ -264,4 +272,11 @@ function SoundOptions() {
       </div>
     </div>
   );
+}
+
+/** One line: what an AI Side is trying to do (docs/ai-plan.md). */
+function AiPlanLine({ side }: { side: SideId }) {
+  const match = useGame((s) => s.match);
+  const text = useMemo(() => makePlan(match, side).text, [match, side]);
+  return <div className="ai-plan small" title="The AI's Plan this turn">{text}</div>;
 }

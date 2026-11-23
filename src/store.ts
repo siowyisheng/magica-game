@@ -175,6 +175,8 @@ interface Store {
   inspected: number[];
   /** Floating HP bars: on every unit, only on damaged ones (default), or none. AV bars show unless off. */
   hpBars: HpBarsMode;
+  /** Show each AI Side's Plan (Posture, Front, Needs, Reserve) under its name. */
+  showPlans: boolean;
   log: string[];
   aiThinking: boolean;
   /** The turn animation currently playing; `match` updates when it ends. */
@@ -200,6 +202,7 @@ interface Store {
   rightClick: () => void;
   choose: (c: 'wait' | 'attack' | 'magic' | { magic: string } | { summon: string } | { sub: 'magic' | 'summon' }) => void;
   setHpBars: (mode: HpBarsMode) => void;
+  setShowPlans: (on: boolean) => void;
   setAi: (side: 0 | 1, ai: boolean) => void;
   tickAi: () => void;
 
@@ -357,6 +360,7 @@ export const useGame = create<Store>((set, get) => {
     hoverSummon: null,
     inspected: [],
     hpBars: 'damaged',
+    showPlans: true,
     log: ['Match start — 06:00'],
     aiThinking: false,
     anim: null,
@@ -519,6 +523,7 @@ export const useGame = create<Store>((set, get) => {
       set({ screen, hoverHex: null, hoverUnitId: null });
     },
     setHpBars: (hpBars) => set({ hpBars }),
+    setShowPlans: (showPlans) => set({ showPlans }),
     setAi: (side, ai) => {
       if (get().replay) return;
       const m = get().match;

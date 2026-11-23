@@ -41,7 +41,7 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 - **Empower** on an ally (or itself) is worth `empower` (1.2) × its ATK bonus × `damage`, the extra damage it should add to that Unit's next Attack. It's worth only `empowerIdle` (30%) of that when no enemy is within the Unit's Move + Attack range + 1, and nothing when the Unit is already Empowered.
 - **Breaking Obstacles** is valued by how many enemies would then be able to reach you. Each one that breaking the Obstacle would open up is worth `obstacleOpening` (25), scaled by how much of its HP this hit takes. This is what makes the AI break a wall that blocks its only shot.
 - **Stones.** Standing on a Stone you don't own is worth `capture` (80), ×1.5 if the enemy holds it. Standing on a Stone you already own is worth a little, more for a wounded Unit (Stone Heal).
-- **Guarding Stones.** An own Stone is *threatened* when an enemy stands within its Move + 1 hexes of it. Standing on a threatened own Stone that no other Unit is already on is worth `guard` (90), since the enemy can't capture a Stone that is occupied. Threatened, unguarded own Stones also join the objectives every Familiar is pulled toward, so a nearby Familiar or the Master steps onto them. Stones are valued for their Mana, the same at every hour: **the AI never plays for the Time Limit**, and nothing in its scoring rewards running out the clock.
+- **Guarding Stones.** An own Stone is *threatened* when an enemy can really end its next move on it: its movement says so, not a straight-line distance (the Plan's R1, [ai-plan.md](ai-plan.md)). Standing on a threatened own Stone that no other Unit is already on is worth `guard` (90), since the enemy can't capture a Stone that is occupied. Threatened, unguarded own Stones also join the objectives every Familiar is pulled toward, so a nearby Familiar or the Master steps onto them. Stones are valued for their Mana, the same at every hour: **the AI never plays for the Time Limit**, and nothing in its scoring rewards running out the clock.
 - **Water.** When a Magic ability changes the Water Level, the AI counts which Units it would strand. Stranding an enemy is good (`strandEnemy`, 30 × value). Stranding an ally is bad (`strandAlly`, 35).
 - **Summoning** is scored in its own section below.
 
@@ -67,10 +67,12 @@ The threat estimate is smarter than "worst-case damage":
 Every candidate also gets a position score for where it ends up. This is not about the Command itself:
 
 - **Push from a lead.** The side's lead is its share of HP-weighted material, plus 0.08 per Stone ahead, plus a little for Mana. The push is 1 + `leadPush` (3) × lead, between 1 and `maxPush` (2.5). It multiplies every Familiar's pull toward objectives and divides its fear of damage, so a side that is ahead attacks rather than sits.
-- **A shared target.** Each turn the side picks one target. If an enemy healer keeps the enemy Master up (it can reach it), and the side is ahead or close, that healer is the target: **peel, then kill**. Otherwise it is the enemy Master, when ahead by more than `focusLead` (0.15) or when any Familiar could reach it within two moves; otherwise the enemy-held or free Stone nearest the Familiars as a group. Familiars converge on it instead of each drifting to its own nearest objective.
-- **Familiars** are pulled by `approach` (3) × push × distance. Half of that pull goes toward the nearest objective (enemy Units and Stones not held), and half (`focus`), doubled, goes toward the shared target.
+- **The Plan.** Each turn the side works out a **Plan** ([ai-plan.md](ai-plan.md)): a Posture (Defend, Expand, Contest, Squeeze, Kill), a **Front**, summon Needs, a Reserve and a **Job** for each Familiar. Kill multiplies the push by up to 1.6 and Squeeze lowers it; Squeeze also raises `guard` by up to 50%.
+- **A shared target.** If an enemy healer keeps the enemy Master up (it can reach it), and the side is ahead or close, that healer is the target: **peel, then kill**. Otherwise it is the enemy Master, when ahead by more than `focusLead` (0.15) or when any Familiar could reach it within two moves; otherwise the Plan's Front.
+- **Familiars** are pulled by `approach` (3) × push × distance toward their Job (`jobPull` 1: a Stone to take or guard, an enemy to hunt, or the Front), plus `nearPull` (0.25) toward the nearest objective, for opportunities.
 - **Masters** set their posture from the matchup:
-  - **Fragility.** The AI works out how many hits from the three strongest enemies would kill the Master, using the real damage formula. It then scales the keep-away bonus, `masterSafety` (8) per hex of distance to the nearest enemy up to 7 hexes, by `postureHits` (4) ÷ that number, clamped to ×0.35–1.5. A Master that takes 4 hits to kill keeps the standard distance, a glass cannon keeps further back, and a tank stands closer.
+  - **Staging.** Every Master is pulled toward the Front by `masterStage` (0.8) × `approach` × push (none while Defending): its Familiars appear next to it, so a forward Master summons where the objectives are.
+  - **Fragility.** The AI works out how many hits from the three strongest enemies would kill the Master, using the real damage formula. The keep-away bonus is `masterSafety` (8) per hex of margin outside the nearest enemy's reach (its Move + hit range), from −3 to +2 hexes: beyond 2 hexes outside every enemy's reach, being further back is worth nothing. It is scaled by `postureHits` (4) ÷ hits-to-kill, clamped to ×0.35–1.5, and doubled while Defending.
   - **Aggression.** A Master that is durable (more than 3 hits to kill) and hits enemy Familiars hard (more than 1.5 damage per hit) is also pulled toward objectives, like a Familiar. The pull is scaled by both, up to `masterAggression` × `approach`. Its attacks then compete normally; the Master death-risk penalty still vetoes anything that would get it killed.
 
 **Screening (Zone of Control)**
@@ -87,24 +89,21 @@ Summoning is decided in two steps.
 
 **Step one: which Familiars are worth considering.** Before looking at placements, the AI ranks every Familiar kind it can afford and that is in its Loadout. Each gets a value:
 
-- Starts at `summonBase` (20; it was 40, which made a Master summon even when a good hit of its own was on offer).
-- Adds `summonCostValue` (0.45) × cost, so more expensive Familiars are a little more attractive.
-- Adds `summonCounter` (18) × an element score. Every enemy Unit counts, including an enemy Master with an Element. Each one is weighted by its value (an average Familiar ≈ 1, a Master 1.5) and by its distance from the Master, fading to nothing at `summonRadius` (12) hexes.
-  - Countering an enemy adds to the score, and being countered by one subtracts.
-  - An enemy already countered by own Familiars near it adds less: it is divided by 1 + their nearness.
-  - An enemy that counters own Familiars near it adds more: `summonProtect` (0.5) × their nearness.
+- Starts at `summonBase` (10): any extra Familiar is worth a little.
+- Adds `needScale` (45) × how well it fits the Plan's **Needs**: grab Stones (Move, Fly, cheap), answer a particular enemy (the damage it deals that enemy against the damage it takes, from the damage formula, so Elements count), heal, hold (DEF + MDF), hunt the Master (ATK, Move, Fly) and fight (damage against the enemies near the Front). There is **no bonus for Cost**: an expensive Familiar wins only when its stats serve a Need ([ai-plan.md](ai-plan.md) §5).
 - An **aligned** Familiar's value is scaled by its Alignment over the next `alignmentHours` (8) game hours. Each hour adds +1 if it falls in its own Time of Day, −1 if in the opposite one, and 0 if Neutral. The average moves the value by up to ±`alignmentValue` (15%).
 - Subtracts `summonNegativeIncome` (35) if it would leave the Master's Mana income negative after the Familiar's upkeep (cost ÷ 8 per turn).
 
 Only the top 4 affordable ones are kept. Ties go to the cheaper Familiar.
 
-**Saving up.** The ranking also covers Familiars the AI can't afford yet. If the best of those is worth at least `saveMargin` (1.25) × the best affordable one, and current income will pay for it within `saveHours` (2) hours, its Cost becomes a **reserve**. Any Magic or Summon that would dip into the reserve pays `reserveSpend` per point dipped. Good attacks and kills still win; marginal spending doesn't.
+**Saving up.** The ranking also covers Familiars the AI can't afford yet. If the best of those is worth at least `saveMargin` (1.25) × the best affordable one, and current income will pay for it within `saveHours` (2) hours, its Cost becomes a **reserve** (not while Defending). The Plan's **Reserve** also keeps back enough for the cheapest answer to the most dangerous Familiar the opponent could summon next with its Mana (Archon against a Vortex, for example); buying that answer itself doesn't count as dipping into it. Any Magic or Summon that would dip into the reserve pays `reserveSpend` per point dipped. Good attacks and kills still win; marginal spending doesn't.
 
 **Step two: where to put it.** For each of those 4 kinds, the AI tries each of the six neighbouring hexes of the Master's end position. Any hex that is legal to place on becomes a candidate, scored with:
 
 - the kind's ranked value (above), added to the score;
-- a penalty of 0.5 per hex of distance from the new Familiar to the enemy Master, so the AI prefers to place Familiars toward the enemy;
-- a small bonus of `capture × 0.4` if the hex is a Stone the AI doesn't own.
+- a penalty of `summonFront` (1) per hex of distance from the new Familiar to the Front;
+- a bonus of `capture × 0.4` if the hex is a Stone the AI doesn't own, or `capture × 0.15` if it is next to one;
+- while Defending: `answerPlace` (30) × urgency × fit where the answer can reach the threat next turn, and `blockPlace` (12) × urgency between a non-flying threat and the Master. A new answering Familiar that can reach the threat also takes up to `drawAttention` (35%) of it off the Master's own threat score, so summoning counts as defending.
 
 The Familiar then gets the usual threat and death-risk treatment, with its Facing set to the direction it was placed in.
 

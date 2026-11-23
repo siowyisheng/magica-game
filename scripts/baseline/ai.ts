@@ -1,4 +1,4 @@
-// Frozen copy of the AI before the Master-attack weighting (masterHit, summonBase 20); used as the arena baseline. Do not edit.
+// Frozen copy of the AI before the strategic Plan layer (docs/ai-plan.md); used as the arena baseline. Do not edit.
 // One-ply, timeline-aware AI. Enumerates every reachable hex × Command ×
 // target and scores the outcome, including how much damage enemies who act
 // before this Unit's next turn could deal to it. Pure and deterministic.
@@ -52,6 +52,10 @@ export const AI_WEIGHTS = {
   kill: 60,
   killMaster: 100000,
   heal: 7,
+  /** Value of an Empower (× its ATK × damage): the extra damage it should add to the target's next Attack. */
+  empower: 1.2,
+  /** Share of that value when no enemy is within the target's reach next turn. */
+  empowerIdle: 0.3,
   friendlyFire: 14,
   threat: 9,
   deathRisk: 70,
@@ -94,7 +98,9 @@ export const AI_WEIGHTS = {
   healBlock: 0.5,
   /** Lead above which the shared target is the enemy Master. */
   focusLead: 0.15,
-  summonBase: 40,
+  /** A Master's own hits on enemies count this many times over (it should use its ATK, not only summon). */
+  masterHit: 1.5,
+  summonBase: 20,
   summonCostValue: 0.45,
   summonCounter: 18,
   /** Hours ahead over which an aligned Familiar's Time of Day is judged, and the most it moves the Familiar's value. */
@@ -220,7 +226,7 @@ interface Candidate {
   score: number;
 }
 
-function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
+export function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
   const me = activeUnit(state);
   if (!me) throw new Error('no active unit');
   const kind = kindOf(me.kind);
@@ -560,7 +566,7 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
                 // only damage that outlasts the healing coming its way counts in full
                 const net = e.lethal ? dealt : Math.max(0, dealt - heal);
                 const canFinish = !e.lethal && t.hp - dealt + heal <= (followUp.get(t.id) ?? 0);
-                let dmgValue = (net + (dealt - net) * w.healedDamage) * w.damage * v;
+                let dmgValue = (net + (dealt - net) * w.healedDamage) * w.damage * v * (kind.isMaster ? w.masterHit : 1);
                 // a Master that can't be finished this round just gets healed up: don't pour the lead into it
                 if (kindOf(t.kind).isMaster && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeMaster;
                 score += dmgValue;
@@ -571,6 +577,15 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
                   // allies can finish it before it acts, healing included
                   score += w.kill * v * w.setupKill;
                 }
+              }
+            } else if (e.kind === 'empower') {
+              // worth the extra damage on its next Attack; nothing if it already has it
+              if (t.side === me.side && (t.empowered ?? 0) < e.amount) {
+                const tk = kindOf(t.kind);
+                const pos = t.id === me.id ? dest : t.pos;
+                const reach = tk.stats.mov + tk.attack.range + 1;
+                const soon = state.units.some((u) => u.side !== me.side && hexDistance(u.pos, pos) <= reach);
+                score += w.empower * e.amount * w.damage * (soon ? 1 : w.empowerIdle);
               }
             } else {
               score += (t.side === me.side ? 1 : -1) * e.amount * w.heal * v;
