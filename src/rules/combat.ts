@@ -21,19 +21,10 @@ export function elementRelation(attacker: Element | null, defender: Element | nu
   return 'neutral';
 }
 
-/**
- * Element Bonus for a hit. Summoners always attack as a Counter and are
- * always hit as neutral, whatever their own Element; Obstacles (`defender`
- * null) are hit as neutral.
- */
+/** Element Bonus for a hit, by the two Elements (Obstacles, `defender` null, have none). */
 export function elementBonus(attacker: UnitKind, defender: UnitKind | null): number {
-  // Summoner against Summoner: by their Elements, like Summons (none: neutral)
-  if (attacker.isSummoner && defender?.isSummoner) return ELEMENT_BONUS[elementRelation(attacker.element, defender.element)];
-  // a Summoner hits everything else as a Counter
-  if (attacker.isSummoner) return ELEMENT_BONUS.counter;
-  if (!defender) return ELEMENT_BONUS.neutral;
-  // a Summoner is hit by its own Element (none: neutral), like a Summon
-  return ELEMENT_BONUS[elementRelation(attacker.element, defender.element)];
+  // Summoners and Summons alike, by their Elements; no Element (or an Obstacle) is neutral
+  return ELEMENT_BONUS[elementRelation(attacker.element, defender?.element ?? null)];
 }
 
 // ---------- Facing ----------

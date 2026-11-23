@@ -171,17 +171,20 @@ describe('damage', () => {
     expect(computeDamage(state, hound, hex(4, 3), hound2, 'physical').amount).toBe(2);
   });
 
-  it('Summoners attack Summons as a Counter; Summoners against Summoners go by their Elements (none: neutral)', () => {
+  it('every hit goes by the two Elements, Summoners included (none: neutral)', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60;
     const drake = place(state, 'drake', 0, 1, 1); // fire ATK 9
     const regent = place(state, 'regent', 1, 2, 1, 3); // Summoner with no Element, DEF 3, faces W
     // 9 − 3 + 0 = 6 (no Element: neutral)
     expect(computeDamage(state, drake, drake.pos, regent, 'physical').amount).toBe(6);
-    const oni = place(state, 'oni', 0, 1, 4); // Summoner ATK 9
+    const oni = place(state, 'oni', 0, 1, 4); // Summoner with no Element, ATK 9
     const golem = place(state, 'golem', 1, 2, 4, 3); // fire DEF 7, faces W
-    // 9 − 7 + 4 = 6
-    expect(computeDamage(state, oni, oni.pos, golem, 'physical').amount).toBe(6);
+    // 9 − 7 + 0 = 2 (no Element: neutral)
+    expect(computeDamage(state, oni, oni.pos, golem, 'physical').amount).toBe(2);
+    const efreet = place(state, 'efreet', 0, 1, 2); // Fire Summoner
+    const hawk = place(state, 'hawk', 1, 2, 2, 3); // air, faces W: Fire counters Air
+    expect(computeDamage(state, efreet, efreet.pos, hawk, 'physical').breakdown!.element).toBe(4);
     // a Summon hitting an Earth Summoner: Water is Countered by Earth
     const hydra = place(state, 'hydra', 0, 4, 1); // water ATK 10
     const dwarf = place(state, 'dwarf', 1, 5, 1, 3); // Earth Summoner DEF 5, faces W

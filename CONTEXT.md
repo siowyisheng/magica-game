@@ -70,7 +70,7 @@ One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has no
 Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. Opposite Elements (Fire–Earth, Air–Water) are neutral.
 
 **Element Bonus**:
-A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. A Summoner attacks every Summon as a Counter, whatever the Elements. Between a Summoner and another Summoner, and when a Summon hits a Summoner, the Elements count as they do between Summons; a Summoner with no Element is neutral. An Obstacle is hit as neutral.
+A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. Summoners and Summons are treated alike: a unit with no Element is neutral to everything. An Obstacle is hit as neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
