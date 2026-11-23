@@ -311,3 +311,4 @@ button:disabled { opacity: 0.4; cursor: default; }
 .replay-faces img { width: 36px; height: 45px; image-rendering: pixelated; }
 .replay-text { flex: 1; min-width: 0; }
 .replay-item .btn-row { margin: 0; }
+.ai-plan { color: #c8d2ff; opacity: 0.8; margin-top: 2px; line-height: 1.3; }

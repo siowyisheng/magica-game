@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyTurn, createMatch, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex } from '../rules';
 import { autoLoadout, chooseAction } from './ai';
-import { loadoutProblems, kindOf, randomLoadout, mulberry32 } from '../rules';
+import { loadoutProblems, kindOf, randomLoadout, mulberry32, FAMILIARS } from '../rules';
 
 describe('AI', () => {
   it('plays legal turns in a headless AI-vs-AI match', () => {
@@ -129,5 +129,40 @@ describe('Stones and pointless hits', () => {
     st.units.forEach((u) => { if (u.id !== 50) u.av = Math.max(u.av, 30); });
     st.activeUnitId = 50;
     expect(chooseAction(st).to).toEqual(hex(4, 2));
+  });
+});
+
+describe('Plan: Defend (docs/ai-plan.md)', () => {
+  const setup = (mana: number) => {
+    const hexes: MapHex[] = [];
+    for (let r = 0; r < 10; r++) for (let q = 0; q < 12; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: 'plain' });
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(1, 8), hex(10, 1)], spawnFacing: [0, 3] };
+    const roster = FAMILIARS.map((k) => k.id).filter((id) => kindOf(id).element !== 'air').slice(0, 20);
+    const st = createMatch(map, { ai: [true, true], masters: ['regent', 'oni'], rosters: [roster, roster] });
+    const me = st.units.find((u) => u.side === 0)!;
+    // a Vortex two turns from killing the Regent, on an otherwise empty board
+    st.units.push({ id: 77, kind: 'djinn', side: 1, pos: hex(7, 4), facing: 3, hp: 10, av: 20, stranded: false });
+    st.units.forEach((u) => { if (u.id !== me.id) u.av = Math.max(u.av, 20); });
+    me.av = 0;
+    st.activeUnitId = me.id;
+    st.sides[0].mana = mana;
+    return st;
+  };
+
+  it('sees the Vortex as a threat and summons a Fire answer at once', async () => {
+    const { makePlan } = await import('./plan');
+    const st = setup(100);
+    const p = makePlan(st, 0);
+    expect(p.dominant).toBe('defend');
+    expect(kindOf(p.threats[0].unit.kind).id).toBe('djinn');
+    const a = chooseAction(st);
+    expect(a.command.type).toBe('summon');
+    if (a.command.type === 'summon') expect(kindOf(a.command.kind).element).toBe('fire');
+  });
+
+  it('with only 40 Mana, still summons a Fire answer (not a cheaper non-answer)', () => {
+    const a = chooseAction(setup(40));
+    expect(a.command.type).toBe('summon');
+    if (a.command.type === 'summon') expect(kindOf(a.command.kind).element).toBe('fire');
   });
 });
