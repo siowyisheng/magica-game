@@ -70,7 +70,7 @@ One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has no
 Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. Opposite Elements (Fire–Earth, Air–Water) are neutral.
 
 **Element Bonus**:
-A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. A Summoner always attacks as a Counter and is always hit as neutral, whatever its own Element; an Obstacle is hit as neutral.
+A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. A Summoner always attacks as a Counter, whatever its own Element or its target's (another Summoner included). When a Summon hits a Summoner, the Summoner's own Element counts like a Summon's; a Summoner with no Element is hit as neutral. An Obstacle is hit as neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
@@ -135,7 +135,7 @@ A flat amount added to damage by the angle between a defender's Facing and the d
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-Attacker's ATK − defender's DEF + Element Bonus + Facing Bonus − the defender's terrain cover; MP and MDF for Magic. Alignment changes the stats first. A result of 0 or less deals 0: there is no minimum. It never exceeds the defender's HP. For example, ATK 5 against DEF 1 with a Counter from behind deals 5 − 1 + 4 + 2 = 10.
+Attacker's ATK − defender's DEF + Element Bonus + Facing Bonus − the defender's terrain cover; MP and MDF for Magic. Alignment changes the stats first. A result of 0 or less deals 0: there is no minimum. It is not limited by the defender's remaining HP (the Damage Number shows it all), but HP never drops below 0. For example, ATK 5 against DEF 1 with a Counter from behind deals 5 − 1 + 4 + 2 = 10.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.

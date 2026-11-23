@@ -545,19 +545,21 @@ function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: 
           if (isDamage && !effects.some((e) => e.kind === 'damage' && e.amount > 0 && (e.obstacle || state.units.find((u) => u.id === e.unitId)?.side !== me.side))) continue;
           for (const e of effects) {
             if (e.obstacle) {
-              score += obstacleValue(state, me, dest, e.unitId, e.amount, e.lethal, w);
+              score += obstacleValue(state, me, dest, e.unitId, Math.min(e.amount, e.hpBefore), e.lethal, w);
               continue;
             }
             const t = state.units.find((u) => u.id === e.unitId)!;
             const v = t.side === me.side ? unitValue(t) : targetValue(t);
             if (e.kind === 'damage') {
-              if (t.side === me.side) score -= e.amount * w.friendlyFire * v;
+              // only the HP it can actually take counts: overkill is worth nothing
+              const dealt = Math.min(e.amount, t.hp);
+              if (t.side === me.side) score -= dealt * w.friendlyFire * v;
               else {
                 const heal = healIn.get(t.id) ?? 0;
                 // only damage that outlasts the healing coming its way counts in full
-                const net = e.lethal ? e.amount : Math.max(0, e.amount - heal);
-                const canFinish = !e.lethal && t.hp - e.amount + heal <= (followUp.get(t.id) ?? 0);
-                let dmgValue = (net + (e.amount - net) * w.healedDamage) * w.damage * v;
+                const net = e.lethal ? dealt : Math.max(0, dealt - heal);
+                const canFinish = !e.lethal && t.hp - dealt + heal <= (followUp.get(t.id) ?? 0);
+                let dmgValue = (net + (dealt - net) * w.healedDamage) * w.damage * v;
                 // a Summoner that can't be finished this round just gets healed up: don't pour the lead into it
                 if (kindOf(t.kind).isSummoner && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeSummoner;
                 score += dmgValue;

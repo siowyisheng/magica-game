@@ -28,7 +28,8 @@ export function elementRelation(attacker: Element | null, defender: Element | nu
  */
 export function elementBonus(attacker: UnitKind, defender: UnitKind | null): number {
   if (attacker.isSummoner) return ELEMENT_BONUS.counter;
-  if (!defender || defender.isSummoner) return ELEMENT_BONUS.neutral;
+  if (!defender) return ELEMENT_BONUS.neutral;
+  // a Summoner is hit by its own Element (none: neutral), like a Summon
   return ELEMENT_BONUS[elementRelation(attacker.element, defender.element)];
 }
 
@@ -130,8 +131,8 @@ export function computeDamage(
     facingAngle = facingAngleDegrees(defender.pos, defender.facing, attackerPos);
     cover = coverAt(state, defender.pos);
   }
-  const raw = Math.max(0, aStat - dStat + element + facing - cover);
-  const amount = Math.min(defender.hp, raw);
+  // the full damage, even past the defender's remaining HP (HP itself stops at 0)
+  const amount = Math.max(0, aStat - dStat + element + facing - cover);
   return {
     unitId: defender.id,
     obstacle: isObstacle(defender),

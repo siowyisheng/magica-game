@@ -306,13 +306,13 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
     for (const e of effects) {
       if (e.obstacle) {
         const o = state.obstacles.find((x) => x.id === e.unitId)!;
-        o.hp -= e.amount;
+        o.hp = Math.max(0, o.hp - e.amount);
         events.push({ type: 'damage', unitId: o.id, amount: e.amount, source: unit.id });
         continue;
       }
       const t = getUnit(state, e.unitId);
       if (e.kind === 'damage') {
-        t.hp -= e.amount;
+        t.hp = Math.max(0, t.hp - e.amount);
         events.push({ type: 'damage', unitId: t.id, amount: e.amount, source: unit.id });
       } else {
         t.hp = Math.min(MAX_HP, t.hp + e.amount);
