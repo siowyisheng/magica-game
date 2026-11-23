@@ -22,8 +22,8 @@ const TOOLS: { tool: Tool; label: string; key: string; hint: string }[] = [
   { tool: 'height', label: 'Height', key: '5', hint: 'Click: raise 1. Right-click: lower 1.' },
   { tool: 'obstacle', label: 'Obstacle', key: '6', hint: 'Place an Obstacle on Plain or Rough. Right-click: remove.' },
   { tool: 'variant', label: 'Look', key: '7', hint: 'Cycle the Theme look: auto → A → B. Right-click: auto.' },
-  { tool: 'spawn0', label: 'Green spawn', key: '8', hint: 'Place the Green Summoner. Click it again to turn it.' },
-  { tool: 'spawn1', label: 'Red spawn', key: '9', hint: 'Place the Red Summoner. Click it again to turn it.' },
+  { tool: 'spawn0', label: 'Green spawn', key: '8', hint: 'Place the Green Master. Click it again to turn it.' },
+  { tool: 'spawn1', label: 'Red spawn', key: '9', hint: 'Place the Red Master. Click it again to turn it.' },
 ];
 
 export function MapEditor() {
@@ -290,7 +290,7 @@ function usePreview(): MatchState | null {
   return useMemo(() => {
     try {
       const m = createMatch(toMapDef(draft), { ai: [true, true] });
-      // show the summoners at their spawns as placed, whatever the rules did on the first turn
+      // show the masters at their spawns as placed, whatever the rules did on the first turn
       m.units.forEach((u, i) => {
         u.pos = offsetToAxial(draft.spawns[i].col, draft.spawns[i].row);
         u.facing = draft.spawnFacing[i];

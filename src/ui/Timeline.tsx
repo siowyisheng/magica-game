@@ -18,7 +18,7 @@ interface Slot {
 /**
  * One row of floating unit sprites, each unit once, in the order they act
  * next (not scaled by time). Keys are unit ids, so entries slide to their new
- * slot after every turn and while a command is previewed. A would-be Summon
+ * slot after every turn and while a command is previewed. A would-be Familiar
  * appears as a ghost.
  */
 export function Timeline() {

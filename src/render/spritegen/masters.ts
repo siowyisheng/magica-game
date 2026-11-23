@@ -1,12 +1,12 @@
-// The thirty Summoners, part 1: the ranged ones and the fighters (casters
-// and demi-humans are in summoners2.ts). Each is humanoid or demi-human,
+// The thirty Masters, part 1: the ranged ones and the fighters (casters
+// and demi-humans are in masters2.ts). Each is humanoid or demi-human,
 // has a Side-coloured outfit, its own accent colour ('accent'), and one
 // signature item or trait that makes it memorable.
 
 import { type V3, add } from './model';
 import { both, eyes, figure, flame, flick, membrane, mouthAt } from './kit';
 import type { Design } from './designs';
-import { SUMMONER_DESIGNS_2 } from './summoners2';
+import { MASTER_DESIGNS_2 } from './masters2';
 import { face, hairCap, longHair } from './people';
 
 const S: Record<string, Design> = {};
@@ -537,4 +537,4 @@ S.gorgon = {
   },
 };
 
-export const SUMMONER_DESIGNS: Record<string, Design> = { ...S, ...SUMMONER_DESIGNS_2 };
+export const MASTER_DESIGNS: Record<string, Design> = { ...S, ...MASTER_DESIGNS_2 };

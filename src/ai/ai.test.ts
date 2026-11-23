@@ -14,8 +14,8 @@ describe('AI', () => {
       st = applyTurn(st, a).state;
       turns++;
     }
-    const summons = st.units.filter((u) => u.kind !== 'regent').length;
-    console.log(`turns=${turns} winner=${st.winner} summons=${summons} clock=${st.clock} ms/turn=${((Date.now() - t0) / turns).toFixed(1)} stones=${st.stones.map((s) => s.owner).join(',')}`);
+    const familiars = st.units.filter((u) => u.kind !== 'regent').length;
+    console.log(`turns=${turns} winner=${st.winner} familiars=${familiars} clock=${st.clock} ms/turn=${((Date.now() - t0) / turns).toFixed(1)} stones=${st.stones.map((s) => s.owner).join(',')}`);
     expect(turns).toBeGreaterThan(10);
   }, 120000);
 
@@ -33,7 +33,7 @@ describe('AI', () => {
   }, 120000);
 
   it('breaks an Obstacle that blocks its only shot', () => {
-    // a corridor: Sling (Direct) behind an Obstacle, the enemy Summoner beyond
+    // a corridor: Sling (Direct) behind an Obstacle, the enemy Master beyond
     const hexes: MapHex[] = [];
     for (let r = 0; r < 3; r++) for (let q = 0; q < 9; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: r === 1 ? 'plain' : 'pit' });
     const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 360, spawns: [hex(0, 1), hex(8, 1)], spawnFacing: [0, 3], obstacles: [{ hex: hex(4, 1), def: 2 }] };
@@ -77,12 +77,12 @@ describe('never playing for time', () => {
 });
 
 describe('healers', () => {
-  it('kills the healer that keeps an unkillable enemy Summoner up, instead of poking the Summoner', () => {
+  it('kills the healer that keeps an unkillable enemy Master up, instead of poking the Master', () => {
     const hexes: MapHex[] = [];
     for (let r = 0; r < 8; r++) for (let q = 0; q < 8; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: 'plain' });
     const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 18 * 60, spawns: [hex(0, 7), hex(7, 0)], spawnFacing: [0, 3] };
-    // a tough enemy Summoner (Templar, DEF 14): the Wolf can't kill it this turn, and the Mender heals more than the Wolf deals
-    const s = createMatch(map, { summoners: ['regent', 'templar'] });
+    // a tough enemy Master (Templar, DEF 14): the Wolf can't kill it this turn, and the Mender heals more than the Wolf deals
+    const s = createMatch(map, { masters: ['regent', 'templar'] });
     const mine = s.units.find((u) => u.side === 0)!;
     const theirs = s.units.find((u) => u.side === 1)!;
     mine.pos = hex(0, 7);

@@ -24,7 +24,7 @@ describe('balance edits', () => {
     saveAbility({ ...rain, manaCost: 6 });
     expect(kindOf('crab').magic[0].manaCost).toBe(6);
     expect(kindOf('undine').magic[0].manaCost).toBe(6);
-    // Summoners have none, but their old spells are still known abilities
+    // Masters have none, but their old spells are still known abilities
     expect(kindOf('regent').magic).toEqual([]);
     expect(abilityUsers('bolt')).toEqual([]);
     expect(abilityOf('rise')?.kind).toBe('water');

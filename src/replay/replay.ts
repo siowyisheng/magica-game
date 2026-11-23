@@ -7,7 +7,7 @@ import { applyTurn, kindOf, validateTurn, type Balance, type MatchState, type Si
 
 export interface Replay {
   id: string;
-  /** Player-given name; null shows a default made from the Summoners and map. */
+  /** Player-given name; null shows a default made from the Masters and map. */
   name: string | null;
   /** Saved Replays are kept until deleted; the others are Recent and roll off. */
   saved: boolean;
@@ -22,7 +22,7 @@ export interface Replay {
 
 export type ReplayMeta = Omit<Replay, 'initial' | 'actions' | 'balance'> & {
   mapName: string;
-  summoners: [string, string];
+  masters: [string, string];
   turns: number;
 };
 
@@ -47,8 +47,8 @@ export function newReplay(initial: MatchState, balance: Balance): Replay {
   };
 }
 
-function summonersOf(s: MatchState): [string, string] {
-  const of = (side: SideId) => s.units.find((u) => u.side === side && kindOf(u.kind).isSummoner)?.kind ?? '?';
+function mastersOf(s: MatchState): [string, string] {
+  const of = (side: SideId) => s.units.find((u) => u.side === side && kindOf(u.kind).isMaster)?.kind ?? '?';
   return [of(0), of(1)];
 }
 
@@ -61,13 +61,13 @@ export function metaOf(r: Replay): ReplayMeta {
     updatedAt: r.updatedAt,
     winner: r.winner,
     mapName: r.initial.map.name,
-    summoners: summonersOf(r.initial),
+    masters: mastersOf(r.initial),
     turns: r.actions.length,
   };
 }
 
 /** The name shown for a Replay. */
-export function replayTitle(m: Pick<ReplayMeta, 'name' | 'summoners' | 'mapName'>): string {
+export function replayTitle(m: Pick<ReplayMeta, 'name' | 'masters' | 'mapName'>): string {
   if (m.name) return m.name;
   const name = (id: string) => {
     try {
@@ -76,7 +76,7 @@ export function replayTitle(m: Pick<ReplayMeta, 'name' | 'summoners' | 'mapName'
       return id;
     }
   };
-  return `${name(m.summoners[0])} vs ${name(m.summoners[1])} · ${m.mapName}`;
+  return `${name(m.masters[0])} vs ${name(m.masters[1])} · ${m.mapName}`;
 }
 
 // ---------- storage ----------
@@ -84,7 +84,10 @@ export function replayTitle(m: Pick<ReplayMeta, 'name' | 'summoners' | 'mapName'
 function readIndex(): ReplayMeta[] {
   try {
     const raw = JSON.parse(localStorage.getItem(INDEX_KEY) ?? '[]');
-    return Array.isArray(raw) ? raw.filter((m) => m && typeof m.id === 'string') : [];
+    // entries saved before the rename keep their Masters under `summoners`
+    return Array.isArray(raw)
+      ? raw.filter((m) => m && typeof m.id === 'string').map((m) => (m.masters || !m.summoners ? m : { ...m, masters: m.summoners }))
+      : [];
   } catch {
     return [];
   }

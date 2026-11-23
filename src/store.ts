@@ -28,7 +28,7 @@ import {
   type TargetPlan,
   type MagicPlan,
   type Target,
-  SUMMONERS,
+  MASTERS,
   randomLoadout,
   targetAt,
   targetById,
@@ -45,13 +45,13 @@ import { ReplayCursor, loadReplay, newReplay, replayProblem, storeReplay, type R
 
 export type HpBarsMode = 'always' | 'damaged' | 'off';
 
-/** Match Setup: map, and per Side a Summoner ('random' allowed) and who plays it. */
+/** Match Setup: map, and per Side a Master ('random' allowed) and who plays it. */
 export interface MatchSetup {
   mapId: string;
-  /** Test Match: both Sides may Summon all 28 Summons. */
+  /** Test Match: both Sides may Summon every Familiar. */
   test: boolean;
-  summoners: [string, string];
-  /** Loadout id per Side, or 'random' (LOADOUT_SIZE random Summons) or 'auto' (built for the Summoner). */
+  masters: [string, string];
+  /** Loadout id per Side, or 'random' (LOADOUT_SIZE random Familiars) or 'auto' (built for the Master). */
   loadouts: [string, string];
   ai: [boolean, boolean];
   /** AI strength per Side (used when that Side is AI). */
@@ -63,40 +63,44 @@ function loadSetup(): MatchSetup {
   const d: MatchSetup = {
     mapId: 'builtin:scaffold-ford',
     test: false,
-    summoners: ['regent', 'random'],
+    masters: ['regent', 'random'],
     loadouts: ['random', 'random'],
     ai: [false, true],
   };
   try {
-    return { ...d, ...JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}') };
+    const saved = JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}');
+    // setups saved before the rename keep their Masters under `summoners`
+    if (!saved.masters && Array.isArray(saved.summoners)) saved.masters = saved.summoners;
+    delete saved.summoners;
+    return { ...d, ...saved };
   } catch {
     return d;
   }
 }
 
-/** Resolve 'random' Summoner choices (uses the given random source). */
-export function resolveSummoners(choice: [string, string], rand: () => number = Math.random): [string, string] {
-  // 'random', or a Summoner that no longer exists (an old saved setup): a random one
-  const pick = (c: string) => (c !== 'random' && SUMMONERS.some((k) => k.id === c) ? c : SUMMONERS[Math.floor(rand() * SUMMONERS.length)].id);
+/** Resolve 'random' Master choices (uses the given random source). */
+export function resolveMasters(choice: [string, string], rand: () => number = Math.random): [string, string] {
+  // 'random', or a Master that no longer exists (an old saved setup): a random one
+  const pick = (c: string) => (c !== 'random' && MASTERS.some((k) => k.id === c) ? c : MASTERS[Math.floor(rand() * MASTERS.length)].id);
   return [pick(choice[0]), pick(choice[1])];
 }
 
-/** Resolve a Loadout choice into its Summons. */
-export function resolveLoadout(choice: string, summonerId: string, rand: () => number = Math.random): string[] {
-  if (choice === 'auto') return autoLoadout(summonerId, rand);
+/** Resolve a Loadout choice into its Familiars. */
+export function resolveLoadout(choice: string, masterId: string, rand: () => number = Math.random): string[] {
+  if (choice === 'auto') return autoLoadout(masterId, rand);
   const l = getLoadout(choice);
-  if (l && isPlayable(l)) return [...l.summons];
+  if (l && isPlayable(l)) return [...l.familiars];
   // 'random', or a choice that can't be played: an old 'random18' or starter, a deleted or incomplete Loadout
   return randomLoadout(rand);
 }
 
-/** Summoners and Loadouts for a Match Setup ('random' / 'auto' resolved). */
-export function resolveSetup(setup: Pick<MatchSetup, 'test' | 'summoners' | 'loadouts'>, rand: () => number = Math.random) {
-  const summoners = resolveSummoners(setup.summoners, rand);
+/** Masters and Loadouts for a Match Setup ('random' / 'auto' resolved). */
+export function resolveSetup(setup: Pick<MatchSetup, 'test' | 'masters' | 'loadouts'>, rand: () => number = Math.random) {
+  const masters = resolveMasters(setup.masters, rand);
   const rosters: [string[] | null, string[] | null] = setup.test
     ? [null, null]
-    : [resolveLoadout(setup.loadouts[0], summoners[0], rand), resolveLoadout(setup.loadouts[1], summoners[1], rand)];
-  return { summoners, rosters };
+    : [resolveLoadout(setup.loadouts[0], masters[0], rand), resolveLoadout(setup.loadouts[1], masters[1], rand)];
+  return { masters, rosters };
 }
 
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
@@ -165,7 +169,7 @@ interface Store {
   hoverHex: Hex | null;
   hoverUnitId: number | null;
   hoverCommand: CommandHover;
-  /** Summon kind hovered in the Summon submenu. */
+  /** Familiar kind hovered in the Summon submenu. */
   hoverSummon: string | null;
   /** Other units whose ranges are toggled on (oldest first). Cleared when a turn ends. */
   inspected: number[];
@@ -367,9 +371,9 @@ export const useGame = create<Store>((set, get) => {
     startMatch: (map, mapId, setup) => {
       const last = get().setup;
       const ai = setup?.ai ?? (get().match.sides.map((s) => s.ai) as [boolean, boolean]);
-      const { summoners, rosters } = resolveSetup({ ...last, ...setup });
+      const { masters, rosters } = resolveSetup({ ...last, ...setup });
       const aiLevels = setup?.aiLevels ?? last.aiLevels ?? (['normal', 'normal'] as ['normal' | 'hard', 'normal' | 'hard']);
-      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, summoners, rosters, aiLevels });
+      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, masters, rosters, aiLevels });
       if (mapId) set({ mapId });
       if (get().replay) endTemporaryBalance();
       set({ match: m, recording: { ...newReplay(m, activeBalance()), head: m }, replay: null, paused: false, aiThinking: false, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
@@ -686,9 +690,9 @@ export function hoverQuick(
 }
 
 /** Directions around `to` where `kind` could be summoned (hex on map, free, standable). */
-export function validSummonDirs(match: MatchState, summonerId: number, to: Hex, kind: string): Dir[] {
+export function validSummonDirs(match: MatchState, masterId: number, to: Hex, kind: string): Dir[] {
   const sk = kindOf(kind);
-  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => canPlace(match, sk, neighbor(to, d), summonerId));
+  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => canPlace(match, sk, neighbor(to, d), masterId));
 }
 
 /**
@@ -703,11 +707,11 @@ export function blockedShot(match: MatchState, actor: Unit, target: Target): boo
 /**
  * The valid summon direction closest in angle to `toward` (the hex under the
  * cursor), so any point roughly in that direction selects the hex. Null when
- * the cursor is on the Summoner's own hex or no direction is valid.
+ * the cursor is on the Master's own hex or no direction is valid.
  */
-export function summonDirToward(match: MatchState, summonerId: number, to: Hex, kind: string, toward: Hex | null): Dir | null {
+export function summonDirToward(match: MatchState, masterId: number, to: Hex, kind: string, toward: Hex | null): Dir | null {
   if (!toward || hexEq(toward, to)) return null;
-  const valid = validSummonDirs(match, summonerId, to, kind);
+  const valid = validSummonDirs(match, masterId, to, kind);
   if (!valid.length) return null;
   const toXY = (h: Hex) => [Math.sqrt(3) * (h.q + h.r / 2), 1.5 * h.r];
   const [fx, fy] = toXY(to);

@@ -1,6 +1,6 @@
 # magica
 
-A rules-deterministic, turn-based hex tactics game in which two Summoners fight with elemental Summons. This glossary fixes the vocabulary used by the rules, the AI and the UI.
+A rules-deterministic, turn-based hex tactics game in which two Masters fight with elemental Familiars. This glossary fixes the vocabulary used by the rules, the AI and the UI.
 
 ## Units
 
@@ -8,19 +8,19 @@ A rules-deterministic, turn-based hex tactics game in which two Summoners fight 
 Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
-**Summoner**:
-The single leader Unit of each Side. It has no Magic Abilities and is the only Unit that can Summon; its MP sets its Side's Mana Income. There is no limit on how many Summons a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Summoners before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Summoner's stats fit the Stat Budget. Both Sides may pick the same one.
-_Avoid_: Master, hero, commander
+**Master**:
+The single leader Unit of each Side. It has no Magic Abilities and is the only Unit that can Summon; its MP sets its Side's Mana Income. There is no limit on how many Familiars a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Masters before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Master's stats fit the Stat Budget. Both Sides may pick the same one.
+_Avoid_: Summoner, hero, commander
 
 **Loadout**:
-A set of exactly 20 of the 40 Summons: the only Summons a Side may Summon in a match. It is chosen separately from the Summoner. Players save Loadouts in the browser; none ship with the game. A Loadout saved when Loadouts were smaller stays saved but can't be played until it is edited to 20. A Side may also take a **random Loadout**: 20 Summons drawn at random, at least two of them an Element's cheapest Summon, or one the AI builds for its Summoner. Both Sides' Loadouts, and the Summons each one leaves out, are visible to both players during the match.
+A set of exactly 20 of the 40 Familiars: the only Familiars a Side may Summon in a match. It is chosen separately from the Master. Players save Loadouts in the browser; none ship with the game. A Loadout saved when Loadouts were smaller stays saved but can't be played until it is edited to 20. A Side may also take a **random Loadout**: 20 Familiars drawn at random, at least two of them an Element's cheapest Familiar, or one the AI builds for its Master. Both Sides' Loadouts, and the Familiars each one leaves out, are visible to both players during the match.
 _Avoid_: Deck, army, roster (as a player-facing term)
 
 **Test Match**:
-A match where both Sides may Summon all 40 Summons, ignoring Loadouts. For trying things out.
+A match where both Sides may Summon all 40 Familiars, ignoring Loadouts. For trying things out.
 
 **Match Setup**:
-The choices made before a match: the map, whether it is a Test Match, and for each Side its Summoner, its Loadout and whether a person or the AI plays it.
+The choices made before a match: the map, whether it is a Test Match, and for each Side its Master, its Loadout and whether a person or the AI plays it.
 
 **Pause**:
 Stopping a match in place: no turn starts and no Command can be given until it is resumed. The map can still be looked at and Units inspected.
@@ -29,9 +29,9 @@ Stopping a match in place: no turn starts and no Command can be given until it i
 A recorded match that can be watched back turn by turn, played forward, stepped back or jumped to any turn. Every match is recorded; the most recent ones are kept for a while and a player can save one to keep it. A Replay shows the match with the unit stats and abilities in force when it was played. From any turn of a Replay, the player can **Play from here**: the match continues live from that position, with each Side played by a person or the AI.
 _Avoid_: Recording, demo, VOD
 
-**Summon**:
-A Unit that a Summoner brings onto a hex next to it. The new Summon faces the way it was summoned, and so does the Summoner. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
-_Avoid_: Monster, minion, creature
+**Familiar**:
+A Unit that a Master brings onto a hex next to it. The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
+_Avoid_: Summon (as a noun; "Summon" is the Command), monster, minion, creature
 
 **Side**:
 One of the two opposing players (human or AI) and every Unit they control. The Side Colour is green for the human player by default and red for the opponent.
@@ -41,13 +41,13 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 
 **Attack (ATK)**: Contributes to the damage dealt by the Attack Command. ATK, DEF, MP and MDF are small numbers (about 0–10) on the same scale as HP: a point of ATK is a point of damage.
 **Defense (DEF)**: Reduces damage taken from the Attack Command.
-**Magic Power (MP)**: Contributes to the damage or healing of the Magic Command (a heal restores as much HP as the healer's MP). A Summon with no Magic Ability has MP 0, since MP does nothing without one. For a Summoner it is also the key factor in Mana generation.
+**Magic Power (MP)**: Contributes to the damage or healing of the Magic Command (a heal restores as much HP as the healer's MP). A Familiar with no Magic Ability has MP 0, since MP does nothing without one. For a Master it is also the key factor in Mana generation.
 **Magic Defense (MDF)**: Reduces damage taken from the Magic Command.
 **Speed (SPD)**: Decides how soon a Unit acts again (see Action Value). The average is about 10, and most Units fall between 8 and 15.
 **Move (MOV)**: The Move Points a Unit can spend in one turn.
 
 **Stat Budget**:
-The hidden exchange rate that keeps Summoners balanced: each stat is priced in Magic Power, and every Summoner's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack is priced by how far it reaches (Move plus Attack range): free for a slow melee Summoner, dearer with every extra hex of Move or range. Magic Defense has a floor: Magic reaches further than most Attacks, so a Summoner keeps Magic Defense of at least 3, and at most one Summoner may have 2.
+The hidden exchange rate that keeps Masters balanced: each stat is priced in Magic Power, and every Master's stats add up to the same total. Speed and Move are dear, Defense and Magic Defense cheaper, and Attack is priced by how far it reaches (Move plus Attack range): free for a slow melee Master, dearer with every extra hex of Move or range. Magic Defense has a floor: Magic reaches further than most Attacks, so a Master keeps Magic Defense of at least 3, and at most one Master may have 2.
 _Avoid_: Point buy, stat total
 
 **Move Type**:
@@ -64,13 +64,13 @@ _Avoid_: Threat range, attack range (when meaning after moving)
 ## Elements
 
 **Element**:
-One of Fire, Air, Earth or Water. Each Summon has one Element. A Summoner has none.
+One of Fire, Air, Earth or Water. Each Familiar has one Element. Most Masters have none; four have one.
 
 **Counter**:
 Fire counters Air, Air counters Earth, Earth counters Water, and Water counters Fire. Opposite Elements (Fire–Earth, Air–Water) are neutral.
 
 **Element Bonus**:
-A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. Summoners and Summons are treated alike: a unit with no Element is neutral to everything. An Obstacle is hit as neutral.
+A flat amount added to damage by how the attacker's Element stands against the defender's: a Counter +4, neutral 0, the same Element 0, being Countered −4. Masters and Familiars are treated alike: a unit with no Element is neutral to everything. An Obstacle is hit as neutral.
 _Avoid_: Weakness, advantage
 
 ## Turns and time
@@ -79,14 +79,14 @@ _Avoid_: Weakness, advantage
 The match's 24-hour in-game time. One minute of Game Clock equals one point of Action Value. In the scaffold it starts at 06:00.
 
 **Action Value (AV)**:
-How many Game Clock minutes are left before a Unit acts next. The Unit with the lowest AV acts. Summoners start a match with their Base Delay, as if they had just Waited.
+How many Game Clock minutes are left before a Unit acts next. The Unit with the lowest AV acts. Masters start a match with their Base Delay, as if they had just Waited.
 _Avoid_: Initiative, ticks, ATB
 
 **Base Delay**:
 The AV a Unit gets after a turn in which it only Waits. It depends only on Speed.
 
 **Turn Delay**:
-The AV a Unit gets after its turn: the Base Delay, plus half the Base Delay for each of Move, Attack, Magic and Summon that it used, rounded at the end. A new Summon enters with the Turn Delay of a Move followed by an Attack.
+The AV a Unit gets after its turn: the Base Delay, plus half the Base Delay for each of Move, Attack, Magic and Summon that it used, rounded at the end. A new Familiar enters with the Turn Delay of a Move followed by an Attack.
 
 **Action Timeline**:
 The UI list of upcoming turns in the order the AV system gives. While a Command is hovered but not yet confirmed, the acting Unit's icon is shown where that Command's Turn Delay would place it.
@@ -96,19 +96,19 @@ _Avoid_: Turn order bar, queue
 Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
 
 **Time Limit**:
-A match ends 72 Game Clock hours after it starts if no Summoner has fallen. The Side controlling more Magic Stones then wins; if they are level, the Side with more total HP across its Units; if that is level too, the match is a draw.
+A match ends 72 Game Clock hours after it starts if no Master has fallen. The Side controlling more Magic Stones then wins; if they are level, the Side with more total HP across its Units; if that is level too, the match is a draw.
 
 **Alignment**:
-Whether a Summon is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF are 1 higher; at the opposite one they are 1 lower. Speed and Move are never changed by Alignment.
+Whether a Familiar is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF are 1 higher; at the opposite one they are 1 lower. Speed and Move are never changed by Alignment.
 
 ## Turn structure
 
 **Command**:
-What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic or Summon. The player chooses Facing only for Wait. Attack and Magic turn the Unit to face its target (the Unit attacked, or the hex the Magic was aimed at), and Summon turns the Summoner toward the summoned hex.
+What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic or Summon. The player chooses Facing only for Wait. Attack and Magic turn the Unit to face its target (the Unit attacked, or the hex the Magic was aimed at), and Summon turns the Master toward the summoned hex.
 _Avoid_: Action (when meaning a menu choice)
 
 **Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 19 of the 40 Summons have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Summoners have none.
+The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 19 of the 40 Familiars have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Masters have none.
 _Avoid_: Skill, spell (as a code term)
 
 **Burst**:
@@ -184,13 +184,13 @@ The hexes next to a Unit that the Unit itself could move into. An opposing Unit 
 ## Economy
 
 **Mana**:
-A Side's shared resource for summoning and for every Magic Ability its Units cast, Summoners' and Summons' alike. It is gained at the start of every Game Clock hour.
+A Side's shared resource for summoning and for every Magic Ability its Units cast, Masters' and Familiars' alike. It is gained at the start of every Game Clock hour.
 
 **Mana Income**:
-What a Side gains each hour: 2 × (2 + Magic Stones controlled) × Summoner MP, minus the Upkeep of its Summons. Mana never drops below 0 or rises above 120.
+What a Side gains each hour: 2 × (2 + Magic Stones controlled) × Master MP, minus the Upkeep of its Familiars. Mana never drops below 0 or rises above 120.
 
 **Cost**:
-The Mana needed to Summon a Summon: a multiple of 8, from 16 to 88; each Element has exactly one Summon at each Cost. It reflects the Summon's power: its stats (Move most of all), Fly, a ranged Attack and its Magic Ability, priced from a reference set of Summons treated as balanced.
+The Mana needed to Summon a Familiar: a multiple of 8, from 16 to 88; each Element has exactly one Familiar at each Cost. It reflects the Familiar's power: its stats (Move most of all), Fly, a ranged Attack and its Magic Ability, priced from a reference set of Familiars treated as balanced.
 
 **Upkeep**:
-A Summon's hourly drain on its Side's Mana Income. It is always its Cost ÷ 8.
+A Familiar's hourly drain on its Side's Mana Income. It is always its Cost ÷ 8.

@@ -244,7 +244,7 @@ export function unitIconUrl(kindId: string, side: SideId): string {
 /** Sprite world height for a kind: bigger overall, and larger with Cost and average defense. */
 export function spriteScale(kindId: string): number {
   const k = kindOf(kindId);
-  const cost = k.isSummoner ? 64 : k.cost;
+  const cost = k.isMaster ? 64 : k.cost;
   const avgDef = (k.stats.def + k.stats.mdf) / 2;
   const costT = Math.min(1, Math.max(0, (cost - 16) / 80));
   const defT = Math.min(1, Math.max(0, (avgDef - 3.25) / 4));

@@ -40,7 +40,7 @@ export function ReplaysScreen() {
     const blob = new Blob([exportReplayJson(r)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${replayTitle({ name: r.name, summoners: list.find((m) => m.id === id)!.summoners, mapName: r.initial.map.name }).replace(/[^\w\- ]+/g, '').trim() || 'replay'}.json`;
+    a.download = `${replayTitle({ name: r.name, masters: list.find((m) => m.id === id)!.masters, mapName: r.initial.map.name }).replace(/[^\w\- ]+/g, '').trim() || 'replay'}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -50,7 +50,7 @@ export function ReplaysScreen() {
   const row = (m: ReplayMeta) => (
     <div key={m.id} className="replay-item window">
       <div className="replay-faces">
-        {m.summoners.map((k, side) => {
+        {m.masters.map((k, side) => {
           let src = '';
           try {
             src = unitIconUrl(k, side as 0 | 1);

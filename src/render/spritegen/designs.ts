@@ -8,7 +8,7 @@ import { FIRE } from './fire';
 import { AIR } from './air';
 import { EARTH } from './earth';
 import { WATER } from './water';
-import { SUMMONER_DESIGNS } from './summoners';
+import { MASTER_DESIGNS } from './masters';
 
 export interface Design {
   /** Material colours for this kind (merged over the defaults). */
@@ -71,4 +71,4 @@ D.hound = {
   },
 };
 
-export const DESIGNS: Record<string, Design> = { ...D, ...SUMMONER_DESIGNS, ...FIRE, ...AIR, ...EARTH, ...WATER };
+export const DESIGNS: Record<string, Design> = { ...D, ...MASTER_DESIGNS, ...FIRE, ...AIR, ...EARTH, ...WATER };

@@ -117,13 +117,13 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
 
 /**
  * How tense the battle is, 0..1: how many units are close to an enemy, and
- * how hurt the most hurt Summoner is.
+ * how hurt the most hurt Master is.
  */
 export function battleTension(state: MatchState): number {
   const units = state.units;
   if (!units.length) return 0;
   const engaged = units.filter((u) => units.some((o) => o.side !== u.side && hexDistance(o.pos, u.pos) <= 3)).length / units.length;
-  const summoners = units.filter((u) => kindOf(u.kind).isSummoner);
-  const minHp = summoners.length ? Math.min(...summoners.map((u) => u.hp)) : 10;
+  const masters = units.filter((u) => kindOf(u.kind).isMaster);
+  const minHp = masters.length ? Math.min(...masters.map((u) => u.hp)) : 10;
   return Math.max(0, Math.min(1, 0.15 + 0.5 * engaged + 0.45 * (1 - minHp / 10)));
 }

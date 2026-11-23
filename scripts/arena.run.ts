@@ -4,7 +4,7 @@
 // Env: PAIRS (default 8), SEED (default 1), LEVEL (candidate level: normal|hard), OPP (baseline|normal).
 
 import { it } from 'vitest';
-import { SCAFFOLD_MAP, SUMMONERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
+import { SCAFFOLD_MAP, MASTERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
 import { AI_WEIGHTS, autoLoadout, chooseAction as chooseRaw } from '../src/ai/ai';
 
 const W = { ...AI_WEIGHTS, ...JSON.parse(process.env.W ?? '{}') };
@@ -23,8 +23,8 @@ function rng(seed: number) {
 
 type Policy = (s: MatchState) => TurnAction;
 
-function play(setup: { summoners: [string, string]; rosters: [string[], string[]]; seed: number }, p0: Policy, p1: Policy, levels: ['normal' | 'hard', 'normal' | 'hard'], log = false) {
-  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: setup.seed, summoners: setup.summoners, rosters: setup.rosters, aiLevels: levels });
+function play(setup: { masters: [string, string]; rosters: [string[], string[]]; seed: number }, p0: Policy, p1: Policy, levels: ['normal' | 'hard', 'normal' | 'hard'], log = false) {
+  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters, aiLevels: levels });
   let turns = 0;
   const ms: [number, number] = [0, 0];
   const n: [number, number] = [0, 0];
@@ -53,11 +53,11 @@ it('arena', () => {
   const level = (process.env.LEVEL ?? 'normal') as 'normal' | 'hard';
   const opp: Policy = process.env.OPP === 'normal' ? chooseAction : baselineChoose;
   const r = rng(Number(process.env.SEED ?? 1) * 7919);
-  let w = 0, d = 0, l = 0, byTime = 0, turns = 0, candMs = 0, games = 0, summonerKills = 0;
+  let w = 0, d = 0, l = 0, byTime = 0, turns = 0, candMs = 0, games = 0, masterKills = 0;
   for (let i = 0; i < pairs; i++) {
-    const summoners: [string, string] = [SUMMONERS[Math.floor(r() * SUMMONERS.length)].id, SUMMONERS[Math.floor(r() * SUMMONERS.length)].id];
+    const masters: [string, string] = [MASTERS[Math.floor(r() * MASTERS.length)].id, MASTERS[Math.floor(r() * MASTERS.length)].id];
     const lo = (s: string) => (r() < 0.5 ? autoLoadout(s, r) : randomLoadout(r));
-    const setup = { summoners, rosters: [lo(summoners[0]), lo(summoners[1])] as [string[], string[]], seed: Math.floor(r() * 1e6) };
+    const setup = { masters, rosters: [lo(masters[0]), lo(masters[1])] as [string[], string[]], seed: Math.floor(r() * 1e6) };
     for (const candSide of [0, 1] as const) {
       const dbg = process.env.DEBUG === `${i}:${candSide}`;
       if (process.env.DEBUG && !dbg) continue;
@@ -66,14 +66,14 @@ it('arena', () => {
       turns += res.turns;
       candMs += res.ms[candSide];
       if (res.byTime) byTime++;
-      else summonerKills++;
+      else masterKills++;
       if (res.winner === 'draw') d++;
       else if (res.winner === candSide) w++;
       else l++;
-      process.stdout.write(`pair ${i} cand=S${candSide} ${summoners.join(' v ')} → ${res.winner === candSide ? 'WIN' : res.winner === 'draw' ? 'draw' : 'loss'} ${res.byTime ? 'on time' : 'kill'} ${res.turns}t ${res.hours.toFixed(1)}h stones ${res.stones.join('-')} units ${res.units.join('-')}\n`);
+      process.stdout.write(`pair ${i} cand=S${candSide} ${masters.join(' v ')} → ${res.winner === candSide ? 'WIN' : res.winner === 'draw' ? 'draw' : 'loss'} ${res.byTime ? 'on time' : 'kill'} ${res.turns}t ${res.hours.toFixed(1)}h stones ${res.stones.join('-')} units ${res.units.join('-')}\n`);
     }
   }
-  const line = `ARENA level=${level} vs ${process.env.OPP ?? 'baseline'}: W ${w} D ${d} L ${l} (score ${((w + d / 2) / games * 100).toFixed(0)}%) · kills ${summonerKills} time ${byTime} · avg ${(turns / games).toFixed(0)} turns · cand ${(candMs / games).toFixed(0)} ms/turn`;
+  const line = `ARENA level=${level} vs ${process.env.OPP ?? 'baseline'}: W ${w} D ${d} L ${l} (score ${((w + d / 2) / games * 100).toFixed(0)}%) · kills ${masterKills} time ${byTime} · avg ${(turns / games).toFixed(0)} turns · cand ${(candMs / games).toFixed(0)} ms/turn`;
   console.log(line);
   process.stdout.write(line + '\n');
 });

@@ -14,7 +14,7 @@ import {
   reachable,
   ringPosition,
   SCAFFOLD_MAP,
-  SUMMONS,
+  FAMILIARS,
   turnDelay,
   validateTurn,
   type MapDef,
@@ -25,7 +25,7 @@ import {
   isStranded,
   hexDistance,
 } from './index';
-import { ELEMENTS } from './data/summons';
+import { ELEMENTS } from './data/familiars';
 import { MANA_START } from './data/tuning';
 
 // ---------- helpers ----------
@@ -94,15 +94,15 @@ describe('turn delay', () => {
 // ---------- roster ----------
 
 describe('roster', () => {
-  it('gives every Summoner and Summon its own id (ids also key the sprites)', async () => {
-    const ids = [...(await import('./index')).SUMMONERS, ...SUMMONS].map((k) => k.id);
+  it('gives every Master and Familiar its own id (ids also key the sprites)', async () => {
+    const ids = [...(await import('./index')).MASTERS, ...FAMILIARS].map((k) => k.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('has 10 summons per element, one at each Cost from 16 to 88 in steps of 8', () => {
-    expect(SUMMONS).toHaveLength(40);
+  it('has 10 familiars per element, one at each Cost from 16 to 88 in steps of 8', () => {
+    expect(FAMILIARS).toHaveLength(40);
     for (const e of ELEMENTS) {
-      const s = SUMMONS.filter((x) => x.element === e);
+      const s = FAMILIARS.filter((x) => x.element === e);
       expect(s.map((x) => x.cost).sort((a, b) => a - b)).toEqual([16, 24, 32, 40, 48, 56, 64, 72, 80, 88]);
       // 3 aligned and 7 unaligned: Fire and Earth lean Day, Water and Air lean Night
       const [day, night] = e === 'fire' || e === 'earth' ? [2, 1] : [1, 2];
@@ -111,14 +111,14 @@ describe('roster', () => {
     }
   });
 
-  it('gives a Magic Ability to at least 4 summons of each Element, none to ranged attackers, and MP 0 to the rest', () => {
-    for (const e of ELEMENTS) expect(SUMMONS.filter((k) => k.element === e && k.magic.length === 1).length, e).toBeGreaterThanOrEqual(4);
-    for (const k of SUMMONS) if (k.attack.range > 1) expect(k.magic, k.id).toEqual([]);
-    for (const k of SUMMONS) if (!k.magic.length) expect(k.stats.mp, k.id).toBe(0);
+  it('gives a Magic Ability to at least 4 familiars of each Element, none to ranged attackers, and MP 0 to the rest', () => {
+    for (const e of ELEMENTS) expect(FAMILIARS.filter((k) => k.element === e && k.magic.length === 1).length, e).toBeGreaterThanOrEqual(4);
+    for (const k of FAMILIARS) if (k.attack.range > 1) expect(k.magic, k.id).toEqual([]);
+    for (const k of FAMILIARS) if (!k.magic.length) expect(k.stats.mp, k.id).toBe(0);
   });
 
-  it('uses short names, max-only ranges, and Summon Magic costs of 4–16', () => {
-    for (const k of SUMMONS) {
+  it('uses short names, max-only ranges, and Familiar Magic costs of 4–16', () => {
+    for (const k of FAMILIARS) {
       expect(k.name.length).toBeLessThanOrEqual(6);
       expect(k.attack).toEqual(k.attack.range > 1 ? { range: k.attack.range, trajectory: k.attack.trajectory } : { range: k.attack.range });
       if (k.attack.range > 1) expect(['high', 'direct']).toContain(k.attack.trajectory);
@@ -132,11 +132,11 @@ describe('roster', () => {
     }
   });
 
-  it('gives Summoners walk+wade, most Earth summons wade, and no Fire summon wade', () => {
+  it('gives Masters walk+wade, most Earth familiars wade, and no Fire summon wade', () => {
     expect(kindOf('regent').moveTypes).toEqual(['walk', 'wade']);
-    const earth = SUMMONS.filter((x) => x.element === 'earth');
+    const earth = FAMILIARS.filter((x) => x.element === 'earth');
     expect(earth.filter((x) => x.moveTypes.includes('wade')).length).toBeGreaterThan(earth.length / 2);
-    for (const f of SUMMONS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
+    for (const f of FAMILIARS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
   });
 });
 
@@ -171,29 +171,29 @@ describe('damage', () => {
     expect(computeDamage(state, hound, hex(4, 3), hound2, 'physical').amount).toBe(2);
   });
 
-  it('every hit goes by the two Elements, Summoners included (none: neutral)', () => {
+  it('every hit goes by the two Elements, Masters included (none: neutral)', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60;
     const drake = place(state, 'drake', 0, 1, 1); // fire ATK 9
-    const regent = place(state, 'regent', 1, 2, 1, 3); // Summoner with no Element, DEF 3, faces W
+    const regent = place(state, 'regent', 1, 2, 1, 3); // Master with no Element, DEF 3, faces W
     // 9 − 3 + 0 = 6 (no Element: neutral)
     expect(computeDamage(state, drake, drake.pos, regent, 'physical').amount).toBe(6);
-    const oni = place(state, 'oni', 0, 1, 4); // Summoner with no Element, ATK 9
+    const oni = place(state, 'oni', 0, 1, 4); // Master with no Element, ATK 9
     const golem = place(state, 'golem', 1, 2, 4, 3); // fire DEF 7, faces W
     // 9 − 7 + 0 = 2 (no Element: neutral)
     expect(computeDamage(state, oni, oni.pos, golem, 'physical').amount).toBe(2);
-    const efreet = place(state, 'efreet', 0, 1, 2); // Fire Summoner
+    const efreet = place(state, 'efreet', 0, 1, 2); // Fire Master
     const hawk = place(state, 'hawk', 1, 2, 2, 3); // air, faces W: Fire counters Air
     expect(computeDamage(state, efreet, efreet.pos, hawk, 'physical').breakdown!.element).toBe(4);
-    // a Summon hitting an Earth Summoner: Water is Countered by Earth
+    // a Familiar hitting an Earth Master: Water is Countered by Earth
     const hydra = place(state, 'hydra', 0, 4, 1); // water ATK 10
-    const dwarf = place(state, 'dwarf', 1, 5, 1, 3); // Earth Summoner DEF 5, faces W
+    const dwarf = place(state, 'dwarf', 1, 5, 1, 3); // Earth Master DEF 5, faces W
     expect(computeDamage(state, hydra, hydra.pos, dwarf, 'physical').amount).toBe(1); // 10 − 5 − 4
-    // Summoner against Summoner: by their Elements
+    // Master against Master: by their Elements
     const oni2 = place(state, 'oni', 0, 4, 3); // no Element, ATK 9
     const dwarf2 = place(state, 'dwarf', 1, 5, 3, 3); // Earth, DEF 5
     expect(computeDamage(state, oni2, oni2.pos, dwarf2, 'physical').amount).toBe(4); // 9 − 5 + 0
-    const sylph = place(state, 'sylph', 0, 4, 5); // Air Summoner, ATK 2 (Air counters Earth)
+    const sylph = place(state, 'sylph', 0, 4, 5); // Air Master, ATK 2 (Air counters Earth)
     const dwarf3 = place(state, 'dwarf', 1, 5, 5, 3);
     expect(computeDamage(state, sylph, sylph.pos, dwarf3, 'physical').amount).toBe(Math.max(0, kindOf('sylph').stats.atk - 5 + 4));
   });
@@ -202,7 +202,7 @@ describe('damage', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60;
     const drake = place(state, 'drake', 0, 1, 1); // fire ATK 9
-    const sylph = place(state, 'sylph', 1, 2, 1, 3); // Air Summoner DEF 1, faces W
+    const sylph = place(state, 'sylph', 1, 2, 1, 3); // Air Master DEF 1, faces W
     sylph.hp = 3;
     const e = computeDamage(state, drake, drake.pos, sylph, 'physical');
     expect(e.amount).toBe(12); // 9 − 1 + 4 (Fire counters Air), not capped at 3
@@ -221,9 +221,9 @@ describe('damage', () => {
   it('takes 1 off on rough and on magic stones', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
-    const a = place(state, 'oni', 0, 1, 1); // Summoner ATK 9
+    const a = place(state, 'oni', 0, 1, 1); // Master ATK 9
     const b = place(state, 'regent', 1, 2, 1, 3); // DEF 3
-    // 9 − 3 + 0 (Summoner against Summoner, no Elements: neutral) = 6; rough → 5
+    // 9 − 3 + 0 (Master against Master, no Elements: neutral) = 6; rough → 5
     expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
     b.pos = hex(2, 2);
@@ -236,7 +236,7 @@ describe('damage', () => {
   it('applies day/night alignment as +1 / −1 to the stats', () => {
     const state = createMatch(testMap(6, 6));
     const archer = place(state, 'archer', 0, 1, 1); // day, ATK 7
-    const sum = place(state, 'oni', 1, 3, 1, 3); // Summoner DEF 6, no Alignment
+    const sum = place(state, 'oni', 1, 3, 1, 3); // Master DEF 6, no Alignment
     state.clock = 18 * 60; // neutral: 7 − 6 = 1
     expect(computeDamage(state, archer, archer.pos, sum, 'physical').amount).toBe(1);
     state.clock = 12 * 60; // day: ATK 8 → 2
@@ -307,13 +307,13 @@ describe('movement', () => {
 // ---------- match flow ----------
 
 describe('match flow', () => {
-  it('starts both summoners with Base Delay; human first on ties', () => {
+  it('starts both masters with Base Delay; human first on ties', () => {
     const s = createMatch(SCAFFOLD_MAP);
     expect(s.clock).toBe(6 * 60 + 25); // Regent, SPD 13
     expect(getUnit(s, s.activeUnitId!).side).toBe(0);
   });
 
-  it('summons next to the summoner with facing and Move+Attack AV; costs mana', () => {
+  it('summons next to the Master with facing and Move+Attack AV; costs mana', () => {
     const s = createMatch(testMap(6, 6));
     const me = getUnit(s, s.activeUnitId!);
     const { state, events } = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'summon', kind: 'imp', dir: 1 } });
@@ -324,7 +324,7 @@ describe('match flow', () => {
     expect(events.some((e) => e.type === 'summon')).toBe(true);
   });
 
-  it('has no limit on how many Summons a Side keeps on the map', () => {
+  it('has no limit on how many Familiars a Side keeps on the map', () => {
     const s = createMatch(testMap(8, 8));
     const me = getUnit(s, s.activeUnitId!);
     for (let i = 0; i < 8; i++) place(s, 'imp', 0, 4 + (i % 4), 1 + Math.floor(i / 4));
@@ -373,7 +373,7 @@ describe('match flow', () => {
 
   it('strands units after Rise, dealing 1 damage and forcing Wait', () => {
     onTestFinished(withSpells());
-    // water level 2 over height-1 ground: everything is Shallow (Summoners wade);
+    // water level 2 over height-1 ground: everything is Shallow (Masters wade);
     // Rise makes it Deep, which strands them.
     const s = createMatch(testMap(6, 6, () => ({ height: 1 }), 2));
     const me = getUnit(s, s.activeUnitId!);
@@ -399,7 +399,7 @@ describe('match flow', () => {
     expect(getUnit(r.state, imp.id).hp).toBe(6);
   });
 
-  it('ends the match when a summoner dies', () => {
+  it('ends the match when a master dies', () => {
     const s = createMatch(testMap(4, 4));
     const me = getUnit(s, s.activeUnitId!);
     const foe = s.units.find((u) => u.side === 1)!;
@@ -413,7 +413,7 @@ describe('match flow', () => {
     const s = createMatch(SCAFFOLD_MAP);
     const tl = projectTimeline(s, 12, 28);
     expect(tl).toHaveLength(12);
-    expect(tl[0].unitId).not.toBe(s.activeUnitId); // other summoner acts at 06:28 too, before our new 28
+    expect(tl[0].unitId).not.toBe(s.activeUnitId); // other master acts at 06:28 too, before our new 28
     expect(tl.find((e) => e.preview)?.clock).toBe(s.clock + 28);
   });
 
@@ -462,7 +462,7 @@ describe('facing toward target and reach', () => {
   });
 
   it('never uses Slow without Swim; walkers have Move ≥ 4', () => {
-    for (const k of SUMMONS) {
+    for (const k of FAMILIARS) {
       if (k.moveTypes.includes('slow')) expect(k.moveTypes).toContain('swim');
       if (k.moveTypes.includes('walk')) expect(k.stats.mov).toBeGreaterThanOrEqual(4);
     }
@@ -663,39 +663,39 @@ function withLine(): MatchState {
   return s;
 }
 
-// ---------- Summoners and balance overrides ----------
+// ---------- Masters and balance overrides ----------
 
-describe('summoners', () => {
-  it('has thirty Summoners with short names, all walk + wade with no Magic Abilities, each on the Stat Budget', async () => {
-    const { SUMMONERS, kindWarnings, budgetError } = await import('./index');
-    expect(SUMMONERS).toHaveLength(30);
-    expect(new Set(SUMMONERS.map((k) => k.id)).size).toBe(30);
-    for (const k of SUMMONERS) {
+describe('masters', () => {
+  it('has thirty Masters with short names, all walk + wade with no Magic Abilities, each on the Stat Budget', async () => {
+    const { MASTERS, kindWarnings, budgetError } = await import('./index');
+    expect(MASTERS).toHaveLength(30);
+    expect(new Set(MASTERS.map((k) => k.id)).size).toBe(30);
+    for (const k of MASTERS) {
       expect(k.name.length).toBeLessThanOrEqual(7);
       expect(k.moveTypes).toEqual(['walk', 'wade']);
       expect(k.magic).toEqual([]);
-      expect(kindWarnings(k, SUMMONERS)).toEqual([]);
+      expect(kindWarnings(k, MASTERS)).toEqual([]);
       expect(Math.abs(budgetError(k.stats, k.attack.range))).toBeLessThanOrEqual(0.3);
     }
-    expect(new Set(SUMMONERS.map((k) => k.element).filter(Boolean)).size).toBe(4);
-    expect(SUMMONERS.filter((k) => k.element).length).toBe(4);
-    expect(SUMMONERS.filter((k) => k.alignment === 'day').length).toBe(2);
-    expect(SUMMONERS.filter((k) => k.alignment === 'night').length).toBe(2);
+    expect(new Set(MASTERS.map((k) => k.element).filter(Boolean)).size).toBe(4);
+    expect(MASTERS.filter((k) => k.element).length).toBe(4);
+    expect(MASTERS.filter((k) => k.alignment === 'day').length).toBe(2);
+    expect(MASTERS.filter((k) => k.alignment === 'night').length).toBe(2);
     // MDF floor: none below 2, at most one below 3
-    expect(Math.min(...SUMMONERS.map((k) => k.stats.mdf))).toBeGreaterThanOrEqual(2);
-    expect(SUMMONERS.filter((k) => k.stats.mdf < 3).length).toBeLessThanOrEqual(1);
-    const ranged = SUMMONERS.filter((k) => k.attack.range > 1);
+    expect(Math.min(...MASTERS.map((k) => k.stats.mdf))).toBeGreaterThanOrEqual(2);
+    expect(MASTERS.filter((k) => k.stats.mdf < 3).length).toBeLessThanOrEqual(1);
+    const ranged = MASTERS.filter((k) => k.attack.range > 1);
     expect(ranged.map((k) => k.attack.range).sort()).toEqual([3, 4, 4, 5, 6]);
     expect(ranged.every((k) => k.attack.trajectory === (k.attack.range <= 4 ? 'direct' : 'high'))).toBe(true);
   });
 
-  it('lets each Side start with its chosen Summoner', () => {
-    const s = createMatch(SCAFFOLD_MAP, { summoners: ['efreet', 'lich'] });
+  it('lets each Side start with its chosen Master', () => {
+    const s = createMatch(SCAFFOLD_MAP, { masters: ['efreet', 'lich'] });
     expect(s.units.map((u) => u.kind)).toEqual(['efreet', 'lich']);
   });
 
   it('applies local overrides to the live roster and can reset them', async () => {
-    const { setLocalOverrides, kindOf: k, SUMMONS: roster, shippedKind } = await import('./index');
+    const { setLocalOverrides, kindOf: k, FAMILIARS: roster, shippedKind } = await import('./index');
     const shipped = shippedKind('imp').stats.atk;
     setLocalOverrides({ imp: { stats: { ...k('imp').stats, atk: 20 } } });
     expect(k('imp').stats.atk).toBe(20);
@@ -705,16 +705,16 @@ describe('summoners', () => {
   });
 
   it('summon kinds pass the design checks', async () => {
-    const { SUMMONS: roster, kindWarnings } = await import('./index');
+    const { FAMILIARS: roster, kindWarnings } = await import('./index');
     for (const kind of roster) expect(kindWarnings(kind, roster), kind.id).toEqual([]);
   });
 });
 
 describe('loadouts', () => {
-  it('needs exactly 20 distinct Summons', async () => {
+  it('needs exactly 20 distinct Familiars', async () => {
     const { LOADOUT_SIZE, loadoutProblems } = await import('./index');
     expect(LOADOUT_SIZE).toBe(20);
-    const twenty = SUMMONS.slice(0, 20).map((k) => k.id);
+    const twenty = FAMILIARS.slice(0, 20).map((k) => k.id);
     expect(loadoutProblems(twenty)).toEqual([]);
     expect(loadoutProblems(twenty.slice(0, 18))).not.toEqual([]);
     expect(loadoutProblems(['imp'])).not.toEqual([]);
@@ -722,7 +722,7 @@ describe('loadouts', () => {
 
   it('only lets a Side Summon what is in its Loadout; no Loadout means all', async () => {
     const { activeUnit } = await import('./index');
-    const swarm = SUMMONS.filter((k) => k.cost <= 56).map((k) => k.id).slice(0, 20);
+    const swarm = FAMILIARS.filter((k) => k.cost <= 56).map((k) => k.id).slice(0, 20);
     const s = createMatch(SCAFFOLD_MAP, { rosters: [swarm, null] });
     const me = activeUnit(s)!;
     s.sides[me.side].mana = 120;
@@ -774,7 +774,7 @@ describe('Burst and area Magic', () => {
         abilities: { 'test-burst': { id: 'test-burst', name: 'Test Burst', kind: 'damage', range: 0, radius: 2, manaCost: 4, burst: true } },
       });
       const state = createMatch(testMap(8, 8));
-      state.units = state.units.filter((u) => kindOf(u.kind).isSummoner);
+      state.units = state.units.filter((u) => kindOf(u.kind).isMaster);
       for (const u of state.units) u.pos = u.side === 0 ? hex(0, 7) : hex(7, 0);
       const caster = place(state, 'golem', 0, 3, 3);
       const ally = place(state, 'clod', 0, 5, 3); // 2 away
@@ -810,8 +810,8 @@ describe('Burst and area Magic', () => {
 });
 
 describe('random Loadouts', () => {
-  it('draws 20 valid Summons with at least 2 of the Elements’ cheapest, and varies', async () => {
-    const { randomLoadout, cheapestPerElement, loadoutProblems, mulberry32, SUMMONS: roster, kindOf: k } = await import('./index');
+  it('draws 20 valid Familiars with at least 2 of the Elements’ cheapest, and varies', async () => {
+    const { randomLoadout, cheapestPerElement, loadoutProblems, mulberry32, FAMILIARS: roster, kindOf: k } = await import('./index');
     const cheap = cheapestPerElement();
     expect(cheap).toHaveLength(4);
     for (const id of cheap) {

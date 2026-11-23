@@ -1,4 +1,4 @@
-// Test helper: Summoners have no Magic Abilities, so tests that need one
+// Test helper: Masters have no Magic Abilities, so tests that need one
 // attach it for the duration of the test through the local balance layer.
 
 import { getLocalBalance, setLocalBalance } from '../rules';

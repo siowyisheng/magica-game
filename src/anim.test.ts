@@ -108,7 +108,7 @@ describe('impacts', () => {
     expect(k.duration).toBeGreaterThanOrEqual(k.impacts[0].t + KO_FADE_MS);
   });
 
-  it('has no impacts for Waits and Summons', () => {
+  it('has no impacts for Waits and Familiars', () => {
     const s = createMatch(flatMap(6, 6));
     const me = getUnit(s, s.activeUnitId!);
     expect(planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 1, command: { type: 'wait' } }, 0).impacts).toEqual([]);

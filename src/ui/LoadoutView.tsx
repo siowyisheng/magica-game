@@ -1,31 +1,31 @@
-// A Loadout shown as all the Summons in Element rows (cheapest first), the
+// A Loadout shown as all the Familiars in Element rows (cheapest first), the
 // ones it leaves out darkened. Used in the Match Setup, the in-match
 // Loadouts view and the Loadout builder.
 
-import { ELEMENTS, SUMMONS, kindOf, type SideId } from '../rules';
+import { ELEMENTS, FAMILIARS, kindOf, type SideId } from '../rules';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
 import { useGame } from '../store';
 
 export function LoadoutStrip({
-  summons,
+  familiars,
   side,
   onToggle,
   onHover,
   big = false,
 }: {
   /** Ids in the Loadout; null = all (Test Match). */
-  summons: string[] | null;
+  familiars: string[] | null;
   side: SideId;
   onToggle?: (id: string) => void;
   onHover?: (id: string | null) => void;
   big?: boolean;
 }) {
-  const inSet = (id: string) => !summons || summons.includes(id);
+  const inSet = (id: string) => !familiars || familiars.includes(id);
   return (
     <div className={`loadout-strip ${big ? 'big' : ''}`}>
       {ELEMENTS.map((e) => (
         <div key={e} className="loadout-row" style={{ borderColor: `${ELEMENT_COLORS[e]}88` }}>
-          {SUMMONS.filter((s) => s.element === e)
+          {FAMILIARS.filter((s) => s.element === e)
             .slice()
             .sort((a, b) => a.cost - b.cost)
             .map((s) => (
@@ -50,7 +50,7 @@ export function LoadoutStrip({
   );
 }
 
-/** In-match view of both Sides' Summoner and Loadout. */
+/** In-match view of both Sides' Master and Loadout. */
 export function LoadoutsModal() {
   const open = useGame((s) => s.loadoutsOpen);
   const setOpen = useGame((s) => s.setLoadoutsOpen);
@@ -62,15 +62,15 @@ export function LoadoutsModal() {
         <div className="title">Loadouts</div>
         <div className="setup-sides">
           {([0, 1] as SideId[]).map((side) => {
-            const summoner = match.units.find((u) => u.side === side && kindOf(u.kind).isSummoner);
+            const master = match.units.find((u) => u.side === side && kindOf(u.kind).isMaster);
             const roster = match.sides[side].roster ?? null;
             return (
               <div key={side}>
                 <div className="side-name" style={{ color: side === 0 ? 'var(--green)' : 'var(--red)' }}>
-                  {side === 0 ? 'Green' : 'Red'} · {summoner ? kindOf(summoner.kind).name : 'Summoner fallen'}
-                  {!roster && <span className="muted small"> · Test match: all Summons</span>}
+                  {side === 0 ? 'Green' : 'Red'} · {master ? kindOf(master.kind).name : 'Master fallen'}
+                  {!roster && <span className="muted small"> · Test match: all Familiars</span>}
                 </div>
-                <LoadoutStrip summons={roster} side={side} big />
+                <LoadoutStrip familiars={roster} side={side} big />
               </div>
             );
           })}

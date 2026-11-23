@@ -11,7 +11,7 @@ import {
   mapHexAt,
   neighbor,
   inRoster,
-  SUMMONS,
+  FAMILIARS,
   unitAt,
   type MatchState,
   type Hex,
@@ -71,7 +71,7 @@ export function CommandMenu() {
           <div className="summon-grid">
             {ELEMENTS.map((e) => (
               <div key={e} className="summon-row">
-                {SUMMONS.filter((s) => s.element === e && inRoster(match, u.side, s.id))
+                {FAMILIARS.filter((s) => s.element === e && inRoster(match, u.side, s.id))
                   .slice()
                   .sort((a, b) => a.cost - b.cost)
                   .map((s) => {
@@ -127,7 +127,7 @@ export function CommandMenu() {
             );
           })()
         )}
-        {kind.isSummoner && (
+        {kind.isMaster && (
           <button disabled={stuck} onClick={() => choose({ sub: 'summon' })} {...hover('summon')}>Summon ▸</button>
         )}
       </>

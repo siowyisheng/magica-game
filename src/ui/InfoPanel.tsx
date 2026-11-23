@@ -127,10 +127,10 @@ export function InfoPanel() {
         <SoundOptions />
         <div className="btn-row">
           <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
-          <button onClick={newMatch} title="Same map and Summoners">Rematch</button>
+          <button onClick={newMatch} title="Same map and Masters">Rematch</button>
         </div>
         <div className="btn-row">
-          <button onClick={() => useGame.getState().setLoadoutsOpen(true)} title="Both Sides' Summoner and Loadout">View Loadouts</button>
+          <button onClick={() => useGame.getState().setLoadoutsOpen(true)} title="Both Sides' Master and Loadout">View Loadouts</button>
           <button onClick={() => useGame.getState().setScreen('loadouts')}>Edit Loadouts</button>
         </div>
         <div className="btn-row">
@@ -185,7 +185,7 @@ function UnitCard({ unitId }: { unitId: number }) {
           {m.name} ({m.manaCost}◆): {magicText(m)}
         </div>
       ))}
-      {!k.isSummoner && <div className="muted small">Cost {k.cost}◆ · Upkeep {k.cost / 8}</div>}
+      {!k.isMaster && <div className="muted small">Cost {k.cost}◆ · Upkeep {k.cost / 8}</div>}
     </div>
   );
 }
@@ -196,8 +196,8 @@ function UnitCard({ unitId }: { unitId: number }) {
  */
 function ManaBars({ side }: { side: SideId }) {
   const match = useGame((s) => s.match);
-  const summoner = match.units.find((u) => u.side === side && kindOf(u.kind).isSummoner);
-  const mp = summoner ? INCOME_MULTIPLIER * kindOf(summoner.kind).stats.mp : 0; // Mana per Stone-hour
+  const master = match.units.find((u) => u.side === side && kindOf(u.kind).isMaster);
+  const mp = master ? INCOME_MULTIPLIER * kindOf(master.kind).stats.mp : 0; // Mana per Stone-hour
   const stones = stonesControlled(match, side);
   const base = STONE_BASE * mp;
   const gross = (STONE_BASE + stones) * mp;

@@ -8,7 +8,7 @@ import { animElapsed, type Impact } from '../anim';
 
 /** How long a Damage Number stays up after impact (fade in, hold, fade out). */
 const POP_MS = 800;
-import { SummonDetail } from './SummonCard';
+import { FamiliarDetail } from './FamiliarCard';
 
 /** DOM layer over the canvas; children with data-anchor follow 3D anchors. */
 export function Overlay() {
@@ -55,7 +55,7 @@ export function Overlay() {
       if (root) {
         const W = root.clientWidth;
         const H = root.clientHeight;
-        // The summon detail card floats beside the hovered tile, never cut off.
+        // The Familiar detail card floats beside the hovered tile, never cut off.
         const card = root.querySelector<HTMLElement>('.summon-card-float');
         const tile = root.querySelector<HTMLElement>('.summon-tile.hovered');
         if (card) {
@@ -220,7 +220,7 @@ export function Overlay() {
       )}
       {phase.kind === 'menu' && phase.sub === 'summon' && hoverSummon && u && (
         <div className="summon-card-float">
-          <SummonDetail kindId={hoverSummon} side={u.side} />
+          <FamiliarDetail kindId={hoverSummon} side={u.side} />
         </div>
       )}
       {phase.kind === 'quickChoice' && (

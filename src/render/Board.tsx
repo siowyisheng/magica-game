@@ -346,7 +346,7 @@ function Highlights() {
   const rawHover = useGame((s) => s.hoverHex);
   const phase = useGame((s) => s.phase);
   const layers = useOutlines();
-  // While choosing a summon hex, ring the hex the cursor direction selects.
+  // While choosing the hex to summon onto, ring the hex the cursor direction selects.
   const active = activeUnit(match);
   let hoverHex = rawHover;
   if (phase.kind === 'summonDir' && active) {
@@ -567,7 +567,7 @@ function UnitView({
   ghost?: boolean;
   /** Valid quick-action / command target: draws a coloured sprite outline. */
   mark?: TargetMark;
-  /** Let clicks pass through to the tiles (e.g. while choosing a summon hex). */
+  /** Let clicks pass through to the tiles (e.g. while choosing the hex to summon onto). */
   clickThrough?: boolean;
 }) {
   const outline = useRef<THREE.Sprite>(null);
@@ -905,7 +905,7 @@ function Projectile({ step }: { step: Extract<AnimStep, { kind: 'projectile' }> 
 }
 
 
-/** The bright light on the summoned hex and the summon fading in inside it. */
+/** The bright light on the summoned hex and the familiar fading in inside it. */
 function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
   const match = useGame((s) => s.match);
   const light = useRef<THREE.Sprite>(null);
@@ -921,7 +921,7 @@ function SummonFx({ step }: { step: Extract<AnimStep, { kind: 'summon' }> }) {
     const t = animElapsed(anim);
     const p = (t - step.t0) / (step.t1 - step.t0);
     const { lightStart, fadeStart, fadeEnd } = SUMMON_PHASES;
-    // light: bloom in, hold, fade out as the summon solidifies
+    // light: bloom in, hold, fade out as the familiar solidifies
     const lp = p < lightStart ? 0 : p < fadeStart ? (p - lightStart) / (fadeStart - lightStart) : p < fadeEnd ? 1 : Math.max(0, 1 - (p - fadeEnd) / 0.2);
     if (light.current && lightMat.current) {
       const s = 0.4 + 2.4 * lp;

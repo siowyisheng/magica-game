@@ -1,4 +1,4 @@
-// Air summons.
+// Air familiars.
 import { type V3, add } from './model';
 import { arm, beast, both, breathe, eyes, figure, flame, flick, membrane, mouthAt } from './kit';
 import type { Design } from './designs';

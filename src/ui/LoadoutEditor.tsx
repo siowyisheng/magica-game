@@ -1,22 +1,22 @@
-// Loadout builder: pick exactly LOADOUT_SIZE of the Summons, name the Loadout
+// Loadout builder: pick exactly LOADOUT_SIZE of the Familiars, name the Loadout
 // and save it in this browser.
 
 import { useRef, useState } from 'react';
-import { ELEMENTS, LOADOUT_SIZE, SUMMONS, kindOf } from '../rules';
+import { ELEMENTS, LOADOUT_SIZE, FAMILIARS, kindOf } from '../rules';
 import { ELEMENT_COLORS } from '../render/sprites';
 import { useGame } from '../store';
 import { deleteLoadout, exportLoadoutsJson, importLoadoutsJson, isPlayable, listLoadouts, nameProblems, saveLoadout, saveProblems, type StoredLoadout } from '../loadouts/library';
 import { LoadoutStrip } from './LoadoutView';
-import { SummonDetail } from './SummonCard';
+import { FamiliarDetail } from './FamiliarCard';
 
 interface Draft {
   id: string | null;
   name: string;
-  summons: string[];
+  familiars: string[];
 }
 
-const fromStored = (l: StoredLoadout): Draft => ({ id: l.id, name: l.name, summons: [...l.summons] });
-const blank = (): Draft => ({ id: null, name: uniqueName('New Loadout'), summons: [] });
+const fromStored = (l: StoredLoadout): Draft => ({ id: l.id, name: l.name, familiars: [...l.familiars] });
+const blank = (): Draft => ({ id: null, name: uniqueName('New Loadout'), familiars: [] });
 
 export function LoadoutEditor() {
   const setScreen = useGame((s) => s.setScreen);
@@ -33,30 +33,30 @@ export function LoadoutEditor() {
   };
   const confirmDiscard = () => !dirty || window.confirm('Discard unsaved changes?');
   const change = (f: (d: Draft) => Draft) => {
-    setDraft((d) => f({ ...d, summons: [...d.summons] }));
+    setDraft((d) => f({ ...d, familiars: [...d.familiars] }));
     setDirty(true);
   };
-  const problems = saveProblems(draft.name, draft.summons, draft.id);
+  const problems = saveProblems(draft.name, draft.familiars, draft.id);
   const canSave = problems.length === 0;
 
   const save = (asNew: boolean) => {
     const name = asNew ? uniqueName(`${draft.name} (copy)`) : draft.name;
-    const p = saveProblems(name, draft.summons, asNew ? null : draft.id);
+    const p = saveProblems(name, draft.familiars, asNew ? null : draft.id);
     if (p.length) return flash(p[0]);
-    const saved = saveLoadout(asNew ? null : draft.id, name, draft.summons);
+    const saved = saveLoadout(asNew ? null : draft.id, name, draft.familiars);
     setList(listLoadouts());
     setDraft(fromStored(saved));
     setDirty(false);
     flash(`Saved “${saved.name}”`);
   };
 
-  const perElement = ELEMENTS.map((e) => [e, draft.summons.filter((id) => kindOf(id).element === e).length] as const);
+  const perElement = ELEMENTS.map((e) => [e, draft.familiars.filter((id) => kindOf(id).element === e).length] as const);
 
   return (
     <div className="devtool">
       <div className="editor-top window">
         <b>Loadouts</b>
-        <span className="muted small">Pick exactly {LOADOUT_SIZE} of the {SUMMONS.length} Summons. Loadouts are kept in this browser.</span>
+        <span className="muted small">Pick exactly {LOADOUT_SIZE} of the {FAMILIARS.length} Familiars. Loadouts are kept in this browser.</span>
         <span className="spacer" />
         {message && <span className="flash">{message}</span>}
         <button onClick={() => setSetupOpen(true)}>New match…</button>
@@ -86,8 +86,8 @@ export function LoadoutEditor() {
             <input value={draft.name} maxLength={24} onChange={(e) => change((d) => ({ ...d, name: e.target.value }))} />
           </label>
           <div className="loadout-count">
-            <b className={draft.summons.length === LOADOUT_SIZE ? 'good' : 'bad'}>
-              {draft.summons.length} / {LOADOUT_SIZE}
+            <b className={draft.familiars.length === LOADOUT_SIZE ? 'good' : 'bad'}>
+              {draft.familiars.length} / {LOADOUT_SIZE}
             </b>
             {perElement.map(([e, n]) => (
               <span key={e} style={{ color: ELEMENT_COLORS[e] }}>
@@ -95,20 +95,20 @@ export function LoadoutEditor() {
               </span>
             ))}
             <span className="spacer" />
-            <button onClick={() => change((d) => ({ ...d, summons: [] }))}>Clear</button>
-            <button onClick={() => change((d) => ({ ...d, summons: SUMMONS.map((s) => s.id) }))}>All</button>
+            <button onClick={() => change((d) => ({ ...d, familiars: [] }))}>Clear</button>
+            <button onClick={() => change((d) => ({ ...d, familiars: FAMILIARS.map((s) => s.id) }))}>All</button>
           </div>
           <LoadoutStrip
-            summons={draft.summons}
+            familiars={draft.familiars}
             side={0}
             big
             onHover={setHover}
             onToggle={(id) =>
-              change((d) => ({ ...d, summons: d.summons.includes(id) ? d.summons.filter((x) => x !== id) : [...d.summons, id] }))
+              change((d) => ({ ...d, familiars: d.familiars.includes(id) ? d.familiars.filter((x) => x !== id) : [...d.familiars, id] }))
             }
           />
-          <div className="muted small">Click a Summon to add or remove it. Darkened Summons are left out.</div>
-          <div className="loadout-card">{hover && <SummonDetail kindId={hover} side={0} />}</div>
+          <div className="muted small">Click a Familiar to add or remove it. Darkened Familiars are left out.</div>
+          <div className="loadout-card">{hover && <FamiliarDetail kindId={hover} side={0} />}</div>
         </div>
 
         <div className="window editor-side">
@@ -118,7 +118,7 @@ export function LoadoutEditor() {
             <button disabled={!canSave} onClick={() => save(false)}>
               Save
             </button>
-            <button disabled={loadoutProblemsOnly(draft.summons)} onClick={() => save(true)}>
+            <button disabled={loadoutProblemsOnly(draft.familiars)} onClick={() => save(true)}>
               Save as new
             </button>
           </div>
@@ -178,14 +178,14 @@ export function LoadoutEditor() {
 
 function LoadoutItem({ l, on, pick }: { l: StoredLoadout; on: boolean; pick: () => void }) {
   return (
-    <button className={`map-item ${on ? 'on' : ''}`} onClick={pick} title={isPlayable(l) ? undefined : `Has ${l.summons.length} Summons: add or remove to make ${LOADOUT_SIZE}`}>
+    <button className={`map-item ${on ? 'on' : ''}`} onClick={pick} title={isPlayable(l) ? undefined : `Has ${l.familiars.length} Familiars: add or remove to make ${LOADOUT_SIZE}`}>
       {l.name}
       {!isPlayable(l) && <span className="bad small"> · needs {LOADOUT_SIZE}</span>}
     </button>
   );
 }
 
-const loadoutProblemsOnly = (summons: string[]) => new Set(summons).size !== LOADOUT_SIZE;
+const loadoutProblemsOnly = (familiars: string[]) => new Set(familiars).size !== LOADOUT_SIZE;
 
 function uniqueName(base: string): string {
   let name = base.slice(0, 24);

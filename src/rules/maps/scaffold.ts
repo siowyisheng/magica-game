@@ -7,7 +7,7 @@ import type { HexTerrain, MapDef, MapHex } from '../types';
 // 'r' rough h4, 'l' low plain h2, '~' shallow h1, '=' deep h-1,
 // 'S' stone h3, 'L' stone on low ground h2, 'T' stone on plateau h4.
 const ROWS_TOP = [
-  '..,,...^...,,..', // 0 (red summoner spawn at col 7)
+  '..,,...^...,,..', // 0 (red master spawn at col 7)
   '.,,..^^#^^..,,.', // 1
   '...T..^^^..T...', // 2
   ',,.....S....,..', // 3

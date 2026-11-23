@@ -1,4 +1,4 @@
-// Earth summons.
+// Earth familiars.
 import { type V3, add } from './model';
 import { arm, both, breathe, eyes, figure, flick, mouthAt } from './kit';
 import type { Design } from './designs';

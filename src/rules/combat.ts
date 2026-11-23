@@ -23,7 +23,7 @@ export function elementRelation(attacker: Element | null, defender: Element | nu
 
 /** Element Bonus for a hit, by the two Elements (Obstacles, `defender` null, have none). */
 export function elementBonus(attacker: UnitKind, defender: UnitKind | null): number {
-  // Summoners and Summons alike, by their Elements; no Element (or an Obstacle) is neutral
+  // Masters and Familiars alike, by their Elements; no Element (or an Obstacle) is neutral
   return ELEMENT_BONUS[elementRelation(attacker.element, defender?.element ?? null)];
 }
 

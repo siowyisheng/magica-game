@@ -18,7 +18,7 @@ npm run build
 | Path | What |
 | --- | --- |
 | `src/rules/` | Pure TypeScript rules core: no React, three.js or DOM, integer math only. Hex math, terrain and movement (Move Types, Height, Water Level, ZOC), combat (damage = ATK − DEF (MP − MDF for Magic) + Element Bonus + hex-ring Facing Bonus − terrain cover, with Alignment shifting the stats; abilities have only a maximum range and no power), AV / Turn Delay, Mana, Summoning, Capture, Stranded, Stone Heal, timeline projection. |
-| `src/rules/data/` | Tuning tables (Base Delay by Speed, Mana and cover constants), the 30 Summoners and the 40 Summons. |
+| `src/rules/data/` | Tuning tables (Base Delay by Speed, Mana and cover constants), the 30 Masters and the 40 Familiars. |
 | `src/rules/maps/scaffold.ts` | The fixed 15×13 map with 7 Magic Stones and a river (Water Level 2). |
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
 | `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
@@ -37,24 +37,24 @@ npm run build
 - **Left-click** a blue hex to move there (or the unit itself to stay), which opens the command menu. While the menu is open, left-click the map to set Facing for Wait. Attack and Magic always face the target.
 - **Hover a unit in reach** to see translucent ghosts at the hexes it would Attack (A) and cast Magic (M) from (best Facing Modifier, then farthest, then not moving), a yellow outline around every hex it could act from, and both previews. **Left-click** it to move there and act. If both Attack and Magic are possible, you pick one.
 - **Right-click a unit** to toggle its ranges (up to 3; they clear when the turn ends): its Move Range in a pale line of its Side colour, Attack Reach as a red dashed line, Magic Reach as a blue dashed line. Right-click elsewhere, or left-click outside the ranges, to deselect. Then click anywhere to select the unit again.
-- **Right-click** in menus goes back a step (in the command menu it cancels the move; while placing a summon it returns to the summon list).
+- **Right-click** in menus goes back a step (in the command menu it cancels the move; while placing a familiar it returns to the familiar list).
 - **Right-drag**: pan. **Mouse wheel**: zoom.
 - The Action Timeline floats over the top of the board. It shows the acting unit and the next 15 actions in order, not scaled by time, with faint hour marks. Entries slide to their new places after each turn and while a command is previewed.
 - Hover a timeline entry to highlight its unit, or hover a unit to highlight its timeline entries.
 - While hovering a destination or command, the acting unit's icon jumps to its previewed slot on the timeline.
-- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, start a **New match…** (map, Test match, and per Side a Summoner, a Loadout and Human or AI) or a **Rematch**, **View Loadouts** (both Sides, omitted Summons darkened), **Edit Loadouts**, open the **Map Editor** or the **Dev tools**. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
+- Options panel: toggle the HP/AV bars, switch Red to hotseat, make Green an AI, start a **New match…** (map, Test match, and per Side a Master, a Loadout and Human or AI) or a **Rematch**, **View Loadouts** (both Sides, omitted Familiars darkened), **Edit Loadouts**, open the **Map Editor** or the **Dev tools**. Music and Sound volume sliders, Mute, the current track and a next-track button (saved between visits).
 
-## Summoners
+## Masters
 
-Ten Summoners to pick from, all walk + wade with Bolt, Rise and Ebb: **Sigil** (rune mage, balanced), **Warden** (knight-cleric, tough, Day), **Orrery** (stargazer, richest but fragile, Night), **Bramble** (druid crone, magic-proof), **Cinder** (ember noble, Fire), **Zephyr** (wind herald, fast, poor), **Sexton** (grave-keeper, rich), **Nereid** (sea priestess, Water), **Cairn** (stone hermit, tough) and **Tinker** (clockwork tinkerer, fighter). MP sets Mana Income, so a richer Summoner is weaker in a fight or slower.
+Ten Masters to pick from, all walk + wade with Bolt, Rise and Ebb: **Sigil** (rune mage, balanced), **Warden** (knight-cleric, tough, Day), **Orrery** (stargazer, richest but fragile, Night), **Bramble** (druid crone, magic-proof), **Cinder** (ember noble, Fire), **Zephyr** (wind herald, fast, poor), **Sexton** (grave-keeper, rich), **Nereid** (sea priestess, Water), **Cairn** (stone hermit, tough) and **Tinker** (clockwork tinkerer, fighter). MP sets Mana Income, so a richer Master is weaker in a fight or slower.
 
 ## Loadouts
 
-A Loadout is exactly 20 of the 40 Summons: the only Summons a Side may summon. It is picked separately from the Summoner in **New match…**, where each Side chooses one of your Loadouts, **Random** (any 20 Summons, at least 2 of them an Element's cheapest; the default), or **Auto** (built for the Summoner: five of each Element, cheapest two always in). No Loadouts ship with the game; a Loadout saved when Loadouts held 18 stays listed but needs editing to 20 before it can be picked. **Test match** ignores Loadouts and gives both Sides all 40. **Edit Loadouts** builds and saves them in this browser (click Summons to add or remove; Save, Save as new, Delete, Export / Import). During a match, **View Loadouts** shows both Sides' Loadouts, with the Summons each leaves out darkened.
+A Loadout is exactly 20 of the 40 Familiars: the only Familiars a Side may summon. It is picked separately from the Master in **New match…**, where each Side chooses one of your Loadouts, **Random** (any 20 Familiars, at least 2 of them an Element's cheapest; the default), or **Auto** (built for the Master: five of each Element, cheapest two always in). No Loadouts ship with the game; a Loadout saved when Loadouts held 18 stays listed but needs editing to 20 before it can be picked. **Test match** ignores Loadouts and gives both Sides all 40. **Edit Loadouts** builds and saves them in this browser (click Familiars to add or remove; Save, Save as new, Delete, Export / Import). During a match, **View Loadouts** shows both Sides' Loadouts, with the Familiars each leaves out darkened.
 
 ## Dev tools
 
-Options → Dev tools edits every Summoner's and summon's name, Cost, Element, Alignment, stats, Move Types, Attack range and Trajectory, and Magic (summons can have none or one Magic Ability). Design rules (name length, Cost steps, Summon Magic cost…) show as warnings. Edits are kept in this browser and apply to new matches; Export / Import them as JSON, reset one unit or all, or — while running `npm run dev` — **Write to repo**, which saves them into `src/rules/data/overrides.json` (commit that file to ship them).
+Options → Dev tools edits every Master's and summon's name, Cost, Element, Alignment, stats, Move Types, Attack range and Trajectory, and Magic (familiars can have none or one Magic Ability). Design rules (name length, Cost steps, Familiar Magic cost…) show as warnings. Edits are kept in this browser and apply to new matches; Export / Import them as JSON, reset one unit or all, or — while running `npm run dev` — **Write to repo**, which saves them into `src/rules/data/overrides.json` (commit that file to ship them).
 
 ## Maps
 
@@ -72,11 +72,11 @@ Options → Dev tools edits every Summoner's and summon's name, Cost, Element, A
 
 Audio starts with your first click or key press, because browsers block it before that.
 
-- **Music**: five tracks: *Dawn March* (day), *Highland Wind* (day), *Moonlit Tide* (night, calm), *Stone Vigil* (night, tense) and *Ember Skirmish* (any time, intense). Each plays for about 2½ minutes, then the shuffle picks the next. It never repeats either of the last two tracks, and it favours tracks that suit the Time of Day and how tense the battle is (units close to enemies, a hurt Summoner). If the mood clearly changes (dusk falls during a day track, a fight breaks out during a calm one), it crossfades early at a bar line.
+- **Music**: five tracks: *Dawn March* (day), *Highland Wind* (day), *Moonlit Tide* (night, calm), *Stone Vigil* (night, tense) and *Ember Skirmish* (any time, intense). Each plays for about 2½ minutes, then the shuffle picks the next. It never repeats either of the last two tracks, and it favours tracks that suit the Time of Day and how tense the battle is (units close to enemies, a hurt Master). If the mood clearly changes (dusk falls during a day track, a fight breaks out during a calm one), it crossfades early at a bar line.
 - **Effects**: clicks and hovers on every control; select / back / deny / facing ticks on the map; footsteps that depend on how the unit moves (walk, wade, swim, fly) and its weight; melee swings and impacts scaled by damage, a clink for 0 damage, arrows, a cast sound per element, heals, deaths; the summoning charge and appearance; the capture bell (major when you capture, minor when the enemy does); Rise / Ebb; the hourly Mana chime; your turn starting; Stranded; dawn and dusk; victory and defeat (the music ducks under them). Effects are timed to the turn animations.
 
 ## Scaffold simplifications
 
-- All Summon names, stats and costs are placeholders: data in `src/rules/data/summons.ts`.
+- All Familiar names, stats and costs are placeholders: data in `src/rules/data/familiars.ts`.
 - Timeline entries after a unit's next turn are *projections* that assume a Move + Attack turn. They are drawn dotted.
 - Animations are simple (slides, bonks, projectiles). There's no sound, status effects, line of sight or Tauri packaging yet.
