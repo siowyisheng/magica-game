@@ -140,6 +140,119 @@
         "spd": 12,
         "mov": 5
       }
+    },
+    "imp": {
+      "stats": {
+        "atk": 5,
+        "def": 1,
+        "mp": 0,
+        "mdf": 2,
+        "spd": 11,
+        "mov": 5
+      }
+    },
+    "hound": {
+      "alignment": "none",
+      "stats": {
+        "atk": 6,
+        "def": 3,
+        "mp": 0,
+        "mdf": 2,
+        "spd": 9,
+        "mov": 7
+      }
+    },
+    "salamander": {
+      "stats": {
+        "atk": 5,
+        "def": 2,
+        "mp": 6,
+        "mdf": 3,
+        "spd": 11,
+        "mov": 5
+      },
+      "moveTypes": [
+        "fly"
+      ],
+      "magicIds": [
+        "gale-shot"
+      ]
+    },
+    "archer": {
+      "stats": {
+        "atk": 7,
+        "def": 3,
+        "mp": 0,
+        "mdf": 4,
+        "spd": 8,
+        "mov": 5
+      }
+    },
+    "wisp": {
+      "stats": {
+        "atk": 3,
+        "def": 4,
+        "mp": 5,
+        "mdf": 6,
+        "spd": 12,
+        "mov": 3
+      },
+      "magicIds": []
+    },
+    "newt": {
+      "stats": {
+        "atk": 7,
+        "def": 6,
+        "mp": 0,
+        "mdf": 5,
+        "spd": 13,
+        "mov": 5
+      },
+      "magicIds": []
+    },
+    "golem": {
+      "stats": {
+        "atk": 7,
+        "def": 8,
+        "mp": 0,
+        "mdf": 8,
+        "spd": 10,
+        "mov": 4
+      },
+      "moveTypes": [
+        "walk",
+        "wade"
+      ]
+    },
+    "pyromancer": {
+      "stats": {
+        "atk": 8,
+        "def": 6,
+        "mp": 10,
+        "mdf": 6,
+        "spd": 9,
+        "mov": 5
+      }
+    },
+    "minotaur": {
+      "stats": {
+        "atk": 12,
+        "def": 8,
+        "mp": 0,
+        "mdf": 6,
+        "spd": 11,
+        "mov": 7
+      }
+    },
+    "drake": {
+      "stats": {
+        "atk": 10,
+        "def": 5,
+        "mp": 12,
+        "mdf": 6,
+        "spd": 12,
+        "mov": 6
+      }
     }
   },
   "abilities": {}
