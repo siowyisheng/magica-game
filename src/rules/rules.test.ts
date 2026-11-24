@@ -61,17 +61,18 @@ describe('facing bonus', () => {
     expect(bonus(hex(1, 0))).toBe(0); // in front (E)
     expect(bonus(hex(1, -1))).toBe(0); // 60°
     expect(bonus(hex(0, 1))).toBe(0); // 60° other side
-    expect(bonus(hex(0, -1))).toBe(2); // 120°
+    expect(bonus(hex(0, -1))).toBe(1); // 120°: a rear side is Flank
     expect(bonus(hex(-1, 0))).toBe(2); // directly behind
   });
 
-  it('puts ranged hits between hex directions into bands: under 90° +0, 90°–120° +1, 120°+ +2', () => {
+  it('puts ranged hits between hex directions into bands: under 90° +0, 90°–150° +1, 150°+ +2', () => {
     const v = hex(2, -1); // ring 2, halfway between E and NE → 30°
     expect(ringPosition(v)).toEqual({ p: 1, d: 2 });
     expect(facingBonus(hex(0, 0), 0, v)).toBe(0);
     expect(facingBonus(hex(0, 0), 0, hex(3, -1))).toBe(0); // 20°
     expect(facingBonus(hex(0, 0), 0, hex(-1, 2))).toBe(1); // 90°
     expect(facingBonus(hex(0, 0), 0, hex(-1, -1))).toBe(2); // 150°
+    expect(facingBonus(hex(0, 0), 0, hex(0, -2))).toBe(1); // 120°
   });
 });
 
@@ -655,6 +656,17 @@ describe('trajectory and clear angle', () => {
     // target 2 hexes away diagonally; a unit next to the line, not on it
     place(s, 'imp', 1, 1, 2);
     expect(clearShot(s, sling.id, sling.pos, hex(2, 0))).toBe(true);
+  });
+
+  it('a Unit blocks a wide body: a shot grazing past it is blocked (an Obstacle there would not)', async () => {
+    const { clearShot } = await import('./index');
+    const s = withLine();
+    const sling = place(s, 'sling', 0, 0, 1);
+    place(s, 'imp', 1, 1, 1); // sling at (0,1), target (2,2)
+    expect(clearShot(s, sling.id, sling.pos, hex(2, 2))).toBe(false);
+    s.units = s.units.filter((u) => u.kind !== 'imp');
+    s.obstacles.push({ id: 901, pos: hex(1, 1), def: 4, hp: 10 });
+    expect(clearShot(s, sling.id, sling.pos, hex(2, 2))).toBe(true);
   });
 
   it('Direct Magic also needs a Clear Angle', async () => {

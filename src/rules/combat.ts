@@ -40,8 +40,8 @@ export function facingBonus(defPos: Hex, facing: Dir, fromPos: Hex): number {
   const { p, d } = ringPosition(v);
   let m = (((p - facing * d) % (6 * d)) + 6 * d) % (6 * d);
   if (m > 3 * d) m = 6 * d - m;
-  // angle = 60·m/d degrees; compare 2m against 3d (90°) and m against 2d (120°)
-  const band = 2 * m < 3 * d ? 0 : m < 2 * d ? 1 : 2;
+  // angle = 60·m/d degrees; compare 2m against 3d (90°) and 5d (150°)
+  const band = 2 * m < 3 * d ? 0 : 2 * m < 5 * d ? 1 : 2;
   return FACING_BONUS[band];
 }
 
@@ -167,6 +167,12 @@ export function computeHeal(state: MatchState, caster: Unit, target: Unit): Effe
 const SQRT3 = Math.sqrt(3);
 /** Radius of the standard body of a Unit or Obstacle, in world units (hex width = √3). */
 export const BODY_RADIUS = 0.3 * SQRT3;
+/**
+ * Radius a Unit blocks Direct shots with: much wider than its standard body
+ * (84% of a hex width against 60%), so Units screen what stands behind them.
+ * Obstacles keep the standard body.
+ */
+export const UNIT_BLOCK_RADIUS = 0.42 * SQRT3;
 /** Radius of a standard projectile. */
 export const SHOT_RADIUS = 0.08 * SQRT3;
 /** Aim points sampled across the target's body. */
@@ -189,8 +195,8 @@ function segmentDistance2(px: number, pz: number, ax: number, az: number, bx: nu
 
 /**
  * Clear Angle: whether a Direct shot from `from` can reach the body at
- * `target`. Seen from above, every other Unit and Obstacle is a circle of
- * BODY_RADIUS at its hex centre; the shot is clear when some straight line
+ * `target`. Seen from above, every other Unit is a circle of UNIT_BLOCK_RADIUS
+ * and every Obstacle one of BODY_RADIUS at its hex centre; the shot is clear when some straight line
  * from the shooter's centre to a point across the target's body passes every
  * other body with room for a SHOT_RADIUS projectile. Height, Pits and water
  * never block. Uses only + − × ÷ and √ (deterministic).
@@ -204,17 +210,18 @@ export function clearShot(state: MatchState, shooterId: number, from: Hex, targe
   const len = Math.sqrt(dx * dx + dz * dz);
   const px = -dz / len;
   const pz = dx / len;
-  const blockers: [number, number][] = [];
-  for (const u of state.units) if (u.hp > 0 && u.id !== shooterId && !hexEq(u.pos, target) && !hexEq(u.pos, from)) blockers.push(centre(u.pos));
-  for (const o of state.obstacles) if (o.hp > 0 && !hexEq(o.pos, target)) blockers.push(centre(o.pos));
-  const room = (BODY_RADIUS + SHOT_RADIUS) ** 2;
+  const blockers: [number, number, number][] = [];
+  const unitRoom = (UNIT_BLOCK_RADIUS + SHOT_RADIUS) ** 2;
+  const obstacleRoom = (BODY_RADIUS + SHOT_RADIUS) ** 2;
+  for (const u of state.units) if (u.hp > 0 && u.id !== shooterId && !hexEq(u.pos, target) && !hexEq(u.pos, from)) blockers.push([...centre(u.pos), unitRoom]);
+  for (const o of state.obstacles) if (o.hp > 0 && !hexEq(o.pos, target)) blockers.push([...centre(o.pos), obstacleRoom]);
   for (let k = 0; k <= 2 * AIM_SAMPLES; k++) {
     // centre first, then outward alternately
     const i = k === 0 ? 0 : (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2);
     const off = (BODY_RADIUS * i) / AIM_SAMPLES;
     const ax = tx + px * off;
     const az = tz + pz * off;
-    if (blockers.every(([bx, bz]) => segmentDistance2(bx, bz, sx, sz, ax, az) >= room - 1e-9)) return true;
+    if (blockers.every(([bx, bz, room]) => segmentDistance2(bx, bz, sx, sz, ax, az) >= room - 1e-9)) return true;
   }
   return false;
 }
