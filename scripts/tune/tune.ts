@@ -305,10 +305,13 @@ function report(o: Options) {
   rows.sort((a, b) => Math.abs(Math.log(b.ratio)) - Math.abs(Math.log(a.ratio)));
   const ck = join(o.out, 'checkpoint.json');
   if (!o.weights && existsSync(ck)) console.log(`after ${JSON.parse(readFileSync(ck, 'utf8')).iteration} iterations (${path})`);
-  console.log(`${'weight'.padEnd(18)}${'default'.padStart(10)}${'tuned'.padStart(10)}${'change'.padStart(10)}`);
+  // the exact change, from the checkpoint when there is one (tuned-weights.json is rounded to 3 figures)
+  const exact: Record<string, number> | null = !o.weights && existsSync(ck) ? JSON.parse(readFileSync(ck, 'utf8')).x : null;
+  console.log(`${'weight'.padEnd(18)}${'default'.padStart(10)}${'tuned'.padStart(10)}${'change'.padStart(10)}${'×'.padStart(9)}`);
   for (const r of rows) {
-    const pct = (r.ratio - 1) * 100;
-    console.log(`${r.name.padEnd(18)}${String(r.def).padStart(10)}${String(r.val).padStart(10)}${`${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`.padStart(10)}`);
+    const ratio = exact && typeof exact[r.name] === 'number' ? Math.exp(exact[r.name]) : r.ratio;
+    const pct = (ratio - 1) * 100;
+    console.log(`${r.name.padEnd(18)}${String(r.def).padStart(10)}${String(r.val).padStart(10)}${`${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`.padStart(10)}${ratio.toFixed(4).padStart(9)}`);
   }
 }
 

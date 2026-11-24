@@ -355,3 +355,19 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
     }
   });
 });
+
+describe('the light scorer (for Hard\'s playouts)', () => {
+  it('scores the same moves, cheaper, and Hard plays a legal move with it', async () => {
+    const { rankCandidates, AI_WEIGHTS, LOOKAHEAD } = await import('./ai');
+    const st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 3, masters: ['regent', 'lich'], rosters: [randomLoadout(mulberry32(1)), randomLoadout(mulberry32(2))] });
+    let s = st;
+    for (let i = 0; i < 12 && s.winner === null; i++) s = applyTurn(s, chooseAction(s, undefined, 'normal')).state;
+    const full = rankCandidates(s, AI_WEIGHTS).candidates;
+    const light = rankCandidates(s, AI_WEIGHTS, { light: true }).candidates;
+    // the same moves are on the list (only their scores are rougher)
+    expect(new Set(light.map((c) => `${c.action.to.q},${c.action.to.r}:${JSON.stringify(c.action.command)}`)).size).toBe(new Set(full.map((c) => `${c.action.to.q},${c.action.to.r}:${JSON.stringify(c.action.command)}`)).size);
+    expect(LOOKAHEAD.light).toBe(true);
+    const a = chooseAction(s, undefined, 'hard');
+    expect(validateTurn(s, a)).toBeNull();
+  });
+});

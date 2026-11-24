@@ -1,14 +1,19 @@
 // Arena: the current AI (candidate) against the frozen baseline AI.
 // Each pair plays the same setup twice with sides swapped.
 //   npx vitest run --config scripts/vitest.config.ts scripts/arena.run.ts
-// Env: PAIRS (default 8), SEED (default 1), LEVEL (candidate level: normal|hard), OPP (baseline|normal).
+// Env: PAIRS (default 8), SEED (default 1), LEVEL (candidate level: normal|hard), OPP (baseline|normal),
+//      REPLIES (candidate Hard: enemy replies tried, default 1), OPP_LEVEL / OPP_REPLIES (OPP=normal: the current
+//      AI at that level and replies, e.g. Hard with 3 replies against Hard with 1).
+//      LIGHT=1: the candidate Hard plays its look-ahead with the light scorer.
 
 import { it } from 'vitest';
 import { SCAFFOLD_MAP, MASTERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
 import { AI_WEIGHTS, autoLoadout, chooseAction as chooseRaw } from '../src/ai/ai';
 
 const W = { ...AI_WEIGHTS, ...JSON.parse(process.env.W ?? '{}') };
-const chooseAction = (s: MatchState) => chooseRaw(s, W);
+const levelOf = (v: string | undefined) => (v === 'hard' ? 'hard' : 'normal') as 'normal' | 'hard';
+const candidatePolicy = (s: MatchState) => chooseRaw(s, W, levelOf(process.env.LEVEL), { replies: Number(process.env.REPLIES ?? 1), lightPlayouts: process.env.LIGHT === '1' });
+const currentOpp = (s: MatchState) => chooseRaw(s, W, levelOf(process.env.OPP_LEVEL), { replies: Number(process.env.OPP_REPLIES ?? 1) });
 import { chooseAction as baselineChoose } from './baseline/ai';
 
 function rng(seed: number) {
@@ -51,7 +56,7 @@ function play(setup: { masters: [string, string]; rosters: [string[], string[]];
 it('arena', () => {
   const pairs = Number(process.env.PAIRS ?? 8);
   const level = (process.env.LEVEL ?? 'normal') as 'normal' | 'hard';
-  const opp: Policy = process.env.OPP === 'normal' ? chooseAction : baselineChoose;
+  const opp: Policy = process.env.OPP === 'normal' ? currentOpp : baselineChoose;
   const r = rng(Number(process.env.SEED ?? 1) * 7919);
   let w = 0, d = 0, l = 0, byTime = 0, turns = 0, candMs = 0, games = 0, masterKills = 0;
   for (let i = 0; i < pairs; i++) {
@@ -61,7 +66,7 @@ it('arena', () => {
     for (const candSide of [0, 1] as const) {
       const dbg = process.env.DEBUG === `${i}:${candSide}`;
       if (process.env.DEBUG && !dbg) continue;
-      const res = play(setup, candSide === 0 ? chooseAction : opp, candSide === 1 ? chooseAction : opp, candSide === 0 ? [level, 'normal'] : ['normal', level], dbg);
+      const res = play(setup, candSide === 0 ? candidatePolicy : opp, candSide === 1 ? candidatePolicy : opp, candSide === 0 ? [level, 'normal'] : ['normal', level], dbg);
       games++;
       turns += res.turns;
       candMs += res.ms[candSide];
