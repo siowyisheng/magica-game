@@ -60,9 +60,10 @@ The threat estimate is smarter than "worst-case damage":
 
 - Each enemy is considered only if it acts before this Unit's next turn, and its hit is judged **as of when it acts**: with the Mana its Side will have by then (Income paid at the hour marks passed on the way decides whether it can cast) and the time of day then (Alignment may turn at an hour mark). The same goes for enemy healing and for the Familiars the enemy Master could afford to summon. A Master also looks one enemy round further ahead (`masterSecondRound`).
 - A fast enemy may get several turns in before this Unit acts again. If it can't hit this Unit this turn, the AI still checks whether it could walk over and hit it in time.
+- **Ties count as before.** An enemy turn at exactly the same time as this Unit's next turn is decided by Speed, so the AI counts it as coming first (the safe side). This also applies to its second and later turns, and to a Familiar the enemy could summon in time.
 - **Trades.** An enemy that my side can finish before it acts again pays for its hit: its threat is cut by up to `tradeCredit` (50%), in proportion to how much of its HP my allies can deal in time. An advance is judged as an exchange, not just as damage taken.
 - **A screen that leaves first is no screen.** For a Master, its own Familiars that act before an enemy don't count as blocking that enemy's path: they may walk away first.
-- An enemy attacks only one target. A Familiar is charged with its **share** of each enemy: the damage the enemy would deal to it, weighted against everything else that enemy could hit (by damage², so it leans toward its best target), and never less than 25% (`threatShareMin`). Masters always carry full threat, because enemies always go after them.
+- An enemy attacks only one target. A Familiar is charged with its **share** of each enemy: the damage the enemy would deal to it, weighted against everything else that enemy could hit (by damage², so it leans toward its best target), and never less than 25% (`threatShareMin`). Masters always carry full threat, because enemies always go after them. **A hit that would kill it counts in full** for a Familiar too, with no share and no trade credit: an enemy that can take a kill usually does.
 
 **A Master's HP budget**
 

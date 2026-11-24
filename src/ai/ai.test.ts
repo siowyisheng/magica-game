@@ -247,3 +247,22 @@ describe('a safe Master stages forward (Lamia vs Oracle)', () => {
     }
   });
 });
+
+describe('a Familiar counting enemy turns that tie with its own (Lancer vs Oracle)', () => {
+  it("doesn't end where a Hydra acting twice first kills it", async () => {
+    const { readFileSync } = await import('node:fs');
+    const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
+    const r = JSON.parse(readFileSync(new URL('./fixtures/lancer-vs-oracle.replay.json', import.meta.url), 'utf8')).replay;
+    applyTemporaryBalance(r.balance);
+    try {
+      let st = r.initial;
+      // 10:25: the Taurus's next turn (11:07) ties with the Hydra's second, which the Hydra wins on Speed
+      for (const a of r.actions.slice(0, 32)) st = applyTurn(st, a).state;
+      const a = chooseAction(st);
+      expect(a.unitId).toBe(18);
+      expect(a.to).not.toEqual({ q: 12, r: 6 }); // there, the Hydra's hit (10) kills it
+    } finally {
+      endTemporaryBalance();
+    }
+  });
+});
