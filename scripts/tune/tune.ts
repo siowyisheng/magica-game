@@ -104,7 +104,7 @@ class Pool {
 }
 
 interface Options {
-  command: 'tune' | 'validate';
+  command: 'tune' | 'validate' | 'report';
   iterations: number;
   pairs: number;
   workers: number;
@@ -127,7 +127,7 @@ const unmangle = (arg: string) => (process.platform === 'win32' && arg.includes(
 function parseArgs(argv: string[]): Options {
   const o: Options = { command: 'tune', iterations: 1000, pairs: 4, workers: Math.max(1, availableParallelism() - 1), out: 'tune-out', seed: 1, c: 0.15, a: 0.03, maxTurns: 1000, balance: null, resume: false, weights: null };
   const args = argv.map(unmangle);
-  if (args[0] === 'tune' || args[0] === 'validate') o.command = args.shift() as Options['command'];
+  if (args[0] === 'tune' || args[0] === 'validate' || args[0] === 'report') o.command = args.shift() as Options['command'];
   if (o.command === 'validate') o.pairs = 200;
   while (args.length) {
     const k = args.shift()!;
@@ -162,6 +162,7 @@ function parseArgs(argv: string[]): Options {
 const readmeHint = `Usage: npm run tune -- [tune|validate] [options]   (see docs/tuning.md)
   tune      SPSA self-play tuning; writes <out>/checkpoint.json, log.jsonl, tuned-weights.json
   validate  tuned weights (--weights) against the defaults; prints the score and its 95% range
+  report    every tuned weight: default, tuned value and change, biggest change first
 Options: --iterations N (1000)  --pairs N per iteration (4; validate: 200)  --workers N (cores - 1)
          --out DIR (tune-out)  --seed N (1)  --c F (0.15)  --a F (0.03)  --max-turns N (1000)
          --balance FILE (a replay .json or a balance .json, to tune on your local stats)
@@ -278,8 +279,29 @@ async function validate(o: Options, pool: Pool) {
   console.log(`VALIDATE tuned vs default: W ${w} D ${d} L ${l} · score ${(s * 100).toFixed(1)}% (95%: ${((s - half) * 100).toFixed(1)}–${((s + half) * 100).toFixed(1)}%) · Elo ${elo(s).toFixed(0)} (${elo(s - half).toFixed(0)} to ${elo(s + half).toFixed(0)}) · ${((Date.now() - t0) / 60000).toFixed(1)} min`);
 }
 
+/** Default, tuned value and change of every tuned weight, biggest change first. */
+function report(o: Options) {
+  const path = o.weights ?? join(o.out, 'tuned-weights.json');
+  const raw = JSON.parse(readFileSync(path, 'utf8'));
+  const tuned: Record<string, number> = raw.weights ?? raw;
+  const rows = PARAMS.filter((p) => typeof tuned[p.name] === 'number').map((p) => {
+    const def = AI_WEIGHTS[p.name as keyof Weights] as number;
+    const val = tuned[p.name];
+    return { name: p.name, def, val, ratio: val / def };
+  });
+  rows.sort((a, b) => Math.abs(Math.log(b.ratio)) - Math.abs(Math.log(a.ratio)));
+  const ck = join(o.out, 'checkpoint.json');
+  if (!o.weights && existsSync(ck)) console.log(`after ${JSON.parse(readFileSync(ck, 'utf8')).iteration} iterations (${path})`);
+  console.log(`${'weight'.padEnd(18)}${'default'.padStart(10)}${'tuned'.padStart(10)}${'change'.padStart(10)}`);
+  for (const r of rows) {
+    const pct = (r.ratio - 1) * 100;
+    console.log(`${r.name.padEnd(18)}${String(r.def).padStart(10)}${String(r.val).padStart(10)}${`${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`.padStart(10)}`);
+  }
+}
+
 async function main() {
   const o = parseArgs(process.argv.slice(2));
+  if (o.command === 'report') return report(o);
   const balancePath = o.balance ? resolve(o.balance) : null;
   const balance = loadBalance(balancePath);
   if (balance) console.log(`balance: ${balancePath}`);
