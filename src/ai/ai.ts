@@ -304,7 +304,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     let sure = 0;
     for (const e of reaches) {
       if (killed.has(e.unit.id)) continue;
-      const first = e.unit.av < delay;
+      // a tie with this Unit's next turn goes by Speed: count it as before (the safe side)
+      const first = e.unit.av <= delay;
       const second = !first && kind.isMaster && e.unit.av < delay + secondWindow;
       if (!first && !second) continue; // acts after the window
       let d = maxDamage(e, me, h, f);
@@ -312,15 +313,17 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       // a fast enemy may act more than once before my next turn: it can close in first
       const ek = kindOf(e.unit.kind);
       const rep = turnDelay(ek, true, false); // closing in: Move + Wait, the quickest repeat
-      const turnsBefore = first ? 1 + Math.floor(Math.max(0, delay - e.unit.av - 1) / rep) : 1;
+      const turnsBefore = first ? 1 + Math.floor(Math.max(0, delay - e.unit.av) / rep) : 1;
       if (turnsBefore >= 2 && d === 0) {
         const reach = ek.stats.mov * turnsBefore + Math.max(ek.attack.range, ...ek.magic.map((m) => (m.kind === 'water' ? 0 : m.range + m.radius)));
         if (hexDistance(e.unit.pos, h) <= reach) d = approxDamage(state, e.unit, me, h, f);
       }
       // enemies go for the Master; a Familiar only bears its share of an enemy that has other targets
-      if (!kind.isMaster && d > 0) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
+      // (not a hit that would kill it: an enemy that can take a kill usually does)
+      const lethal = d >= me.hp;
+      if (!kind.isMaster && d > 0 && !lethal) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
       // a trade, not just a loss: an enemy my side can finish before it acts again pays for its hit
-      if (!kind.isMaster && d > 0) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
+      if (!kind.isMaster && d > 0 && !lethal) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
       total += second ? d * w.masterSecondRound : d;
     }
     threatCache.set(key, total);
@@ -475,14 +478,14 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         .slice(0, 6)
     : [];
   const summonThreat = (h: Hex, delay: number, f: Dir): number => {
-    if (!enemyMasterU || enemyMasterU.av >= delay || !summonables.length) return 0;
+    if (!enemyMasterU || enemyMasterU.av > delay || !summonables.length) return 0;
     const em = kindOf(enemyMasterU.kind);
     // it may walk first, then summon next to where it stops
     const fromSpawn = hexDistance(enemyMasterU.pos, h) - em.stats.mov - 1;
     let best = 0;
     for (const k of summonables) {
       // a new Familiar first acts a summoned turn's delay after its Master's turn
-      if (enemyMasterU.av + turnDelay(k, true, true) >= delay) continue;
+      if (enemyMasterU.av + turnDelay(k, true, true) > delay) continue;
       const odds = reachOdds(k.stats.mov + hitReach(k) - fromSpawn);
       if (odds <= 0) continue;
       const v: Unit = { id: -99, kind: k.id, side: enemyMasterU.side, pos: neighbor(h, facingToward(h, enemyMasterU.pos)), facing: 0, hp: MAX_HP, av: 0, stranded: false };
