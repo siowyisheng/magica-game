@@ -4,6 +4,7 @@
 // Env: PAIRS (default 8), SEED (default 1), LEVEL (candidate level: normal|hard), OPP (baseline|normal),
 //      REPLIES (candidate Hard: enemy replies tried, default 1), OPP_LEVEL / OPP_REPLIES (OPP=normal: the current
 //      AI at that level and replies, e.g. Hard with 3 replies against Hard with 1).
+//      LIGHT=1: the candidate Hard plays its look-ahead with the light scorer.
 
 import { it } from 'vitest';
 import { SCAFFOLD_MAP, MASTERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
@@ -11,7 +12,7 @@ import { AI_WEIGHTS, autoLoadout, chooseAction as chooseRaw } from '../src/ai/ai
 
 const W = { ...AI_WEIGHTS, ...JSON.parse(process.env.W ?? '{}') };
 const levelOf = (v: string | undefined) => (v === 'hard' ? 'hard' : 'normal') as 'normal' | 'hard';
-const candidatePolicy = (s: MatchState) => chooseRaw(s, W, levelOf(process.env.LEVEL), { replies: Number(process.env.REPLIES ?? 1) });
+const candidatePolicy = (s: MatchState) => chooseRaw(s, W, levelOf(process.env.LEVEL), { replies: Number(process.env.REPLIES ?? 1), lightPlayouts: process.env.LIGHT === '1' });
 const currentOpp = (s: MatchState) => chooseRaw(s, W, levelOf(process.env.OPP_LEVEL), { replies: Number(process.env.OPP_REPLIES ?? 1) });
 import { chooseAction as baselineChoose } from './baseline/ai';
 
