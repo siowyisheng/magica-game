@@ -22,6 +22,7 @@ import {
   kindOf,
   magicTargetHexes,
   manaIncome,
+  manaAfter,
   mapHexAt,
   neighbor,
   previewEffects,
@@ -192,7 +193,10 @@ function enemyReaches(state: MatchState, me: Unit): EnemyReach[] {
 function maxDamageFrom(state: MatchState, e: EnemyReach, me: Unit, h: Hex, f: Dir): number {
   const ek = kindOf(e.unit.kind);
   const target: Unit = { ...me, pos: h, facing: f };
-  const mana = state.sides[e.unit.side].mana;
+  // judged when it acts: the Mana it will have (Income may land first) and the
+  // time of day then (Alignment may turn at an hour mark)
+  const mana = manaAfter(state, e.unit.side, e.unit.av);
+  const then: MatchState = { ...state, clock: state.clock + e.unit.av };
   let best = 0;
   const spells = ek.magic.filter((m) => m.kind === 'damage' && m.manaCost <= mana);
   const view: MatchState = { ...state, units: state.units.map((u) => (u.id === me.id ? target : u)) };
@@ -201,12 +205,12 @@ function maxDamageFrom(state: MatchState, e: EnemyReach, me: Unit, h: Hex, f: Di
     if (hexEq(p, h)) continue;
     const d = hexDistance(p, h);
     if (d >= 1 && d <= ek.attack.range && shotAllowed(view, e.unit.id, atkTraj, p, h)) {
-      best = Math.max(best, computeDamage(state, e.unit, p, target, 'physical').amount);
+      best = Math.max(best, computeDamage(then, e.unit, p, target, 'physical').amount);
     }
     for (const m of spells) {
       if (m.kind !== 'damage') continue;
       if (d <= m.range + m.radius && (m.radius > 0 || shotAllowed(view, e.unit.id, trajectoryOf(m), p, h))) {
-        best = Math.max(best, computeDamage(state, e.unit, p, target, 'magic').amount);
+        best = Math.max(best, computeDamage(then, e.unit, p, target, 'magic').amount);
       }
     }
   }
@@ -240,9 +244,10 @@ function approxDamage(state: MatchState, e: Unit, me: Unit, h: Hex, f: Dir): num
   // it arrives from its own direction: use the hex next to `h` toward it
   const dir = facingToward(h, e.pos);
   const from = neighbor(h, dir);
-  let best = computeDamage(state, e, from, target, 'physical').amount;
-  const mana = state.sides[e.side].mana;
-  if (ek.magic.some((m) => m.kind === 'damage' && m.manaCost <= mana)) best = Math.max(best, computeDamage(state, e, from, target, 'magic').amount);
+  const then: MatchState = { ...state, clock: state.clock + e.av };
+  let best = computeDamage(then, e, from, target, 'physical').amount;
+  const mana = manaAfter(state, e.side, e.av);
+  if (ek.magic.some((m) => m.kind === 'damage' && m.manaCost <= mana)) best = Math.max(best, computeDamage(then, e, from, target, 'magic').amount);
   return best;
 }
 
@@ -345,12 +350,11 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   // Enemy healing (1, 3): how much each enemy can be healed before my side's next
   // hits land, and how much a healer's work is worth (its support value).
   const healWindow = turnDelay(kind, true, true);
-  const enemyMana = state.sides[1 - me.side].mana;
   /** Heal a healer would give, ignoring the target's missing HP. */
   const rawHeal = (h: Unit) => computeHeal(state, h, { ...h, hp: 1 }).amount;
   const healers = reaches.filter((e) => {
     const k = kindOf(e.unit.kind);
-    return e.unit.av < healWindow && k.magic.some((m) => m.kind === 'heal' && m.manaCost <= enemyMana);
+    return e.unit.av < healWindow && k.magic.some((m) => m.kind === 'heal' && m.manaCost <= manaAfter(state, e.unit.side, e.unit.av));
   });
   const healReach = (e: EnemyReach, at: Hex) => {
     const m = kindOf(e.unit.kind).magic.find((x) => x.kind === 'heal')!;
@@ -464,7 +468,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   // can act almost at once, so the enemy Master's reach grows by theirs (cheap: the 6
   // hardest-hitting it can afford, placed next to it).
   const enemyMasterU = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isMaster);
-  const enemyBudget = state.sides[1 - me.side].mana;
+  const enemyBudget = enemyMasterU ? manaAfter(state, enemyMasterU.side, enemyMasterU.av) : 0;
   const summonables = kind.isMaster && enemyMasterU
     ? FAMILIARS.filter((k) => k.cost <= enemyBudget && inRoster(state, enemyMasterU.side, k.id))
         .sort((a, b) => Math.max(b.stats.atk, b.stats.mp) - Math.max(a.stats.atk, a.stats.mp) || a.id.localeCompare(b.id))
