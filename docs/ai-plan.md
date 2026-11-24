@@ -59,10 +59,11 @@ changes smoothly as the situation does.
 - **Kill**: material lead overwhelming and the enemy Master reachable:
   go straight for it.
 
-Posture adjusts a few existing weights: Squeeze raises guarding and lowers
-boldness; Kill raises the push and makes the enemy Master the Front; Kill and
-Squeeze let the Master accept a thinner HP margin; Defend weakens its pull
-forward.
+Posture adjusts a few existing weights: Squeeze raises guarding; Kill makes
+the enemy Master the Front; Kill and Squeeze let the Master accept a thinner
+HP margin; Defend weakens its pull forward. How far ahead the Side is comes
+from one measure, the Plan's `lead` (material share, Stones, Mana), which
+sets the push (bolder, pulled harder toward objectives) on its own.
 
 ## 4. The Front, Master staging and Familiar Jobs
 
@@ -113,11 +114,9 @@ Reserve, free when Mana would overflow the cap anyway.
 
 Under Defend:
 
-- **F2 placement**: the answer is placed where it can reach the threat next
-  turn, and between the threat and the Master (unless the threat flies).
-- **F3 drawing attention**: a new Familiar that answers a threat and can
-  reach it takes part of that threat off the Master in the Master's own
-  threat score, so summoning counts as defending.
+- **Placement**: the answer is placed toward the threat (the one summon pull,
+  `summonFront`). Whether its body blocks the threat's path or Direct shot is
+  checked with the real rules when the Master's life depends on it.
 - **F4**: saving up for a better Familiar is suspended.
 - **Holding out**: the Master's position is judged by how long it would hold out there (HP left over the next 6 enemy turns, cover and Stone Heal counted), rather than only by distance from the threat. So it takes a nearby Stone, or one further from the threat, when cover and healing outlast the threat, and runs when running buys whole turns.
 

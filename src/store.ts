@@ -39,7 +39,7 @@ import {
 } from './rules';
 import { autoLoadout, chooseAction } from './ai/ai';
 import { getLoadout, isPlayable } from './loadouts/library';
-import { getMap } from './maps/library';
+import { mapFor } from './maps/library';
 import { animWallMs, planTurnAnim, type TurnAnim } from './anim';
 import { ReplayCursor, loadReplay, newReplay, replayProblem, storeReplay, type Replay } from './replay/replay';
 
@@ -343,7 +343,7 @@ export const useGame = create<Store>((set, get) => {
   };
 
   const initialSetup = loadSetup();
-  const initial = createMatch(getMap(initialSetup.mapId)?.map ?? SCAFFOLD_MAP, { ai: initialSetup.ai, seed: Date.now() & 0xffff, ...resolveSetup(initialSetup) });
+  const initial = createMatch(mapFor(initialSetup.mapId) ?? SCAFFOLD_MAP, { ai: initialSetup.ai, seed: Date.now() & 0xffff, ...resolveSetup(initialSetup) });
 
   return {
     match: initial,
@@ -371,7 +371,7 @@ export const useGame = create<Store>((set, get) => {
     replay: null,
 
     newMatch: () => {
-      const map = getMap(get().mapId)?.map ?? get().match.map;
+      const map = mapFor(get().mapId) ?? get().match.map;
       get().startMatch(map);
     },
     startMatch: (map, mapId, setup) => {
@@ -514,7 +514,7 @@ export const useGame = create<Store>((set, get) => {
       } catch {
         /* storage unavailable */
       }
-      const map = getMap(setup.mapId)?.map ?? get().match.map;
+      const map = mapFor(setup.mapId) ?? get().match.map;
       set({ setup, setupOpen: false, screen: 'game' });
       get().startMatch(map, setup.mapId, setup);
     },

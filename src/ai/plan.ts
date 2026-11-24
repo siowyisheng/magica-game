@@ -23,6 +23,7 @@ import {
   neighbor,
   reachable,
   turnDelay,
+  MANA_MAX,
 } from '../rules';
 
 export type PostureName = 'defend' | 'expand' | 'contest' | 'squeeze' | 'kill';
@@ -49,6 +50,8 @@ export interface Plan {
   posture: Record<PostureName, number>;
   /** The Posture with the highest utility. */
   dominant: PostureName;
+  /** How far ahead the Side is (≈ −1..1): material share, Stones, Mana. */
+  lead: number;
   front: Hex | null;
   frontLabel: string;
   /** What the Front is: a Stone, the enemy Master, or the threat being defended against. */
@@ -105,19 +108,31 @@ function bestHit(state: MatchState, attacker: Unit, from: Hex, target: Unit): nu
   return d;
 }
 
+/**
+ * Enemy turns `e` spends closing in before it can hit hex `h` (0: it can this turn),
+ * straight-line. The one estimate of arrival for turns-to-kill and for how long a
+ * Unit holds out (the move scorer's real-path danger covers the turn at hand).
+ */
+export function arriveTurns(e: Unit, h: Hex): number {
+  const ek = kindOf(e.kind);
+  const reach = ek.stats.mov + hitReach(ek);
+  const d = hexDistance(e.pos, h);
+  return d <= reach ? 0 : Math.ceil((d - reach) / Math.max(1, ek.stats.mov));
+}
+
 /** Enemy turns for `e` to kill `m`: turns to move within reach, then one per hit needed. */
 function turnsToKill(state: MatchState, e: Unit, m: Unit): number {
-  const ek = kindOf(e.kind);
   // it arrives from its own direction
   const from = neighbor(m.pos, facingToward(m.pos, e.pos));
   const dmg = bestHit(state, e, from, m);
   if (dmg <= 0) return Infinity;
-  const hits = Math.ceil(m.hp / dmg);
-  const reach = ek.stats.mov + hitReach(ek);
-  const d = hexDistance(e.pos, m.pos);
-  const arrive = d <= reach ? 0 : Math.ceil((d - reach) / Math.max(1, ek.stats.mov));
-  return arrive + hits;
+  return arriveTurns(e, m.pos) + Math.ceil(m.hp / dmg);
 }
+
+/** An enemy Stone is worth this × a free one: it swings income both ways. */
+export const ENEMY_STONE_SHARE = 1.5;
+/** Holding an own Stone an enemy could take next turn: this × taking a free one. */
+export const GUARD_SHARE = 1.125;
 
 const urgencyOf = (ttk: number) => clamp((4 - ttk) / 2);
 /**
@@ -170,6 +185,13 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   // ---- situation ----
   const material = (us: Unit[]) => us.reduce((a, u) => a + (unitValue(u) * u.hp) / MAX_HP, 0);
   const ratio = material(mine) / Math.max(1, material(theirs));
+  // the one measure of being ahead: material share, Stones and Mana (the move scorer's push reads it)
+  const myStones = state.stones.filter((x) => x.owner === side).length;
+  const theirStones = state.stones.filter((x) => x.owner === enemySide).length;
+  const lead =
+    (material(mine) - material(theirs)) / Math.max(1, material(mine) + material(theirs)) +
+    0.08 * (myStones - theirStones) +
+    (0.2 * (state.sides[side].mana - state.sides[enemySide].mana)) / MANA_MAX;
   const incMe = manaIncome(state, side);
   const incThem = manaIncome(state, enemySide);
 
@@ -185,11 +207,8 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     // together: by turn t each enemy has hit (t − its arrival) times
     const parts = theirs
       .map((e) => {
-        const ek = kindOf(e.kind);
         const dmg = bestHit(state, e, neighbor(master.pos, facingToward(master.pos, e.pos)), master);
-        const reach = ek.stats.mov + hitReach(ek);
-        const d = hexDistance(e.pos, master.pos);
-        return { dmg, arrive: d <= reach ? 0 : Math.ceil((d - reach) / Math.max(1, ek.stats.mov)) };
+        return { dmg, arrive: arriveTurns(e, master.pos) };
       })
       .filter((p) => p.dmg > 0);
     for (let t = 1; t <= 6 && combinedTurnsToKill === Infinity; t++) {
@@ -245,7 +264,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   let frontKind: Plan['frontKind'] = 'none';
   let bestScore = -Infinity;
   for (const st of open) {
-    const gain = st.owner === null ? 1 : 1.6;
+    const gain = st.owner === null ? 1 : ENEMY_STONE_SHARE;
     const balance = 1 / (1 + Math.exp(-(local(mine, st.hex) - local(theirs, st.hex)) / 3));
     const sc = (gain * (0.35 + balance)) / (1 + eta(mine, st.hex));
     if (sc > bestScore || (sc === bestScore && front && hexKey(st.hex) < hexKey(front))) {
@@ -357,13 +376,15 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   {
     type Obj = { hex: Hex; value: number; cap: number; label: string };
     const objs: Obj[] = [];
-    for (const st of open) objs.push({ hex: st.hex, value: st.owner === null ? 1 : 1.5, cap: 1, label: `take ${st.hex.q},${st.hex.r}` });
+    for (const st of open) objs.push({ hex: st.hex, value: st.owner === null ? 1 : ENEMY_STONE_SHARE, cap: 1, label: `take ${st.hex.q},${st.hex.r}` });
     for (const st of state.stones)
-      if (st.owner === side && threatenedStones.has(hexKey(st.hex))) objs.push({ hex: st.hex, value: 1.2, cap: 1, label: `guard ${st.hex.q},${st.hex.r}` });
+      if (st.owner === side && threatenedStones.has(hexKey(st.hex))) objs.push({ hex: st.hex, value: GUARD_SHARE, cap: 1, label: `guard ${st.hex.q},${st.hex.r}` });
     for (const e of theirs) {
       const t = threats.find((x) => x.unit.id === e.id);
       const isM = kindOf(e.kind).isMaster;
-      const value = isM ? 0.8 + 3 * posture.kill : unitValue(e) * (t && t.urgency > 0 ? 0.6 + 1.5 * t.urgency : 0.4);
+      // a healer keeping the enemy Master up is hunted first (peel, then kill)
+      const medic = !isM && enemyMaster && kindOf(e.kind).magic.some((m) => m.kind === 'heal' && hexDistance(e.pos, enemyMaster.pos) <= kindOf(e.kind).stats.mov + m.range + m.radius);
+      const value = isM ? 0.8 + 3 * posture.kill : unitValue(e) * (t && t.urgency > 0 ? 0.6 + 1.5 * t.urgency : medic ? 1 : 0.4);
       objs.push({ hex: e.pos, value, cap: isM ? 4 : 2, label: `hunt ${kindOf(e.kind).name}` });
     }
     const pairs: { f: Unit; o: Obj; cost: number }[] = [];
@@ -398,5 +419,5 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     .filter(Boolean)
     .join(' — ');
 
-  return { side, posture, dominant, front, frontLabel, frontKind, objective, threats, combinedTurnsToKill, needs, reserve, reserveFor, reserveAnswer, jobs, threatenedStones, fit, answerFit, text };
+  return { side, posture, dominant, lead, front, frontLabel, frontKind, objective, threats, combinedTurnsToKill, needs, reserve, reserveFor, reserveAnswer, jobs, threatenedStones, fit, answerFit, text };
 }

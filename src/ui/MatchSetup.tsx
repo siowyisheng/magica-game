@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { INCOME_MULTIPLIER, LOADOUT_SIZE, STONE_BASE, MASTERS, FAMILIARS, type SideId } from '../rules';
-import { listMaps } from '../maps/library';
+import { listMaps, RANDOM_MAP_ID } from '../maps/library';
 import { isPlayable, listLoadouts } from '../loadouts/library';
 import { LoadoutStrip } from './LoadoutView';
 import { useGame, type MatchSetup as Setup } from '../store';
@@ -23,7 +23,7 @@ export function MatchSetupDialog() {
   const maps = listMaps();
   const loadouts = listLoadouts();
   if (!open) return null;
-  const mapId = maps.some((m) => m.id === setup.mapId) ? setup.mapId : maps[0].id;
+  const mapId = setup.mapId === RANDOM_MAP_ID || maps.some((m) => m.id === setup.mapId) ? setup.mapId : maps[0].id;
   const update = (f: (s: Setup) => Setup) =>
     setSetup((s) => f({ ...s, masters: [...s.masters] as [string, string], loadouts: [...s.loadouts] as [string, string], ai: [...s.ai] as [boolean, boolean] }));
   return (
@@ -33,6 +33,7 @@ export function MatchSetupDialog() {
         <label className="slider">
           <span>Map</span>
           <select value={mapId} onChange={(e) => update((s) => ({ ...s, mapId: e.target.value }))}>
+            <option value={RANDOM_MAP_ID}>Random map (new each match)</option>
             {maps.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.map.name}

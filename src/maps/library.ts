@@ -1,7 +1,8 @@
 // Map library: built-in maps from the repo plus the player's own maps, kept
 // in this browser (localStorage) and exportable / importable as JSON files.
 
-import { SCAFFOLD_MAP, type MapDef, type ObstacleDefense, validateMap } from '../rules';
+import { SCAFFOLD_MAP, generateRandomMap, type MapDef, type ObstacleDefense, validateMap } from '../rules';
+import { THEMES } from '../render/themes';
 
 export interface StoredMap {
   /** 'builtin:<name>' for built-in maps, otherwise a generated id. */
@@ -33,6 +34,19 @@ export function listMaps(): StoredMap[] {
 
 export function getMap(id: string): StoredMap | undefined {
   return listMaps().find((m) => m.id === id);
+}
+
+/** The map id that means "a new random map every match". */
+export const RANDOM_MAP_ID = 'random';
+
+/** A new random map (src/rules/maps/random.ts), with any of the game's Themes. */
+export function randomMap(seed: number = Math.floor(Math.random() * 1e9)): MapDef {
+  return generateRandomMap(seed, THEMES.map((t) => t.id));
+}
+
+/** The map to play for a map id: a fresh random map for RANDOM_MAP_ID, else the stored one. */
+export function mapFor(id: string): MapDef | undefined {
+  return id === RANDOM_MAP_ID ? randomMap() : getMap(id)?.map;
 }
 
 /** Save (insert or replace) one of the player's maps. Built-in maps can't be overwritten. */

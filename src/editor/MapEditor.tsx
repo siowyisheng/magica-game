@@ -10,7 +10,7 @@ import { CameraControls, StoneColumn } from '../render/Board';
 import { ObstacleView, PitTile, STEP, ThemedTile, Water, hexToWorld } from '../render/Terrain';
 import { THEMES, themeOf, type Theme } from '../render/themes';
 import { SIDE_COLORS, spriteFeetOffset, spriteWorldSize, unitFrameTexture } from '../render/sprites';
-import { deleteMap, exportMapJson, listMaps, parseMapJson, saveMap } from '../maps/library';
+import { deleteMap, exportMapJson, listMaps, parseMapJson, randomMap, saveMap } from '../maps/library';
 import { useGame } from '../store';
 import { MAX_HEIGHT, MAX_SIZE, MIN_HEIGHT, MIN_SIZE, blankDraft, fromMapDef, toMapDef, useEditor, type Spot, type Tool } from './editorStore';
 
@@ -198,6 +198,15 @@ export function MapEditor() {
               }}
             >
               New
+            </button>
+            <button
+              title="Generate a random fair map: 18 wide, 13–18 tall, 7–12 Magic Stones, mirrored Obstacles"
+              onClick={() => {
+                if (!confirmDiscard()) return;
+                load(fromMapDef(randomMap(), null, false));
+              }}
+            >
+              Random
             </button>
             <button
               disabled={!draft.id || draft.builtin}

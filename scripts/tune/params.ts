@@ -3,8 +3,10 @@
 // Each weight is tuned as a multiplier on its default, in log space: x = ln(value / default).
 // So every weight moves in relative steps (±15% at the start, `c`), whatever its scale, and
 // stays within [default / 4, default × 4] (or `max` for a weight that must stay at or below
-// a cap). Weights left out are structural (killMaster, masterDeathRisk) or counts
-// (screenTop, alignmentHours), or default to 0 (pressure).
+// a cap). Each weight here prices one thing (docs/ai.md); weights left out are structural
+// (killMaster, masterDeathRisk), counts (screenTop, alignmentHours), or a common scale that
+// would only duplicate another (approach: every pull is approach × jobPull / nearPull /
+// masterStage, so the three pulls are tuned and approach stays put).
 
 export interface Param {
   name: string;
@@ -18,33 +20,22 @@ export const PARAMS: Param[] = [
   { name: 'kill' },
   { name: 'setupKill' },
   { name: 'masterHit' },
-  { name: 'heal' },
   { name: 'empower' },
-  { name: 'friendlyFire' },
-  // danger
-  { name: 'threat' },
+  // my own side's HP (danger, friendly fire, healing) and Units' safety
+  { name: 'ownHp' },
   { name: 'deathRisk' },
-  { name: 'hurtCurve', max: 1 },
-  { name: 'tradeCredit', max: 0.95 },
-  // the Master's HP budget
   { name: 'masterHpCost' },
   { name: 'masterRisk' },
   { name: 'masterComfort' },
-  { name: 'masterMaybeDeath', max: 1 },
   { name: 'unsureDeath', max: 1 },
-  { name: 'refuge' },
   // Stones
   { name: 'capture' },
-  { name: 'guard' },
-  { name: 'onStone' },
   { name: 'stoneReopen' },
   // movement and pressure
-  { name: 'approach' },
   { name: 'masterStage' },
   { name: 'jobPull' },
   { name: 'nearPull' },
   { name: 'leadPush' },
-  { name: 'focus' },
   { name: 'support' },
   { name: 'screen' },
   // summoning and Mana
