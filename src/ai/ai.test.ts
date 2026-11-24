@@ -224,3 +224,26 @@ describe('a Master judging hits by when they land (Gorgon vs Herald)', () => {
     }
   });
 });
+
+describe('a safe Master stages forward (Lamia vs Oracle)', () => {
+  it('moves toward its objective from a back corner when no enemy is near', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { applyTemporaryBalance, endTemporaryBalance, hexDistance } = await import('../rules');
+    const { makePlan } = await import('./plan');
+    const r = JSON.parse(readFileSync(new URL('./fixtures/lamia-vs-oracle.replay.json', import.meta.url), 'utf8')).replay;
+    applyTemporaryBalance(r.balance);
+    try {
+      let st = r.initial;
+      // 19:51: the Lamia at full HP in its back corner, well ahead, every enemy far off
+      for (const a of r.actions.slice(0, 150)) st = applyTurn(st, a).state;
+      const me = st.units.find((u: { id: number }) => u.id === st.activeUnitId)!;
+      expect(me.id).toBe(1);
+      const plan = makePlan(st, 0);
+      expect(plan.posture.defend).toBe(0);
+      const a = chooseAction(st);
+      expect(hexDistance(a.to, plan.objective!)).toBeLessThanOrEqual(hexDistance(me.pos, plan.objective!) - 3);
+    } finally {
+      endTemporaryBalance();
+    }
+  });
+});

@@ -45,8 +45,12 @@ judged in real games.
 Each Posture has a utility from 0 to 1; they are blended, so the behaviour
 changes smoothly as the situation does.
 
-- **Defend**: an enemy (or enemies together) can kill the Master within about
-  2 turns. 1 at 2 turns or fewer, 0 at 4 or more.
+- **Defend**: an enemy (or enemies together) can kill the Master within 2
+  enemy turns: 1 then, 0 at 3 or more. At 3 turns the Master still has its
+  own turns to react, and its per-turn threat check keeps it safe; with heavy
+  hitters about, a wider window held Defend almost all game and froze the
+  Master in its corner. (Answers to a threat are still summoned from 3 turns
+  out: that uses the threat's own urgency, 1 at 2 turns, 0 at 4.)
 - **Expand**: unclaimed Stones this Side reaches first.
 - **Contest**: the default. Take Stones where this Side is locally stronger,
   not where the enemy has just put something big.
@@ -66,8 +70,9 @@ forward.
   enemy one is worth more: it swings income both ways), scored by gain ×
   local strength ÷ time to reach it; the enemy Master under Kill; the
   threatening enemy under Defend.
-- **Master staging (R2)**: every Master is pulled toward the Front, more
-  weakly than Familiars. Its Familiars appear next to it, so a forward Master
+- **Master staging (R2)**: every Master is pulled toward the **objective**,
+  more weakly than Familiars: the Front, or when the Front is a threat, the
+  best Stone or the enemy Master (never toward the threat itself). Its Familiars appear next to it, so a forward Master
   summons closer to the objectives. It may take hits it can afford: its
   HP is a budget, priced by the margin it keeps above the worst hits it
   could take (see ai.md), so it advances while the margin is comfortable
