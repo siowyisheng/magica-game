@@ -576,7 +576,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       if (posture.defend > 0) s += w.refuge * posture.defend * survivalTurns(h);
       // Advance toward the Front, so the Familiars it summons appear near the objectives (M3)
       // (never toward a threat it is defending against: its Familiars go there)
-      if (plan.front && plan.frontKind !== 'threat') s -= w.approach * w.masterStage * pressure * (1 - posture.defend) * hexDistance(plan.front, h);
+      // toward the objective (a Stone or the enemy Master), never toward a threat
+      if (plan.objective) s -= w.approach * w.masterStage * pressure * (1 - posture.defend) * hexDistance(plan.objective, h);
     } else if (objs.length) {
       // its Job, plus a little for whatever objective is nearest (opportunities)
       let minD = 99;

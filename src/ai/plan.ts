@@ -53,6 +53,8 @@ export interface Plan {
   frontLabel: string;
   /** What the Front is: a Stone, the enemy Master, or the threat being defended against. */
   frontKind: 'stone' | 'master' | 'threat' | 'none';
+  /** The best Stone or the enemy Master: the Front before a threat takes its place (Master staging). */
+  objective: Hex | null;
   threats: Threat[];
   /** Danger from all enemies together: how soon they could kill the Master. */
   combinedTurnsToKill: number;
@@ -118,6 +120,12 @@ function turnsToKill(state: MatchState, e: Unit, m: Unit): number {
 }
 
 const urgencyOf = (ttk: number) => clamp((4 - ttk) / 2);
+/**
+ * Defend only for real danger: a kill within 2 enemy turns. At 3 the Master still
+ * has its own turns to react, and its per-turn threat check keeps it safe; with
+ * heavy hitters about, "3 turns" holds almost all game and would freeze it.
+ */
+const defendOf = (ttk: number) => (ttk <= 2 ? 1 : 0);
 
 /** How well a Familiar of `kind` (for `side`) answers `enemy`: share of its HP taken per hit, against the hit it takes back. */
 function answerFitOf(state: MatchState, side: SideId, kind: UnitKind, enemy: Unit): number {
@@ -188,7 +196,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
       if (parts.reduce((a, p) => a + Math.max(0, t - p.arrive) * p.dmg, 0) >= master.hp) combinedTurnsToKill = t;
     }
   }
-  const urgency = Math.max(threats[0]?.urgency ?? 0, urgencyOf(combinedTurnsToKill));
+  const urgency = defendOf(Math.min(threats[0]?.turnsToKill ?? Infinity, combinedTurnsToKill));
 
   // How soon a Side could reach a hex: its units, or a Familiar summoned next to its Master.
   const eta = (us: Unit[], h: Hex) => {
@@ -253,6 +261,8 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     frontLabel = `enemy Master ${kindOf(enemyMaster.kind).name}`;
     frontKind = 'master';
   }
+  // what the Master stages toward even when the Front is a threat
+  const objective = front;
   if (threats[0] && posture.defend > 0.3 && posture.defend * 3 > bestScore) {
     front = threats[0].unit.pos;
     frontLabel = `threat ${kindOf(threats[0].unit.kind).name}`;
@@ -388,5 +398,5 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     .filter(Boolean)
     .join(' — ');
 
-  return { side, posture, dominant, front, frontLabel, frontKind, threats, combinedTurnsToKill, needs, reserve, reserveFor, reserveAnswer, jobs, threatenedStones, fit, answerFit, text };
+  return { side, posture, dominant, front, frontLabel, frontKind, objective, threats, combinedTurnsToKill, needs, reserve, reserveFor, reserveAnswer, jobs, threatenedStones, fit, answerFit, text };
 }
