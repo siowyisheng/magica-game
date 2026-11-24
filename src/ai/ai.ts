@@ -42,6 +42,7 @@ import {
   MANA_MAX,
   applyTurn,
   LOADOUT_SIZE,
+  MAX_HP,
 } from '../rules';
 import { hitReach, makePlan } from './plan';
 
@@ -112,6 +113,12 @@ export const AI_WEIGHTS = {
   blockPlace: 12,
   /** Share of the main threat a new answering Familiar takes off the Master (× urgency × fit). */
   drawAttention: 0.35,
+  /** Defend: value per turn the Master would hold out where it ends (HP-turns over 6 enemy turns; cover and Stone Heal counted). */
+  refuge: 40,
+  /** Under full Defend, the share of the plain threat and keep-away terms the hold-out estimate replaces (it counts the same hits, over more turns). */
+  refugeReplaces: 0.7,
+  /** The same for a hurt Familiar, × its share of HP lost. */
+  refugeFamiliar: 6,
   /** A Familiar's pull toward its Job, and toward its nearest objective (× approach). */
   jobPull: 1,
   nearPull: 0.25,
@@ -412,6 +419,42 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     aggression = Math.max(0, Math.min(1, (myHit - 1.5) / 2)) * Math.max(0, Math.min(1, (hitsToKill - 3) / 3));
   }
 
+  /**
+   * How long this Unit holds out standing at `h`, in turns (0–6): its HP left
+   * after each of the next 6 enemy turns, as a share of its HP now, summed.
+   * Each enemy closes in, then hits every turn (damage formula, so cover
+   * counts), while a Stone heals it 1 at the start of each of its own turns.
+   * HP-turns rather than whole turns, so every point of cover or healing shows.
+   */
+  const survivalCache = new Map<string, number>();
+  const survivalTurns = (h: Hex): number => {
+    const key = hexKey(h);
+    const hit = survivalCache.get(key);
+    if (hit !== undefined) return hit;
+    const parts: { dmg: number; arrive: number }[] = [];
+    for (const e of state.units) {
+      if (e.side === me.side) continue;
+      const ek = kindOf(e.kind);
+      const reach = ek.stats.mov + hitReach(ek);
+      const d = hexDistance(e.pos, h);
+      const arrive = d <= reach ? 0 : Math.ceil((d - reach) / Math.max(1, ek.stats.mov));
+      if (arrive > 5) continue;
+      const dmg = approxDamage(state, e, me, h, me.facing);
+      if (dmg > 0) parts.push({ dmg, arrive });
+    }
+    const heal = stoneAt(h) ? 1 : 0;
+    let v = 0;
+    let hp = me.hp;
+    for (let t = 1; t <= 6 && hp > 0; t++) {
+      hp -= parts.reduce((a, p) => a + (t > p.arrive ? p.dmg : 0), 0);
+      if (hp <= 0) break;
+      v += hp / me.hp;
+      hp = Math.min(MAX_HP, hp + heal); // its own turn starts on the Stone
+    }
+    survivalCache.set(key, v);
+    return v;
+  };
+
   // Stones decide the Time Limit: they matter more over the last day, most when not ahead.
   // Stones are worth their Mana, the same at any hour.
   const stoneUrgency = 1;
@@ -431,7 +474,9 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         const uk = kindOf(u.kind);
         margin = Math.min(margin, hexDistance(u.pos, h) - (uk.stats.mov + hitReach(uk)));
       }
-      s += w.masterSafety * fragility * (1 + posture.defend) * Math.max(-3, Math.min(2, margin));
+      s += w.masterSafety * fragility * (1 - w.refugeReplaces * posture.defend) * Math.max(-3, Math.min(2, margin));
+      // Defend: where it survives longest, not just furthest away: a Stone's cover and heal count
+      if (posture.defend > 0) s += w.refuge * posture.defend * survivalTurns(h);
       // Stage behind the Front, so the Familiars it summons appear near the objectives
       if (plan.front) s -= w.approach * w.masterStage * pressure * (1 - posture.defend) * hexDistance(plan.front, h);
       if (aggression > 0 && objs.length) {
@@ -444,6 +489,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       let minD = 99;
       for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
       const job = plan.jobs.get(me.id)?.hex ?? focusTarget;
+      if (me.hp < MAX_HP) s += w.refugeFamiliar * (1 - me.hp / MAX_HP) * survivalTurns(h);
       s -= w.approach * pressure * (w.nearPull * minD + (job ? w.jobPull * hexDistance(job, h) : 0));
     }
     return s;
@@ -631,7 +677,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       // scrapes a Unit can absorb cost little; damage that nearly kills it costs the most
       const x = Math.min(threat, me.hp) / me.hp;
       const hurt = kind.isMaster ? x : (1 - w.hurtCurve) * x + w.hurtCurve * x * x;
-      score -= hurt * me.hp * w.threat * v * (kind.isMaster ? 1 : boldness);
+      // under Defend the Master's hold-out estimate (positional) counts these hits too, over more turns
+      score -= hurt * me.hp * w.threat * v * (kind.isMaster ? 1 - w.refugeReplaces * posture.defend : boldness);
       if (threat >= me.hp) score -= kind.isMaster ? w.masterDeathRisk : w.deathRisk * v;
 
       candidates.push({ action: { ...draft, facing }, score });

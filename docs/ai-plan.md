@@ -111,6 +111,7 @@ Under Defend:
   reach it takes part of that threat off the Master in the Master's own
   threat score, so summoning counts as defending.
 - **F4**: saving up for a better Familiar is suspended.
+- **Holding out**: the Master's position is judged by how long it would hold out there (HP left over the next 6 enemy turns, cover and Stone Heal counted), rather than only by distance from the threat. So it takes a nearby Stone, or one further from the threat, when cover and healing outlast the threat, and runs when running buys whole turns.
 
 ## 6. The Reserve
 

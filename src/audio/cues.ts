@@ -111,7 +111,11 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
     if (was !== now && now === 'night') cues.push({ at: after, sfx: { name: 'dusk' } });
   }
   if (events.some((e) => e.type === 'stranded')) cues.push({ at: after + 60, sfx: { name: 'stranded' } });
-  if (events.some((e) => e.type === 'heal' && e.source === 'stone')) cues.push({ at: after + 120, sfx: { name: 'heal', stone: true } });
+  if (events.some((e) => e.type === 'heal' && e.source === 'stone')) {
+    // with the Stone Heal step's glow when it plays, else just after the turn
+    const sh = anim?.steps.find((s) => s.kind === 'stoneHeal');
+    cues.push({ at: sh ? sh.t0 + (sh.t1 - sh.t0) * 0.4 : after + 120, sfx: { name: 'heal', stone: true } });
+  }
   return cues.sort((a, b) => a.at - b.at);
 }
 
