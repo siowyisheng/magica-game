@@ -23,6 +23,7 @@ import {
   magicTargetHexes,
   manaIncome,
   manaAfter,
+  compareTurnOrder,
   mapHexAt,
   neighbor,
   previewEffects,
@@ -73,6 +74,8 @@ export const AI_WEIGHTS = {
   masterComfort: 3,
   /** Master: share of the death penalty for a hex where enemies that may arrive or be summoned could kill it (an estimate, so less than certain death). */
   masterMaybeDeath: 0.3,
+  /** Share of `capture` for killing a unit that holds a Stone my Side doesn't own. */
+  stoneReopen: 0.4,
   /** Share of the death penalty for a hit that would kill but isn't sure (the round after, or a fast enemy that might walk over). */
   unsureDeath: 0.4,
   /** Hits-to-kill at which a Master keeps the standard distance (fewer: more careful, more: bolder). */
@@ -179,9 +182,11 @@ function enemyReaches(state: MatchState, me: Unit): EnemyReach[] {
     .map((u) => {
       // For a Master, its own Familiars that act before this enemy may walk away:
       // they don't count as blocking it (a screen that leaves first is no screen).
-      const view = kindOf(me.kind).isMaster
-        ? { ...state, units: state.units.filter((a) => a.side !== me.side || a.id === me.id || a.av >= u.av) }
-        : state;
+      // The moving Unit is lifted off the board: the hex it leaves is free for the enemy
+      // (where it ends, enemies stop next to it anyway, so its own body there hardly matters).
+      // For a Master, its own Familiars that act before this enemy may walk away too:
+      // they don't count as blocking it (a screen that leaves first is no screen).
+      const view = { ...state, units: state.units.filter((a) => a.id !== me.id && (a.side !== me.side || !kindOf(me.kind).isMaster || a.av >= u.av)) };
       const nodes = reachable(view, u);
       const positions: Hex[] = [];
       for (const n of nodes.values()) if (n.canEnd || hexEq(n.hex, u.pos)) positions.push(n.hex);
@@ -289,6 +294,16 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   }
   // The Master also looks one enemy round further ahead.
   const secondWindow = kind.isMaster ? turnDelay(kind, true, true) : 0;
+  /** Whether a unit acting at `at` (from now) goes before this Unit's next turn at `next`: a tie goes by the real turn order (Speed, then Side, then creation). */
+  const goesBefore = (u: { kind: string; side: number; id: number }, at: number, next: number) =>
+    at < next || (at === next && compareTurnOrder({ av: 0, spd: kindOf(u.kind).stats.spd, side: u.side, id: u.id }, { av: 0, spd: kind.stats.spd, side: me.side, id: me.id }) < 0);
+  /** How many turns a unit with first turn at `av` and repeat `rep` gets before this Unit's next turn at `next`. */
+  const turnsBeforeOf = (u: { kind: string; side: number; id: number }, av: number, rep: number, next: number) => {
+    if (!goesBefore(u, av, next)) return 0;
+    let n = 1 + Math.floor(Math.max(0, next - av) / Math.max(1, rep));
+    if (!goesBefore(u, av + (n - 1) * rep, next)) n--;
+    return n;
+  };
 
   /**
    * The part of the threat that is sure (fix 3): enemies that act before this
@@ -304,16 +319,16 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     let sure = 0;
     for (const e of reaches) {
       if (killed.has(e.unit.id)) continue;
-      // a tie with this Unit's next turn goes by Speed: count it as before (the safe side)
-      const first = e.unit.av <= delay;
-      const second = !first && kind.isMaster && e.unit.av < delay + secondWindow;
+      // a tie with this Unit's next turn goes by the turn order
+      const first = goesBefore(e.unit, e.unit.av, delay);
+      const second = !first && kind.isMaster && goesBefore(e.unit, e.unit.av, delay + secondWindow);
       if (!first && !second) continue; // acts after the window
       let d = maxDamage(e, me, h, f);
       if (first && kind.isMaster) sure += d;
       // a fast enemy may act more than once before my next turn: it can close in first
       const ek = kindOf(e.unit.kind);
       const rep = turnDelay(ek, true, false); // closing in: Move + Wait, the quickest repeat
-      const turnsBefore = first ? 1 + Math.floor(Math.max(0, delay - e.unit.av) / rep) : 1;
+      const turnsBefore = first ? turnsBeforeOf(e.unit, e.unit.av, rep, delay) : 1;
       if (turnsBefore >= 2 && d === 0) {
         const reach = ek.stats.mov * turnsBefore + Math.max(ek.attack.range, ...ek.magic.map((m) => (m.kind === 'water' ? 0 : m.range + m.radius)));
         if (hexDistance(e.unit.pos, h) <= reach) d = approxDamage(state, e.unit, me, h, f);
@@ -328,7 +343,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       // it hits the Master now and again before its turn after next, and the Master can't
       // outrun it (no more Move than it). If the two hits kill, count the second too: from the
       // front (the Master can at least turn to face it in between), after a Stone's heal.
-      if (kind.isMaster && first && d > 0 && ek.stats.mov >= kind.stats.mov && e.unit.av + turnDelay(ek, true, true) <= delay + secondWindow) {
+      if (kind.isMaster && first && d > 0 && ek.stats.mov >= kind.stats.mov && goesBefore(e.unit, e.unit.av + turnDelay(ek, true, true), delay + secondWindow)) {
         const again = Math.min(d, approxDamage(state, e.unit, me, h, facingToward(h, e.unit.pos)));
         const heal = state.stones.some((s) => hexEq(s.hex, h)) ? 1 : 0;
         if (d + again >= me.hp + heal) total += again * w.masterSecondRound;
@@ -400,11 +415,17 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   const bestFacing = (h: Hex, delay: number, killed: Set<number>): { facing: Dir; threat: number } => {
     let bestF: Dir = me.facing;
     let bestT = Infinity;
-    // Prefer facing toward the nearest enemy on ties.
-    const nearest = [...state.units]
-      .filter((u) => u.side !== me.side && !killed.has(u.id))
-      .sort((a, b) => hexDistance(a.pos, h) - hexDistance(b.pos, h) || a.id - b.id)[0];
-    const pref = nearest && !hexEq(nearest.pos, h) ? facingToward(h, nearest.pos) : me.facing;
+    // On a tie, face the most dangerous enemy close by (its hit from the front, over the hexes to it).
+    let pref: Dir = me.facing;
+    let worst = -1;
+    for (const e of state.units) {
+      if (e.side === me.side || killed.has(e.id) || hexEq(e.pos, h)) continue;
+      const danger = approxDamage(state, e, me, h, facingToward(h, e.pos)) / (1 + hexDistance(e.pos, h));
+      if (danger > worst) {
+        worst = danger;
+        pref = facingToward(h, e.pos);
+      }
+    }
     const order: Dir[] = [pref, ...DIRS.filter((d) => d !== pref)];
     for (const f of order) {
       const t = threatAt(h, f, delay, killed);
@@ -486,14 +507,14 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         .slice(0, 6)
     : [];
   const summonThreat = (h: Hex, delay: number, f: Dir): number => {
-    if (!enemyMasterU || enemyMasterU.av > delay || !summonables.length) return 0;
+    if (!enemyMasterU || !goesBefore(enemyMasterU, enemyMasterU.av, delay) || !summonables.length) return 0;
     const em = kindOf(enemyMasterU.kind);
     // it may walk first, then summon next to where it stops
     const fromSpawn = hexDistance(enemyMasterU.pos, h) - em.stats.mov - 1;
     let best = 0;
     for (const k of summonables) {
       // a new Familiar first acts a summoned turn's delay after its Master's turn
-      if (enemyMasterU.av + turnDelay(k, true, true) > delay) continue;
+      if (!goesBefore({ kind: k.id, side: enemyMasterU.side, id: state.nextUnitId }, enemyMasterU.av + turnDelay(k, true, true), delay)) continue;
       const odds = reachOdds(k.stats.mov + hitReach(k) - fromSpawn);
       if (odds <= 0) continue;
       const v: Unit = { id: -99, kind: k.id, side: enemyMasterU.side, pos: neighbor(h, facingToward(h, enemyMasterU.pos)), facing: 0, hp: MAX_HP, av: 0, stranded: false };
@@ -511,9 +532,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       const ek = kindOf(e.kind);
       const rep = turnDelay(ek, true, false);
       // only what can get there before the Master's next turn (the round after is in the threat check)
-      const window = delay;
-      if (e.av >= window) continue;
-      const actions = 1 + Math.floor(Math.max(0, window - e.av) / Math.max(1, rep));
+      const actions = turnsBeforeOf(e, e.av, rep, delay);
       // one action: its real path is already in the threat check, which is exact for it
       if (actions < 2) continue;
       total += reachOdds(ek.stats.mov * actions + hitReach(ek) - hexDistance(e.pos, h)) * approxDamage(state, e, me, h, f);
@@ -660,7 +679,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     const view: MatchState = { ...state, units: [...state.units.map((u) => (u.id === me.id ? { ...u, pos: dest, facing: f } : u)), placed] };
     let saved = 0;
     for (const e of reaches) {
-      if (gone.has(e.unit.id) || e.unit.av > delay || placed.av < e.unit.av) continue;
+      if (gone.has(e.unit.id) || !goesBefore(e.unit, e.unit.av, delay) || placed.av < e.unit.av) continue;
       const before = maxDamage(e, me, dest, f);
       if (before <= 0) continue;
       const v2: MatchState = { ...view, units: view.units.filter((a) => a.side !== me.side || a.id === me.id || a.id === placed.id || a.av >= e.unit.av) };
@@ -747,6 +766,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
                 if (e.lethal) {
                   killed.add(t.id);
                   score += kindOf(t.kind).isMaster ? w.killMaster : w.kill * v;
+                  // it was holding a Stone my Side doesn't own: that Stone is open to take again
+                  if (state.stones.some((st) => hexEq(st.hex, t.pos) && st.owner !== me.side)) score += w.capture * w.stoneReopen;
                 } else if (canFinish) {
                   // allies can finish it before it acts, healing included
                   score += w.kill * v * w.setupKill;

@@ -25,12 +25,10 @@ export const PARAMS: Param[] = [
   { name: 'threat' },
   { name: 'deathRisk' },
   { name: 'hurtCurve', max: 1 },
-  { name: 'tradeCredit', max: 0.95 },
   // the Master's HP budget
   { name: 'masterHpCost' },
   { name: 'masterRisk' },
   { name: 'masterComfort' },
-  { name: 'masterMaybeDeath', max: 1 },
   { name: 'unsureDeath', max: 1 },
   { name: 'refuge' },
   // Stones
@@ -44,7 +42,6 @@ export const PARAMS: Param[] = [
   { name: 'jobPull' },
   { name: 'nearPull' },
   { name: 'leadPush' },
-  { name: 'focus' },
   { name: 'support' },
   { name: 'screen' },
   // summoning and Mana
