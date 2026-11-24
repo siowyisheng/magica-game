@@ -178,6 +178,10 @@ _Avoid_: Chasm, hole, void (as the rules term)
 A neutral map object placed on dry Plain or Rough at the start of a match. No Unit can stand on its hex, and only Fly can cross it. It blocks Direct shots but not High ones. Both Sides may Attack it or hit it with damaging Magic, area Magic included; it cannot be healed and exerts no ZOC. It has 10 HP like a Unit, no Element and no Facing, and its Defense and Magic Defense are equal: 2, 4 or 6. Destroyed at 0 HP, leaving the hex beneath. It stays, and keeps blocking, if water rises over it.
 _Avoid_: Wall, prop, blocker
 
+**Random Map**:
+A map generated from a seed, the same map for the same seed. 18 hexes wide and 13–18 tall, with the Masters starting at opposite corners and everything mirrored through the centre, so both Sides get the same map. It has 7–12 Magic Stones, mostly 4–7 hexes apart, with at least a third of them on or near the symmetry line (about as far from one Master as from the other). It also has 3–10 Obstacles per Side, a random Theme, and always some water, in varying amounts of Shallow and Deep. A walking Unit can always reach the other Master and every Stone.
+_Avoid_: Procedural map, generated level
+
 **Theme**:
 The look of a map: two visual variants each for Plain and Rough, one for Pit, and one Obstacle design for each Defense value (2, 4, 6). Each hex's variant is picked from its position unless the map sets it. Water looks the same in every Theme. A Theme changes only appearance, never rules.
 

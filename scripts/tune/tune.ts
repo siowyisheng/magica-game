@@ -10,7 +10,7 @@ import { availableParallelism } from 'node:os';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SCAFFOLD_MAP, MASTERS, randomLoadout, applyTurn, createMatch, applyTemporaryBalance, normalizeBalance, type MatchState, type Balance } from '../../src/rules';
+import { SCAFFOLD_MAP, generateRandomMap, MASTERS, randomLoadout, applyTurn, createMatch, applyTemporaryBalance, normalizeBalance, type MatchState, type Balance } from '../../src/rules';
 import { AI_WEIGHTS, autoLoadout, chooseAction } from '../../src/ai/ai';
 import { PARAMS } from './params';
 
@@ -20,7 +20,10 @@ interface Setup {
   masters: [string, string];
   rosters: [string[], string[]];
   seed: number;
+  /** A random map's seed, or null for Scaffold Ford. */
+  mapSeed: number | null;
 }
+type MapMode = 'scaffold' | 'random' | 'mixed';
 interface Job {
   id: number;
   setup: Setup;
@@ -39,16 +42,18 @@ function rng(seed: number) {
   };
 }
 
-/** A random matchup, as in the arena: random Masters, Loadouts half auto, half random. */
-function makeSetup(r: () => number): Setup {
+/** A random matchup, as in the arena: random Masters, Loadouts half auto, half random; the map by `maps`. */
+function makeSetup(r: () => number, maps: MapMode): Setup {
   const masters: [string, string] = [MASTERS[Math.floor(r() * MASTERS.length)].id, MASTERS[Math.floor(r() * MASTERS.length)].id];
   const lo = (m: string) => (r() < 0.5 ? autoLoadout(m, r) : randomLoadout(r));
-  return { masters, rosters: [lo(masters[0]), lo(masters[1])], seed: Math.floor(r() * 1e9) };
+  const random = maps === 'random' || (maps === 'mixed' && r() < 0.5);
+  return { masters, rosters: [lo(masters[0]), lo(masters[1])], seed: Math.floor(r() * 1e9), mapSeed: random ? Math.floor(r() * 1e9) : null };
 }
 
 function play(setup: Setup, w: [Overrides, Overrides], maxTurns: number): Winner {
   const weights: [Weights, Weights] = [{ ...AI_WEIGHTS, ...w[0] }, { ...AI_WEIGHTS, ...w[1] }];
-  let st: MatchState = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters });
+  const map = setup.mapSeed === null ? SCAFFOLD_MAP : generateRandomMap(setup.mapSeed);
+  let st: MatchState = createMatch(map, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters });
   for (let t = 0; t < maxTurns && st.winner === null; t++) {
     const side = st.units.find((u) => u.id === st.activeUnitId)!.side;
     st = applyTurn(st, chooseAction(st, weights[side], 'normal')).state;
@@ -116,6 +121,7 @@ interface Options {
   balance: string | null;
   resume: boolean;
   weights: string | null;
+  maps: MapMode;
 }
 
 /**
@@ -125,7 +131,7 @@ interface Options {
 const unmangle = (arg: string) => (process.platform === 'win32' && arg.includes('^') ? arg.replace(/\^(.)/g, '$1').replace(/\^$/, '').replace(/^"(.*)"$/, '$1') : arg);
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { command: 'tune', iterations: 1000, pairs: 4, workers: Math.max(1, availableParallelism() - 1), out: 'tune-out', seed: 1, c: 0.15, a: 0.03, maxTurns: 1000, balance: null, resume: false, weights: null };
+  const o: Options = { command: 'tune', iterations: 1000, pairs: 4, workers: Math.max(1, availableParallelism() - 1), out: 'tune-out', seed: 1, c: 0.15, a: 0.03, maxTurns: 1000, balance: null, resume: false, weights: null, maps: 'mixed' };
   const args = argv.map(unmangle);
   if (args[0] === 'tune' || args[0] === 'validate' || args[0] === 'report') o.command = args.shift() as Options['command'];
   if (o.command === 'validate') o.pairs = 200;
@@ -148,6 +154,12 @@ function parseArgs(argv: string[]): Options {
       case '--balance': o.balance = v(); break;
       case '--resume': o.resume = true; break;
       case '--weights': o.weights = v(); break;
+      case '--maps': {
+        const m = v();
+        if (m !== 'scaffold' && m !== 'random' && m !== 'mixed') throw new Error('--maps is scaffold, random or mixed');
+        o.maps = m;
+        break;
+      }
       case '--help': case '-h':
         console.log(readmeHint);
         process.exit(0);
@@ -166,6 +178,7 @@ const readmeHint = `Usage: npm run tune -- [tune|validate] [options]   (see docs
 Options: --iterations N (1000)  --pairs N per iteration (4; validate: 200)  --workers N (cores - 1)
          --out DIR (tune-out)  --seed N (1)  --c F (0.15)  --a F (0.03)  --max-turns N (1000)
          --balance FILE (a replay .json or a balance .json, to tune on your local stats)
+         --maps scaffold|random|mixed (mixed: half Scaffold Ford, half random maps)
          --resume (continue from <out>/checkpoint.json)  --weights FILE (validate)`;
 
 function loadBalance(path: string | null): Balance | null {
@@ -205,7 +218,7 @@ async function tune(o: Options, pool: Pool) {
   // SPSA gains (Spall): a_k = a / (k + 1 + A)^0.602, c_k = c / (k + 1)^0.101, A = 10% of the run
   const A = Math.max(1, Math.round(o.iterations * 0.1));
   const aNorm = o.a * Math.pow(A + 1, 0.602);
-  console.log(`SPSA: ${PARAMS.length} weights · ${o.iterations} iterations · ${o.pairs * 2} games each · ${o.workers} workers`);
+  console.log(`SPSA: ${PARAMS.length} weights · ${o.iterations} iterations · ${o.pairs * 2} games each · maps: ${o.maps} · ${o.workers} workers`);
   const t0 = Date.now();
   for (let k = start; k < o.iterations; k++) {
     const ck = o.c / Math.pow(k + 1, 0.101);
@@ -217,7 +230,7 @@ async function tune(o: Options, pool: Pool) {
     // the same setups for both, each played twice with sides swapped (common random numbers)
     const jobs: Job[] = [];
     for (let p = 0; p < o.pairs; p++) {
-      const setup = makeSetup(r);
+      const setup = makeSetup(r, o.maps);
       jobs.push({ id: k * 1000 + p * 2, setup, w: [plus, minus] });
       jobs.push({ id: k * 1000 + p * 2 + 1, setup, w: [minus, plus] });
     }
@@ -258,7 +271,7 @@ async function validate(o: Options, pool: Pool) {
   const r = rng(o.seed * 104_729 + 17);
   const jobs: Job[] = [];
   for (let p = 0; p < o.pairs; p++) {
-    const setup = makeSetup(r);
+    const setup = makeSetup(r, o.maps);
     jobs.push({ id: p * 2, setup, w: [tuned, {}] });
     jobs.push({ id: p * 2 + 1, setup, w: [{}, tuned] });
   }
