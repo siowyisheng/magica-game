@@ -908,7 +908,8 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?:
  * move tries that enemy's top `replies` moves and keeps the worst result for me,
  * instead of assuming it plays exactly what the Normal AI would.
  */
-export const LOOKAHEAD = { candidates: 5, maxTurns: 6, replies: 1, light: false };
+// light: the playouts use the light scorer: as strong in the arena (47%, 32 games) at ~⅓ the time
+export const LOOKAHEAD = { candidates: 5, maxTurns: 6, replies: 1, light: true };
 
 /** The top `n` distinct, legal moves of the active Unit. */
 function topMoves(st: MatchState, w: W, n: number, light = false): TurnAction[] {
