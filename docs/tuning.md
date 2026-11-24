@@ -40,6 +40,17 @@ plays; the Hard AI uses the same weights.
 npm run tune -- tune --iterations 2000 --balance path/to/a-replay.json
 ```
 
+**On Windows**, if `npm run` mangles a path with spaces (`ENOENT … ^C:\…^`), build once and
+run Node directly instead:
+
+```bash
+npm run tune:build
+```
+
+```bash
+node dist-tune/tune.mjs tune --iterations 2000 --balance "C:\path\to\a replay.json"
+```
+
 - Uses every CPU core but one. Change with `--workers N`.
 - Prints one line per iteration: the games won by "+" and "−", the time it
   took, an ETA, and the three weights that have moved most so far.

@@ -118,9 +118,15 @@ interface Options {
   weights: string | null;
 }
 
+/**
+ * npm on Windows escapes script arguments for cmd.exe (a caret before spaces and
+ * quotes) and the escapes can reach us intact: "^C:\\x^ y.json^". Undo that.
+ */
+const unmangle = (arg: string) => (process.platform === 'win32' && arg.includes('^') ? arg.replace(/\^(.)/g, '$1').replace(/\^$/, '').replace(/^"(.*)"$/, '$1') : arg);
+
 function parseArgs(argv: string[]): Options {
   const o: Options = { command: 'tune', iterations: 1000, pairs: 4, workers: Math.max(1, availableParallelism() - 1), out: 'tune-out', seed: 1, c: 0.15, a: 0.03, maxTurns: 1000, balance: null, resume: false, weights: null };
-  const args = [...argv];
+  const args = argv.map(unmangle);
   if (args[0] === 'tune' || args[0] === 'validate') o.command = args.shift() as Options['command'];
   if (o.command === 'validate') o.pairs = 200;
   while (args.length) {
