@@ -1,6 +1,6 @@
 # How the AI decides
 
-This explains how the computer opponent picks its moves. It describes the code in `src/ai/ai.ts` as it is now. The numbers mentioned here are the defaults in `AI_WEIGHTS`, so if you change the weights, trust the code over this page.
+This explains how the computer opponent picks its moves. It describes the code in `src/ai/ai.ts` as it is now. The numbers mentioned here are the defaults in `AI_WEIGHTS`, so if you change the weights, trust the code over this page. For where the AI could go next (search, weight tuning, a learned evaluation, AlphaZero), see [ai-roadmap.md](ai-roadmap.md).
 
 ## The short version
 
