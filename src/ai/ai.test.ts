@@ -185,3 +185,22 @@ describe('Plan: Defend on a Magic Stone', () => {
     expect(chooseAction(st).to).toEqual(hex(4, 7));
   });
 });
+
+describe('a hurt Master in a replayed match (Duelist vs Warlock)', () => {
+  it('hits the Comet its Cinder can finish before it acts, instead of running', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
+    const r = JSON.parse(readFileSync(new URL('./fixtures/comet-vs-warlock.replay.json', import.meta.url), 'utf8')).replay;
+    applyTemporaryBalance(r.balance);
+    try {
+      let st = r.initial;
+      // to Red's 4th turn: its Warlock at 6 HP, the Comet next to it, its Cinder acting before the Comet
+      for (const a of r.actions.slice(0, 4)) st = applyTurn(st, a).state;
+      const a = chooseAction(st);
+      expect(a.unitId).toBe(2);
+      expect(a.command).toEqual({ type: 'attack', target: { q: 6, r: 2 } });
+    } finally {
+      endTemporaryBalance();
+    }
+  });
+});

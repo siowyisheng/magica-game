@@ -120,7 +120,7 @@ How a ranged Attack or Magic Ability (range above 1) travels. **High** arcs over
 _Avoid_: Fire mode, arc type
 
 **Clear Angle**:
-Whether a Direct shot can reach its target. Seen from above, every Unit and Obstacle is a body of a standard size at its hex centre, and the shot is a small projectile. The angle is clear when some straight line from the shooter to any point across the target's body passes every other body, allies included. Height, Pits, water and Magic Stones never block.
+Whether a Direct shot can reach its target. Seen from above, every Unit and Obstacle is a body at its hex centre, and the shot is a small projectile. For blocking, a Unit's body is wide (most of its hex), so Units screen what stands behind them; an Obstacle's is smaller. The angle is clear when some straight line from the shooter to any point across the target's body passes every other body, allies included. Height, Pits, water and Magic Stones never block.
 
 **Stranded**:
 A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage, then may move by its normal rules into hexes it can enter, and then act as usual. If it stays where it is, it can only Wait.
@@ -131,7 +131,7 @@ A Unit that starts its turn on a hex none of its Move Types may enter. It takes 
 One of the six hex directions a Unit faces.
 
 **Facing Bonus**:
-A flat amount added to damage by the angle between a defender's Facing and the direction the hit comes from: under 90° (Front) +0, 90° up to 120° (Flank) +1, 120° and more (Back) +2. So an adjacent hit from the front or a front side adds 0, from a rear side or from behind +2. It applies to both Attack and Magic.
+A flat amount added to damage by the angle between a defender's Facing and the direction the hit comes from: under 90° (Front) +0, 90° up to 150° (Flank) +1, 150° and more (Back) +2. So an adjacent hit from the front or a front side adds 0, from a rear side +1, and from directly behind +2. It applies to both Attack and Magic.
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
