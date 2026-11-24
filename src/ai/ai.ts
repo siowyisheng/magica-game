@@ -857,11 +857,11 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
  * the top candidates are each played out — every Unit then plays Normal
  * until this Unit's next turn — and the resulting positions are compared.
  */
-export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?: 'normal' | 'hard'): TurnAction {
+export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?: 'normal' | 'hard', opts?: { replies?: number }): TurnAction {
   const { me, candidates } = rankCandidates(state, weights);
   const lvl = level ?? state.sides[me.side].aiLevel ?? 'normal';
   if (lvl === 'hard') {
-    const pick = lookahead(state, me, candidates, weights);
+    const pick = lookahead(state, me, candidates, weights, opts?.replies);
     if (pick) return pick;
   }
   // Validate best-first (validation re-runs path-finding, so only check what could be chosen).
@@ -880,9 +880,29 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?:
   return top[Math.floor(rng() * top.length)].action;
 }
 
-export const LOOKAHEAD = { candidates: 5, maxTurns: 6 };
+/**
+ * Hard's look-ahead: the top `candidates` moves, each played out until this Unit's
+ * next turn (at most `maxTurns`). With `replies` > 1, the first enemy turn after the
+ * move tries that enemy's top `replies` moves and keeps the worst result for me,
+ * instead of assuming it plays exactly what the Normal AI would.
+ */
+export const LOOKAHEAD = { candidates: 5, maxTurns: 6, replies: 1 };
 
-function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): TurnAction | null {
+/** The top `n` distinct, legal moves of the active Unit. */
+function topMoves(st: MatchState, w: W, n: number): TurnAction[] {
+  const out: TurnAction[] = [];
+  const seen = new Set<string>();
+  for (const c of rankCandidates(st, w).candidates) {
+    if (out.length >= n) break;
+    const key = JSON.stringify(c.action);
+    if (seen.has(key) || validateTurn(st, c.action) !== null) continue;
+    seen.add(key);
+    out.push(c.action);
+  }
+  return out;
+}
+
+function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W, replies = LOOKAHEAD.replies): TurnAction | null {
   const picks: Candidate[] = [];
   const seen = new Set<string>();
   for (const c of ranked) {
@@ -895,13 +915,23 @@ function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): Turn
   if (picks.length < 2) return picks[0]?.action ?? null;
   let best: { action: TurnAction; value: number } | null = null;
   const rollout: W = { ...w, screen: 0 }; // playouts skip the screening re-score to stay in budget
-  for (const c of picks) {
-    let st = applyTurn(state, c.action).state;
-    for (let t = 0; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
+  /** Play on until this Unit's turn; branch once, at the first enemy turn, over its top replies (worst for me). */
+  const playout = (start: MatchState, from: number, branched: boolean): number => {
+    let st = start;
+    for (let t = from; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
+      const u = activeUnit(st)!;
+      if (!branched && replies > 1 && u.side !== me.side) {
+        const options = topMoves(st, rollout, replies);
+        if (options.length > 1) return Math.min(...options.map((a) => playout(applyTurn(st, a).state, t + 1, true)));
+        branched = true;
+      }
       st = applyTurn(st, chooseAction(st, rollout, 'normal')).state;
     }
+    return evaluate(st, me.side, w);
+  };
+  for (const c of picks) {
     // position value, with the candidate's own score as a small tie-breaker
-    const value = evaluate(st, me.side, w) + c.score * 0.01;
+    const value = playout(applyTurn(state, c.action).state, 0, false) + c.score * 0.01;
     if (!best || value > best.value + 1e-9) best = { action: c.action, value };
   }
   return best?.action ?? null;
