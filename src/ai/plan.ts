@@ -51,6 +51,8 @@ export interface Plan {
   dominant: PostureName;
   front: Hex | null;
   frontLabel: string;
+  /** What the Front is: a Stone, the enemy Master, or the threat being defended against. */
+  frontKind: 'stone' | 'master' | 'threat' | 'none';
   threats: Threat[];
   /** Danger from all enemies together: how soon they could kill the Master. */
   combinedTurnsToKill: number;
@@ -232,6 +234,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   // ---- front ----
   let front: Hex | null = null;
   let frontLabel = 'none';
+  let frontKind: Plan['frontKind'] = 'none';
   let bestScore = -Infinity;
   for (const st of open) {
     const gain = st.owner === null ? 1 : 1.6;
@@ -241,16 +244,19 @@ function buildPlan(state: MatchState, side: SideId): Plan {
       bestScore = sc;
       front = st.hex;
       frontLabel = `${st.owner === null ? 'free' : 'enemy'} Stone ${st.hex.q},${st.hex.r}`;
+      frontKind = 'stone';
     }
   }
   if (enemyMaster && (posture.kill * 2 > bestScore || !front)) {
     bestScore = posture.kill * 2;
     front = enemyMaster.pos;
     frontLabel = `enemy Master ${kindOf(enemyMaster.kind).name}`;
+    frontKind = 'master';
   }
   if (threats[0] && posture.defend > 0.3 && posture.defend * 3 > bestScore) {
     front = threats[0].unit.pos;
     frontLabel = `threat ${kindOf(threats[0].unit.kind).name}`;
+    frontKind = 'threat';
   }
 
   // ---- needs and fits ----
@@ -382,5 +388,5 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     .filter(Boolean)
     .join(' — ');
 
-  return { side, posture, dominant, front, frontLabel, threats, combinedTurnsToKill, needs, reserve, reserveFor, reserveAnswer, jobs, threatenedStones, fit, answerFit, text };
+  return { side, posture, dominant, front, frontLabel, frontKind, threats, combinedTurnsToKill, needs, reserve, reserveFor, reserveAnswer, jobs, threatenedStones, fit, answerFit, text };
 }

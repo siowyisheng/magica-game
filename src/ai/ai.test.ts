@@ -173,7 +173,8 @@ describe('Plan: Defend on a Magic Stone', () => {
     const hexes: MapHex[] = [];
     for (let r = 0; r < 12; r++) for (let q = 0; q < 14; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: q === 4 && r === 7 ? 'stone' : 'plain' });
     const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(4, 7), hex(13, 0)], spawnFacing: [0, 3] };
-    const st = createMatch(map, { ai: [true, true], masters: ['oracle', 'hermit'], rosters: [[], []] });
+    // the enemy Master is slow and weak (Lich: ATK 5, Move 3), so the Salamander is the danger
+    const st = createMatch(map, { ai: [true, true], masters: ['oracle', 'lich'], rosters: [[], []] });
     st.stones[0].owner = 0;
     const me = st.units.find((u) => u.side === 0)!;
     me.hp = 7;

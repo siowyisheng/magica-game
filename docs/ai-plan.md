@@ -56,8 +56,9 @@ changes smoothly as the situation does.
   go straight for it.
 
 Posture adjusts a few existing weights: Squeeze raises guarding and lowers
-boldness; Kill raises the push and makes the enemy Master the Front; Defend
-makes the Master more careful and stops it moving forward.
+boldness; Kill raises the push and makes the enemy Master the Front; Kill and
+Squeeze let the Master accept a thinner HP margin; Defend weakens its pull
+forward.
 
 ## 4. The Front, Master staging and Familiar Jobs
 
@@ -67,9 +68,11 @@ makes the Master more careful and stops it moving forward.
   threatening enemy under Defend.
 - **Master staging (R2)**: every Master is pulled toward the Front, more
   weakly than Familiars. Its Familiars appear next to it, so a forward Master
-  summons closer to the objectives. The existing threat check keeps it
-  outside what enemies can reach; the flat "stay far from enemies" term no
-  longer pushes it back when no enemy can get to it.
+  summons closer to the objectives. It may take hits it can afford: its
+  HP is a budget, priced by the margin it keeps above the worst hits it
+  could take (see ai.md), so it advances while the margin is comfortable
+  and stops short of where it could be killed. There is no flat "stay far
+  from enemies" term.
 - **Summon placement (R3)**: a new Familiar is placed toward the Front, with
   a bonus next to or on a Stone the Side doesn't hold (replacing the old pull
   toward the enemy Master).

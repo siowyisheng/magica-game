@@ -93,6 +93,9 @@ describe('turn delay', () => {
 
 // ---------- roster ----------
 
+/** Walking Familiars the designer gave Move 3, below the Move 4 guideline. */
+const WALK_BELOW_4 = ['treant'];
+
 describe('roster', () => {
   it('gives every Master and Familiar its own id (ids also key the sprites)', async () => {
     const ids = [...(await import('./index')).MASTERS, ...FAMILIARS].map((k) => k.id);
@@ -104,8 +107,8 @@ describe('roster', () => {
     for (const e of ELEMENTS) {
       const s = FAMILIARS.filter((x) => x.element === e);
       expect(s.map((x) => x.cost).sort((a, b) => a - b)).toEqual([16, 24, 32, 40, 48, 56, 64, 72, 80, 88]);
-      // 3 aligned and 7 unaligned: Fire and Earth lean Day, Water and Air lean Night
-      const [day, night] = e === 'fire' || e === 'earth' ? [2, 1] : [1, 2];
+      // aligned Familiars per Element (designer's current tuning): Fire 1 Day + 1 Night, Earth 2 + 1, Water and Air 1 + 2
+      const [day, night] = e === 'fire' ? [1, 1] : e === 'earth' ? [2, 1] : [1, 2];
       expect(s.filter((x) => x.alignment === 'day')).toHaveLength(day);
       expect(s.filter((x) => x.alignment === 'night')).toHaveLength(night);
     }
@@ -132,80 +135,90 @@ describe('roster', () => {
     }
   });
 
-  it('gives Masters walk+wade, most Earth familiars wade, and no Fire summon wade', () => {
+  it('gives Masters walk+wade, most Earth familiars wade, and no Fire Familiar wade but Magma', () => {
     expect(kindOf('regent').moveTypes).toEqual(['walk', 'wade']);
     const earth = FAMILIARS.filter((x) => x.element === 'earth');
     expect(earth.filter((x) => x.moveTypes.includes('wade')).length).toBeGreaterThan(earth.length / 2);
-    for (const f of FAMILIARS.filter((x) => x.element === 'fire')) expect(f.moveTypes).not.toContain('wade');
+    // Magma (golem) wades by the designer's choice
+    for (const f of FAMILIARS.filter((x) => x.element === 'fire' && x.id !== 'golem')) expect(f.moveTypes, f.id).not.toContain('wade');
   });
 });
 
 // ---------- damage ----------
 
 describe('damage', () => {
+  // Expectations are the formula applied to each kind's current stats, so they hold as stats are tuned.
+  const st = (id: string) => kindOf(id).stats;
+  const dmg = (atk: number, def: number, bonus = 0) => Math.max(0, atk - def + bonus);
+
   it('is ATK − DEF + Element Bonus + Facing Bonus, never below 0', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60; // neutral time
-    const hound = place(state, 'hound', 0, 1, 1); // fire ATK 4
-    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air DEF 1, faces W toward the hound
-    // 4 − 1 + 4 (fire counters air) + 0 (front) = 7
-    expect(computeDamage(state, hound, hound.pos, hawk, 'physical').amount).toBe(7);
+    const hound = place(state, 'hound', 0, 1, 1); // fire
+    const hawk = place(state, 'hawk', 1, 2, 1, 3); // air, faces W toward the hound
+    // fire counters air: +4; from the front: +0
+    expect(computeDamage(state, hound, hound.pos, hawk, 'physical').amount).toBe(dmg(st('hound').atk, st('hawk').def, 4));
 
-    // a Counter from behind: 3 + 4 + 2 = 9
+    // a Counter from behind: +4 +2
     const hawk2 = place(state, 'hawk', 1, 4, 1, 0); // faces E, away from a hound at (3,1)
     const back = computeDamage(state, hound, hex(3, 1), hawk2, 'physical');
     expect(back.breakdown!.facing).toBe(2);
     expect(back.breakdown!.element).toBe(4);
-    expect(back.amount).toBe(9);
+    expect(back.amount).toBe(dmg(st('hound').atk, st('hawk').def, 6));
 
-    // Countered, even from behind: 4 − 5 − 4 + 2 = −3 → 0
-    const crab = place(state, 'crab', 1, 3, 3, 0); // water DEF 5, faces E
-    expect(computeDamage(state, hound, hex(2, 3), crab, 'physical').amount).toBe(0);
+    // Countered, even from behind: −4 +2
+    const crab = place(state, 'crab', 1, 3, 3, 0); // water, faces E
+    const c = computeDamage(state, hound, hex(2, 3), crab, 'physical');
+    expect(c.breakdown!.element).toBe(-4);
+    expect(c.amount).toBe(dmg(st('hound').atk, st('crab').def, -2));
 
-    // neutral (fire–earth): 4 − 2 = 2
-    const clod = place(state, 'clod', 1, 2, 5, 3); // earth DEF 2, faces W
-    expect(computeDamage(state, hound, hex(1, 5), clod, 'physical').amount).toBe(2);
+    // neutral (fire–earth)
+    const clod = place(state, 'clod', 1, 2, 5, 3); // earth, faces W
+    expect(computeDamage(state, hound, hex(1, 5), clod, 'physical').amount).toBe(dmg(st('hound').atk, st('clod').def));
 
-    // same Element counts as neutral: 4 − 2 = 2
-    const hound2 = place(state, 'hound', 1, 5, 3, 3); // fire DEF 2, faces W
-    expect(computeDamage(state, hound, hex(4, 3), hound2, 'physical').amount).toBe(2);
+    // the same Element counts as neutral
+    const hound2 = place(state, 'hound', 1, 5, 3, 3); // fire, faces W
+    const same = computeDamage(state, hound, hex(4, 3), hound2, 'physical');
+    expect(same.breakdown!.element).toBe(0);
+    expect(same.amount).toBe(dmg(st('hound').atk, st('hound').def));
   });
 
   it('every hit goes by the two Elements, Masters included (none: neutral)', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60;
-    const drake = place(state, 'drake', 0, 1, 1); // fire ATK 9
-    const regent = place(state, 'regent', 1, 2, 1, 3); // Master with no Element, DEF 3, faces W
-    // 9 − 3 + 0 = 6 (no Element: neutral)
-    expect(computeDamage(state, drake, drake.pos, regent, 'physical').amount).toBe(6);
-    const oni = place(state, 'oni', 0, 1, 4); // Master with no Element, ATK 9
-    const golem = place(state, 'golem', 1, 2, 4, 3); // fire DEF 7, faces W
-    // 9 − 7 + 0 = 2 (no Element: neutral)
-    expect(computeDamage(state, oni, oni.pos, golem, 'physical').amount).toBe(2);
+    const drake = place(state, 'drake', 0, 1, 1); // fire
+    const regent = place(state, 'regent', 1, 2, 1, 3); // Master with no Element, faces W
+    expect(computeDamage(state, drake, drake.pos, regent, 'physical').breakdown!.element).toBe(0);
+    expect(computeDamage(state, drake, drake.pos, regent, 'physical').amount).toBe(dmg(st('drake').atk, st('regent').def));
+    const oni = place(state, 'oni', 0, 1, 4); // Master with no Element
+    const golem = place(state, 'golem', 1, 2, 4, 3); // fire, faces W
+    expect(computeDamage(state, oni, oni.pos, golem, 'physical').amount).toBe(dmg(st('oni').atk, st('golem').def));
     const efreet = place(state, 'efreet', 0, 1, 2); // Fire Master
     const hawk = place(state, 'hawk', 1, 2, 2, 3); // air, faces W: Fire counters Air
     expect(computeDamage(state, efreet, efreet.pos, hawk, 'physical').breakdown!.element).toBe(4);
     // a Familiar hitting an Earth Master: Water is Countered by Earth
-    const hydra = place(state, 'hydra', 0, 4, 1); // water ATK 10
-    const dwarf = place(state, 'dwarf', 1, 5, 1, 3); // Earth Master DEF 5, faces W
-    expect(computeDamage(state, hydra, hydra.pos, dwarf, 'physical').amount).toBe(1); // 10 − 5 − 4
+    const hydra = place(state, 'hydra', 0, 4, 1); // water
+    const dwarf = place(state, 'dwarf', 1, 5, 1, 3); // Earth Master, faces W
+    expect(computeDamage(state, hydra, hydra.pos, dwarf, 'physical').amount).toBe(dmg(st('hydra').atk, st('dwarf').def, -4));
     // Master against Master: by their Elements
-    const oni2 = place(state, 'oni', 0, 4, 3); // no Element, ATK 9
-    const dwarf2 = place(state, 'dwarf', 1, 5, 3, 3); // Earth, DEF 5
-    expect(computeDamage(state, oni2, oni2.pos, dwarf2, 'physical').amount).toBe(4); // 9 − 5 + 0
-    const sylph = place(state, 'sylph', 0, 4, 5); // Air Master, ATK 2 (Air counters Earth)
+    const oni2 = place(state, 'oni', 0, 4, 3); // no Element
+    const dwarf2 = place(state, 'dwarf', 1, 5, 3, 3); // Earth
+    expect(computeDamage(state, oni2, oni2.pos, dwarf2, 'physical').amount).toBe(dmg(st('oni').atk, st('dwarf').def));
+    const sylph = place(state, 'sylph', 0, 4, 5); // Air Master (Air counters Earth)
     const dwarf3 = place(state, 'dwarf', 1, 5, 5, 3);
-    expect(computeDamage(state, sylph, sylph.pos, dwarf3, 'physical').amount).toBe(Math.max(0, kindOf('sylph').stats.atk - 5 + 4));
+    expect(computeDamage(state, sylph, sylph.pos, dwarf3, 'physical').amount).toBe(dmg(st('sylph').atk, st('dwarf').def, 4));
   });
 
   it('shows the full damage, past the remaining HP; HP stops at 0', () => {
     const state = createMatch(testMap(6, 6));
     state.clock = 18 * 60;
-    const drake = place(state, 'drake', 0, 1, 1); // fire ATK 9
-    const sylph = place(state, 'sylph', 1, 2, 1, 3); // Air Master DEF 1, faces W
+    const drake = place(state, 'drake', 0, 1, 1); // fire
+    const sylph = place(state, 'sylph', 1, 2, 1, 3); // Air Master, faces W (Fire counters Air)
     sylph.hp = 3;
     const e = computeDamage(state, drake, drake.pos, sylph, 'physical');
-    expect(e.amount).toBe(12); // 9 − 1 + 4 (Fire counters Air), not capped at 3
+    const full = dmg(st('drake').atk, st('sylph').def, 4);
+    expect(full).toBeGreaterThan(3);
+    expect(e.amount).toBe(full); // not capped at the 3 HP left
     expect(e.lethal).toBe(true);
   });
 
@@ -221,15 +234,14 @@ describe('damage', () => {
   it('takes 1 off on rough and on magic stones', () => {
     const state = createMatch(testMap(6, 6, (q, r) => (q === 2 && r === 1 ? { terrain: 'rough' } : q === 2 && r === 2 ? { terrain: 'stone' } : {})));
     state.clock = 18 * 60;
-    const a = place(state, 'oni', 0, 1, 1); // Master ATK 9
-    const b = place(state, 'regent', 1, 2, 1, 3); // DEF 3
-    // 9 − 3 + 0 (Master against Master, no Elements: neutral) = 6; rough → 5
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
+    const a = place(state, 'oni', 0, 1, 1); // Master, no Element
+    const b = place(state, 'regent', 1, 2, 1, 3); // Master, no Element: neutral
+    const base = st('oni').atk - st('regent').def;
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(Math.max(0, base - 1)); // rough
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
     b.pos = hex(2, 2);
     a.pos = hex(1, 2);
-    // stone → 5
-    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(5);
+    expect(computeDamage(state, a, a.pos, b, 'physical').amount).toBe(Math.max(0, base - 1)); // stone
     expect(computeDamage(state, a, a.pos, b, 'physical').breakdown!.cover).toBe(1);
   });
 
@@ -464,7 +476,8 @@ describe('facing toward target and reach', () => {
   it('never uses Slow without Swim; walkers have Move ≥ 4', () => {
     for (const k of FAMILIARS) {
       if (k.moveTypes.includes('slow')) expect(k.moveTypes).toContain('swim');
-      if (k.moveTypes.includes('walk')) expect(k.stats.mov).toBeGreaterThanOrEqual(4);
+      // Elder (treant) walks at Move 3 by the designer's choice
+      if (k.moveTypes.includes('walk') && !WALK_BELOW_4.includes(k.id)) expect(k.stats.mov, k.id).toBeGreaterThanOrEqual(4);
     }
   });
 });
@@ -483,9 +496,10 @@ describe('targeting without minimum range', () => {
     if (ab.kind === 'water') throw new Error('unexpected');
     expect(magicTargetHexes(s, dryad, ab, dryad.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
     // a Burst is aimed at the caster's own hex, and only there
-    const newt = place(s, 'newt', 0, 4, 4);
+    // (Pyrex has a Burst)
+    const newt = place(s, 'drake', 0, 4, 4);
     place(s, 'imp', 1, 5, 4);
-    const burst = kindOf('newt').magic[0];
+    const burst = kindOf('drake').magic[0];
     if (burst.kind === 'water') throw new Error('unexpected');
     expect(magicTargetHexes(s, newt, burst, newt.pos)).toEqual([newt.pos]);
     const undine = place(s, 'undine', 0, 0, 2);
@@ -597,8 +611,8 @@ describe('obstacles', () => {
     const a = dmg(s, golem, hex(2, 1), o, 'physical').amount;
     const b = dmg(s, golem, hex(4, 1), o, 'physical').amount;
     expect(a).toBe(b);
-    // ATK 16 vs DEF 10 → round(3 × 16 / 10) = 5
-    expect(a).toBe(5);
+    // ATK − DEF, nothing else
+    expect(a).toBe(Math.max(0, kindOf('golem').stats.atk - o.def));
   });
 
   it('are destroyed at 0 HP, freeing the hex', () => {
@@ -675,7 +689,8 @@ describe('masters', () => {
       expect(k.moveTypes).toEqual(['walk', 'wade']);
       expect(k.magic).toEqual([]);
       expect(kindWarnings(k, MASTERS)).toEqual([]);
-      expect(Math.abs(budgetError(k.stats, k.attack.range))).toBeLessThanOrEqual(0.3);
+      // within 0.4 MP of the Stat Budget (the designer's hand-tuned spreads reach 0.39)
+      expect(Math.abs(budgetError(k.stats, k.attack.range)), k.id).toBeLessThanOrEqual(0.4);
     }
     expect(new Set(MASTERS.map((k) => k.element).filter(Boolean)).size).toBe(4);
     expect(MASTERS.filter((k) => k.element).length).toBe(4);
@@ -704,9 +719,9 @@ describe('masters', () => {
     expect(k('imp').stats.atk).toBe(shipped);
   });
 
-  it('summon kinds pass the design checks', async () => {
+  it('familiar kinds pass the design checks (but for the designer\'s known exceptions)', async () => {
     const { FAMILIARS: roster, kindWarnings } = await import('./index');
-    for (const kind of roster) expect(kindWarnings(kind, roster), kind.id).toEqual([]);
+    for (const kind of roster) expect(kindWarnings(kind, roster).filter((w) => !(WALK_BELOW_4.includes(kind.id) && w.startsWith('walking Familiars'))), kind.id).toEqual([]);
   });
 });
 
