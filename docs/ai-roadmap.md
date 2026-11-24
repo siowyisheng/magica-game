@@ -75,6 +75,7 @@ from the display, and self-play and arena harnesses exist.
    games, swings of ±10 points between runs of the same AI are common, so a
    real 5% gain can't be told from noise. It would run as an offline job,
    outside the 32-games-per-step rule for regular changes.
+   **Built:** `npm run tune`, see [tuning.md](tuning.md).
 3. **A learned value function.** Train a small network on self-play
    positions and results to predict the winner, and use it in place of
    `evaluate()` in the search from step 1. This is the useful half of
