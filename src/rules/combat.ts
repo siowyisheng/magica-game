@@ -32,7 +32,7 @@ export function elementBonus(attacker: UnitKind, defender: UnitKind | null): num
 /**
  * Facing Bonus for a hit on a defender at `defPos` facing `facing`, coming
  * from `fromPos`, by the hex-ring angle (ADR 0001): under 90° Front +0,
- * 90° up to 120° Flank +1, 120° and more Back +2.
+ * 90° up to 150° Flank +1, 150° and more Back +2.
  */
 export function facingBonus(defPos: Hex, facing: Dir, fromPos: Hex): number {
   const v = hexSub(fromPos, defPos);

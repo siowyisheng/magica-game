@@ -26,7 +26,7 @@ export const COVER = { plain: 0, rough: 1, stone: 1, pit: 0 } as const;
 /** Alignment: added to ATK, DEF, MP and MDF at the aligned Time of Day, subtracted at the opposite one. */
 export const ALIGN_STAT = 1;
 
-/** Facing Bonus by the angle of the hit from the defender's Facing: under 90° Front +0, 90°–120° Flank +1, 120°–180° Back +2. */
+/** Facing Bonus by the angle of the hit from the defender's Facing: under 90° Front +0, 90°–150° Flank +1, 150°–180° Back +2. */
 export const FACING_BONUS = [0, 1, 2] as const;
 
 /** Element Bonus: Counter (Strong) +4, neutral and same Element 0, Countered (Weak) −4. */
