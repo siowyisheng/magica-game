@@ -308,3 +308,50 @@ describe("a Master counting a hit it can't outrun twice (Savage vs Ronin)", () =
     }
   });
 });
+
+describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', () => {
+  const at = async (n: number) => {
+    const { readFileSync } = await import('node:fs');
+    const { applyTemporaryBalance } = await import('../rules');
+    const r = JSON.parse(readFileSync(new URL('./fixtures/hermit-vs-lich.replay.json', import.meta.url), 'utf8')).replay;
+    applyTemporaryBalance(r.balance);
+    let st = r.initial;
+    for (const a of r.actions.slice(0, n)) st = applyTurn(st, a).state;
+    return st;
+  };
+  const done = async () => (await import('../rules')).endTemporaryBalance();
+
+  it('counts the hex a Unit leaves as open to the enemy (the Halo leaving its Stone)', async () => {
+    try {
+      const st = await at(64);
+      const a = chooseAction(st);
+      // at (10,1) the Hydra steps onto the Stone it leaves and hits it: that's no refuge
+      expect(a.unitId).toBe(20);
+      expect(a.to).not.toEqual({ q: 10, r: 1 });
+    } finally {
+      await done();
+    }
+  });
+
+  it('settles a tie with an enemy turn by the turn order: a faster Hydra kills the Comet first', async () => {
+    try {
+      const st = await at(55);
+      const a = chooseAction(st);
+      expect(a.unitId).toBe(27);
+      expect(a.command).toEqual({ type: 'attack', target: { q: 4, r: 6 } });
+    } finally {
+      await done();
+    }
+  });
+
+  it('kills the Comet holding an enemy Stone', async () => {
+    try {
+      const st = await at(48);
+      const a = chooseAction(st);
+      expect(a.unitId).toBe(27);
+      expect(a.command).toEqual({ type: 'attack', target: { q: 4, r: 6 } });
+    } finally {
+      await done();
+    }
+  });
+});

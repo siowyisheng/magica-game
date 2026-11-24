@@ -325,6 +325,14 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       // a trade, not just a loss: an enemy my side can finish before it acts again pays for its hit
       if (!kind.isMaster && d > 0 && !lethal) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
       total += second ? d * w.masterSecondRound : d;
+      // it hits the Master now and again before its turn after next, and the Master can't
+      // outrun it (no more Move than it). If the two hits kill, count the second too: from the
+      // front (the Master can at least turn to face it in between), after a Stone's heal.
+      if (kind.isMaster && first && d > 0 && ek.stats.mov >= kind.stats.mov && e.unit.av + turnDelay(ek, true, true) <= delay + secondWindow) {
+        const again = Math.min(d, approxDamage(state, e.unit, me, h, facingToward(h, e.unit.pos)));
+        const heal = state.stones.some((s) => hexEq(s.hex, h)) ? 1 : 0;
+        if (d + again >= me.hp + heal) total += again * w.masterSecondRound;
+      }
     }
     threatCache.set(key, total);
     sureCache.set(key, sure);
@@ -637,6 +645,33 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     return amount * w.manaSpend + intoReserve * w.reserveSpend;
   };
 
+  /**
+   * Damage the first-round enemies would no longer deal the Master at `dest` once a
+   * Familiar of `kindId` stands at `h`: its body blocks Direct shots (Clear Angle) and
+   * paths (it occupies a hex and exerts ZOC). Only enemies that act before it can move.
+   */
+  const blockCache = new Map<string, number>();
+  const blockedBy = (dest: Hex, f: Dir, delay: number, gone: Set<number>, kindId: string, h: Hex): number => {
+    const key = `${hexKey(dest)}|${f}|${hexKey(h)}|${delay}|${[...gone].join(',')}`;
+    const hit = blockCache.get(key);
+    if (hit !== undefined) return hit;
+    const sk = kindOf(kindId);
+    const placed: Unit = { id: -98, kind: kindId, side: me.side, pos: h, facing: f, hp: MAX_HP, av: turnDelay(sk, true, true), stranded: false };
+    const view: MatchState = { ...state, units: [...state.units.map((u) => (u.id === me.id ? { ...u, pos: dest, facing: f } : u)), placed] };
+    let saved = 0;
+    for (const e of reaches) {
+      if (gone.has(e.unit.id) || e.unit.av > delay || placed.av < e.unit.av) continue;
+      const before = maxDamage(e, me, dest, f);
+      if (before <= 0) continue;
+      const v2: MatchState = { ...view, units: view.units.filter((a) => a.side !== me.side || a.id === me.id || a.id === placed.id || a.av >= e.unit.av) };
+      const positions: Hex[] = [];
+      for (const n of reachable(v2, e.unit).values()) if (n.canEnd || hexEq(n.hex, e.unit.pos)) positions.push(n.hex);
+      saved += before - maxDamageFrom(v2, { unit: e.unit, positions }, me, dest, f);
+    }
+    blockCache.set(key, saved);
+    return saved;
+  };
+
   for (const dest of dests) {
     const pos = positionalScore(dest);
     const commands: Command[] = [{ type: 'wait' }];
@@ -756,9 +791,14 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       let threat: number;
       /** The threat before F3's discount: a decoy doesn't make a hit that could kill the Master any less lethal. */
       let rawThreat: number;
+      /** First-round damage the new Familiar would block (its body in the way of a path or a Direct shot). */
+      let blocked = 0;
       if (command.type === 'summon') {
         facing = command.dir;
         threat = threatAt(dest, facing, delay, gone);
+        // a Master in danger: the Familiar it summons stands in the way too
+        if (kind.isMaster && threat >= me.hp) blocked = blockedBy(dest, facing, delay, gone, command.kind, neighbor(dest, command.dir));
+        threat = Math.max(0, threat - blocked);
         rawThreat = threat;
         // F3: a new Familiar that answers the main threat and can reach it draws part of it off the Master
         if (mainThreat) {
@@ -790,7 +830,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         if (rawThreat >= me.hp) {
           // graded by how sure it is (fix 3): full when enemies that act first can reach and kill it by their
           // real path this turn; less when it also takes the round after, or a fast enemy that might walk over
-          const sure = sureThreatAt(dest, facing, delay, gone);
+          const sure = Math.max(0, sureThreatAt(dest, facing, delay, gone) - blocked);
           doomed = sure >= me.hp;
           safety += w.masterDeathRisk * (doomed ? 1 : w.unsureDeath + (1 - w.unsureDeath) * (sure / me.hp));
         } else if (potential >= me.hp) {
