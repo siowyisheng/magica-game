@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
-import { abilityOf, abilityUsers, getLocalBalance, kindOf } from '../rules';
+import { FAMILIARS, abilityOf, abilityUsers, getLocalBalance, kindOf } from '../rules';
 import { createAbility, exportBalanceJson, importBalanceJson, isEdited, resetAll, resetKind, saveAbility, saveKind } from './balance';
 
 describe('balance edits', () => {
@@ -18,22 +18,22 @@ describe('balance edits', () => {
   });
 
   it('shares Magic Abilities: one edit changes every kind that uses it', () => {
-    // Coral and Mender share Healing Rain
-    const rain = abilityOf('healing-rain')!;
-    expect(abilityUsers('healing-rain').map((k) => k.id).sort()).toEqual(['crab', 'undine']);
-    saveAbility({ ...rain, manaCost: 6 });
-    expect(kindOf('crab').magic[0].manaCost).toBe(6);
-    expect(kindOf('undine').magic[0].manaCost).toBe(6);
+    // an ability two shipped Familiars share (whichever it is in the current roster)
+    const shared = FAMILIARS.flatMap((k) => k.magic.map((m) => m.id)).find((id, i, all) => all.indexOf(id) !== i)!;
+    const users = abilityUsers(shared).map((k) => k.id);
+    expect(users.length).toBeGreaterThanOrEqual(2);
+    saveAbility({ ...abilityOf(shared)!, manaCost: 6 });
+    for (const id of users) expect(kindOf(id).magic.find((m) => m.id === shared)!.manaCost).toBe(6);
     // Masters have none, but their old spells are still known abilities
     expect(kindOf('regent').magic).toEqual([]);
     expect(abilityUsers('bolt')).toEqual([]);
     expect(abilityOf('rise')?.kind).toBe('water');
-    // give the Hound the Wisp's Rekindle: both use the same record
+    // give the Hound Kindle's Empower: both use the same record
     const hound = JSON.parse(JSON.stringify(kindOf('hound')));
-    hound.magic = [abilityOf('rekindle')!];
+    hound.magic = [abilityOf('empower')!];
     saveKind(hound);
-    expect(abilityUsers('rekindle').map((k) => k.id).sort()).toEqual(['hound', 'wisp']);
-    saveAbility({ ...abilityOf('rekindle')!, manaCost: 12 });
+    expect(abilityUsers('empower').map((k) => k.id).sort()).toEqual(['hound', 'wisp']);
+    saveAbility({ ...abilityOf('empower')!, manaCost: 12 });
     expect(kindOf('hound').magic[0].manaCost).toBe(12);
     expect(kindOf('wisp').magic[0].manaCost).toBe(12);
     // a new ability can be created and assigned
@@ -42,18 +42,19 @@ describe('balance edits', () => {
   });
 
   it('round-trips through export / import, and resets', () => {
+    const shippedMp = kindOf('hermit').stats.mp;
     const hermit = JSON.parse(JSON.stringify(kindOf('hermit')));
-    hermit.stats.mp = 10;
+    hermit.stats.mp = shippedMp + 3;
     saveKind(hermit);
-    saveAbility({ ...abilityOf('healing-rain')!, manaCost: 6 });
+    saveAbility({ ...abilityOf('empower')!, manaCost: 6 });
     const json = exportBalanceJson();
     resetAll();
-    expect(kindOf('hermit').stats.mp).toBe(7);
+    expect(kindOf('hermit').stats.mp).toBe(shippedMp);
     importBalanceJson(json);
-    expect(kindOf('hermit').stats.mp).toBe(10);
-    expect(kindOf('crab').magic[0].manaCost).toBe(6);
+    expect(kindOf('hermit').stats.mp).toBe(shippedMp + 3);
+    expect(kindOf('wisp').magic[0].manaCost).toBe(6);
     resetKind('hermit');
-    expect(kindOf('hermit').stats.mp).toBe(7);
+    expect(kindOf('hermit').stats.mp).toBe(shippedMp);
     expect(() => importBalanceJson('{"nope": {}}')).toThrow();
   });
 });

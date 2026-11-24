@@ -170,3 +170,64 @@ export function StatusAura({ color, height, seed = 0 }: { color: string; height:
     </group>
   );
 }
+
+/** Colour of healing light. */
+export const HEAL_COLOR = '#22ff66';
+
+const HEAL_MOTES = 6;
+
+/**
+ * Stone Heal: a soft green glow swells on the Stone under the unit and a few
+ * motes of light rise through it; the HP goes up at the glow's brightest.
+ */
+export function StoneHealFx({ step, at }: { step: Extract<AnimStep, { kind: 'stoneHeal' }>; at: THREE.Vector3 }) {
+  const glow = useRef<THREE.Sprite>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const motes = useRef<(THREE.Sprite | null)[]>([]);
+  useFrame(() => {
+    const anim = useGame.getState().anim;
+    if (!anim) return;
+    const p = (animElapsed(anim) - step.t0) / (step.t1 - step.t0);
+    const on = p >= 0 && p <= 1;
+    const b = bell(p);
+    if (glow.current) {
+      glow.current.visible = on;
+      const s = 0.7 + 0.5 * b;
+      glow.current.scale.set(s, s * 1.2, 1);
+      (glow.current.material as THREE.SpriteMaterial).opacity = 0.85 * b;
+    }
+    if (ring.current) {
+      ring.current.visible = on;
+      const s = 0.5 + 0.5 * easeOut(Math.min(1, Math.max(0, p)));
+      ring.current.scale.set(s, s, s);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = 0.8 * b;
+    }
+    motes.current.forEach((m, i) => {
+      if (!m) return;
+      const q = (p - (i / HEAL_MOTES) * 0.35) / 0.65;
+      m.visible = on && q >= 0 && q <= 1;
+      if (!m.visible) return;
+      const a = (i / HEAL_MOTES) * Math.PI * 2;
+      m.position.set(Math.cos(a) * 0.22, 0.1 + q * 0.9, Math.sin(a) * 0.2);
+      const k = 0.09 + 0.04 * bell(q);
+      m.scale.set(k, k, 1);
+      (m.material as THREE.SpriteMaterial).opacity = bell(q);
+    });
+  });
+  return (
+    <group position={[at.x, at.y, at.z]}>
+      <sprite ref={glow} position={[0, 0.35, 0]} visible={false} raycast={() => null} renderOrder={19}>
+        <spriteMaterial map={glowTex} color={HEAL_COLOR} transparent blending={THREE.AdditiveBlending} depthWrite={false} />
+      </sprite>
+      <mesh ref={ring} position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false} raycast={() => null} renderOrder={20}>
+        <ringGeometry args={[0.55, 0.66, 36]} />
+        <meshBasicMaterial color={HEAL_COLOR} transparent blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+      </mesh>
+      {Array.from({ length: HEAL_MOTES }, (_, i) => (
+        <sprite key={i} ref={(el) => (motes.current[i] = el)} visible={false} raycast={() => null} renderOrder={21}>
+          <spriteMaterial map={glowTex} color={i % 2 ? HEAL_COLOR : '#eaffef'} transparent blending={THREE.AdditiveBlending} depthWrite={false} depthTest={false} />
+        </sprite>
+      ))}
+    </group>
+  );
+}

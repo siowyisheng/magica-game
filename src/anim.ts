@@ -6,6 +6,7 @@ import {
   type Hex,
   type MatchState,
   type TurnAction,
+  type GameEvent,
   type Dir,
   type SideId,
   neighbor,
@@ -50,6 +51,8 @@ export type AnimStep =
    * lands at the column's peak (EMPOWER_PEAK).
    */
   | { kind: 'empower'; from: Hex; to: Hex; t0: number; t1: number }
+  /** Stone Heal at the start of the next unit's turn: a soft green glow rises from its Stone. */
+  | { kind: 'stoneHeal'; unitId: number; hex: Hex; t0: number; t1: number }
   | { kind: 'summon'; unitId: number; from: Hex; target: Hex; summonKind: string; side: SideId; facing: Dir; t0: number; t1: number };
 
 export interface TurnAnim {
@@ -114,6 +117,9 @@ const HIT_MS = 220;
 export const SUMMON_MS = 1250;
 export const CAPTURE_MS = 900;
 export const EMPOWER_MS = 950;
+export const STONE_HEAL_MS = 650;
+/** Fraction of the Stone Heal step when the HP goes up. */
+export const STONE_HEAL_PEAK = 0.5;
 /** Fraction of the Empower step when the bonus lands. */
 export const EMPOWER_PEAK = 0.6;
 /** Phases of the summon step as fractions of its duration. */
@@ -123,7 +129,11 @@ export const SUMMON_PHASES = { approachEnd: 0.24, lightStart: 0.18, fadeStart: 0
  * @param skipMove true when the move was already shown (the player's own
  *   move preview), so only the Command plays.
  */
-export function planTurnAnim(before: MatchState, action: TurnAction, start: number, skipMove = false): TurnAnim {
+/**
+ * @param turnEnd what the turn led to (its events and the state after), so the
+ *   next unit's start-of-turn Stone Heal can be shown at the end.
+ */
+export function planTurnAnim(before: MatchState, action: TurnAction, start: number, skipMove = false, turnEnd?: { events: GameEvent[]; after: MatchState }): TurnAnim {
   const unit = getUnit(before, action.unitId);
   const kind = kindOf(unit.kind);
   const steps: AnimStep[] = [];
@@ -228,6 +238,17 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
   }
 
   const facing = cmd.type === 'summon' ? cmd.dir : action.facing;
+  // the next unit's turn starts: Stone Heal, when it actually heals
+  const sh = turnEnd?.events.find((e) => e.type === 'heal' && e.source === 'stone');
+  if (sh && sh.type === 'heal' && turnEnd) {
+    const healed = turnEnd.after.units.find((u) => u.id === sh.unitId);
+    if (healed) {
+      steps.push({ kind: 'stoneHeal', unitId: healed.id, hex: healed.pos, t0: t, t1: t + STONE_HEAL_MS });
+      impacts.push({ unitId: healed.id, t: t + STONE_HEAL_MS * STONE_HEAL_PEAK, kind: 'heal', amount: sh.amount, hpAfter: healed.hp, lethal: false });
+      t += STONE_HEAL_MS;
+    }
+  }
+
   return { start, duration: t, steps, actorId: unit.id, to: action.to, facing, impacts };
 }
 

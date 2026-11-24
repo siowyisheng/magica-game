@@ -165,7 +165,7 @@ A hex type of its own, never Rough, though it may be under water. A Unit standin
 _Avoid_: Crystal, pedestal
 
 **Stone Heal**:
-Any Unit that starts its turn on a Magic Stone, whoever controls it, heals 1 HP, up to 10. A Stranded Unit takes the Stranded damage first.
+Any Unit that starts its turn on a Magic Stone, whoever controls it, heals 1 HP, up to 10. A Stranded Unit takes the Stranded damage first. It is shown as the turn starts: a green glow rises from the Stone and a green Damage Number (1) pops; nothing shows when the Unit was already at full HP.
 
 **Capture**:
 A Unit that ends its turn on a Magic Stone gives control of the Stone to its Side. Being Summoned onto a Stone does not count. Control lasts until an enemy Unit Captures it, including while the Stone is under water.

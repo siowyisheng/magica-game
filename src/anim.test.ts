@@ -127,3 +127,27 @@ describe('Empower animation', () => {
     expect(a.impacts).toEqual([{ unitId: me.id, t: EMPOWER_MS * EMPOWER_PEAK, kind: 'empower', amount: 3, hpAfter: me.hp, lethal: false }]);
   });
 });
+
+describe('Stone Heal animation', () => {
+  it('plays at the end of the turn when the next unit starts on a Stone and heals, and not at full HP', async () => {
+    const { applyTurn } = await import('./rules');
+    const map = flatMap(6, 6);
+    map.hexes = map.hexes.map((h) => (h.hex.q === 5 && h.hex.r === 0 ? { ...h, terrain: 'stone' as const } : h));
+    const s = createMatch(map);
+    const me = getUnit(s, s.activeUnitId!);
+    const other = s.units.find((u) => u.id !== me.id)!;
+    other.pos = hex(5, 0);
+    other.hp = 7;
+    other.av = 1;
+    const action = { unitId: me.id, to: me.pos, facing: 0 as const, command: { type: 'wait' as const } };
+    const r = applyTurn(s, action);
+    expect(r.state.activeUnitId).toBe(other.id);
+    const a = planTurnAnim(s, action, 0, true, { events: r.events, after: r.state });
+    expect(a.steps.map((x) => x.kind)).toEqual(['stoneHeal']);
+    expect(a.impacts).toMatchObject([{ unitId: other.id, kind: 'heal', amount: 1, hpAfter: 8 }]);
+    // at full HP nothing heals, so nothing plays
+    other.hp = 10;
+    const r2 = applyTurn(s, action);
+    expect(planTurnAnim(s, action, 0, true, { events: r2.events, after: r2.state }).steps).toEqual([]);
+  });
+});

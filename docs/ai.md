@@ -53,14 +53,26 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 - **Threat.** The AI estimates the damage enemies could deal to this Unit at its end position before its next turn, capped at its current HP, and charges `threat` (9) × value for it. For a Summon the charge is shaped and scaled:
   - **Sized to toughness.** The charge follows the share of its HP the Unit would lose, on a curve (`hurtCurve` 0.5: half linear, half quadratic). Scrapes a Unit can absorb cost little, and damage that nearly kills it costs the most. A Rook barely minds a 2-damage poke; a 1-HP Familiar minds everything.
   - **Bolder when ahead.** The charge is divided by the side's push (see Position).
-  - If the threat would kill it, there is an extra penalty: `deathRisk` (70) × value for a Familiar, or `masterDeathRisk` (5,000) for a Master. The Master's threat is never shaped or scaled.
+  - If the threat would kill it, there is an extra penalty: `deathRisk` (70) × value for a Familiar, or `masterDeathRisk` (5,000) for a Master.
+- **A Master's HP is a budget** (see below), not something to keep whole.
 
 The threat estimate is smarter than "worst-case damage":
 
 - Each enemy is considered only if it acts before this Unit's next turn. A Master also looks one enemy round further ahead (`masterSecondRound`).
 - A fast enemy may get several turns in before this Unit acts again. If it can't hit this Unit this turn, the AI still checks whether it could walk over and hit it in time.
 - **Trades.** An enemy that my side can finish before it acts again pays for its hit: its threat is cut by up to `tradeCredit` (50%), in proportion to how much of its HP my allies can deal in time. An advance is judged as an exchange, not just as damage taken.
+- **A screen that leaves first is no screen.** For a Master, its own Familiars that act before an enemy don't count as blocking that enemy's path: they may walk away first.
 - An enemy attacks only one target. A Familiar is charged with its **share** of each enemy: the damage the enemy would deal to it, weighted against everything else that enemy could hit (by damage², so it leans toward its best target), and never less than 25% (`threatShareMin`). Masters always carry full threat, because enemies always go after them.
+
+**A Master's HP budget**
+
+Strong play lets a Master advance and take hits it can afford. So a Master's threat is priced by the **margin** it keeps: its HP, plus the HP it will get back (a Stone's heal, a friendly healer that can reach it), minus the worst damage it could take before its next turn.
+
+- Every point of real threat costs a little: `masterHpCost` (2) per HP.
+- Below a **comfort** margin the cost rises quadratically: `masterRisk` (25) × shortfall². Comfort is `masterComfort` (3) HP, lower by up to 1 under Kill or Squeeze and higher for a fragile Master (one that dies to few hits).
+- Being killable this round is a near-veto: `masterDeathRisk` (5,000).
+- **Maybe killable.** The threat check walks each enemy's real path, which can miss what else could get there. So the Master also counts a straight-line **potential threat**: every enemy that acts before its next turn and could close in (by Move × the turns it gets, plus its hit range), and the worst Familiar the enemy Master could summon next to itself and that would act in time. Each counts in part at the very edge of its reach (⅓) and in full 2 hexes inside it. If the potential threat reaches its HP, it pays `masterMaybeDeath` (30%) of the death penalty. Healing doesn't count here: it comes after the hits.
+- A new Familiar that "draws attention" (Defend, F3) lowers the threat score, but never makes a lethal hit look survivable.
 
 **Position**
 
@@ -70,10 +82,10 @@ Every candidate also gets a position score for where it ends up. This is not abo
 - **The Plan.** Each turn the side works out a **Plan** ([ai-plan.md](ai-plan.md)): a Posture (Defend, Expand, Contest, Squeeze, Kill), a **Front**, summon Needs, a Reserve and a **Job** for each Familiar. Kill multiplies the push by up to 1.6 and Squeeze lowers it; Squeeze also raises `guard` by up to 50%.
 - **A shared target.** If an enemy healer keeps the enemy Master up (it can reach it), and the side is ahead or close, that healer is the target: **peel, then kill**. Otherwise it is the enemy Master, when ahead by more than `focusLead` (0.15) or when any Familiar could reach it within two moves; otherwise the Plan's Front.
 - **Familiars** are pulled by `approach` (3) × push × distance toward their Job (`jobPull` 1: a Stone to take or guard, an enemy to hunt, or the Front), plus `nearPull` (0.25) toward the nearest objective, for opportunities.
-- **Masters** set their posture from the matchup:
-  - **Staging.** Every Master is pulled toward the Front by `masterStage` (0.8) × `approach` × push (none while Defending): its Familiars appear next to it, so a forward Master summons where the objectives are.
-  - **Fragility.** The AI works out how many hits from the three strongest enemies would kill the Master, using the real damage formula. The keep-away bonus is `masterSafety` (8) per hex of margin outside the nearest enemy's reach (its Move + hit range), from −3 to +2 hexes: beyond 2 hexes outside every enemy's reach, being further back is worth nothing. It is scaled by `postureHits` (4) ÷ hits-to-kill, clamped to ×0.35–1.5, and doubled while Defending.
-  - **Aggression.** A Master that is durable (more than 3 hits to kill) and hits enemy Familiars hard (more than 1.5 damage per hit) is also pulled toward objectives, like a Familiar. The pull is scaled by both, up to `masterAggression` × `approach`. Its attacks then compete normally; the Master death-risk penalty still vetoes anything that would get it killed.
+- **Masters** (their safety is the HP budget above; there is no flat "stay far from enemies" term):
+  - **Staging.** Every Master is pulled toward the Front by `masterStage` (1.5) × `approach` × push, less while Defending, so its Familiars appear where the objectives are. It is not pulled toward a Front that is an enemy threat.
+  - **Holding out (Defend).** While Defending, the Master's position is also judged by how long it would hold out there: its HP left after each of the next 6 enemy turns, summed (`refuge` 40 × Defend). Each enemy closes in and then hits every turn, with cover counted by the damage formula, and a Magic Stone heals 1 at the start of each of the Master's turns. So a Master runs when running buys whole turns, and takes a nearby Stone when cover and heal outlast the threat. A hurt Familiar gets the same estimate at a smaller weight (`refugeFamiliar` 6 × its share of HP lost).
+  - **Fragility.** How many hits from the three strongest enemies would kill the Master (real damage formula), as `postureHits` (4) ÷ hits-to-kill, clamped to 0.35–1.5. A fragile Master wants a bigger comfort margin.
 
 **Screening (Zone of Control)**
 

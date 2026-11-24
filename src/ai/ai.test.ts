@@ -138,7 +138,8 @@ describe('Plan: Defend (docs/ai-plan.md)', () => {
     for (let r = 0; r < 10; r++) for (let q = 0; q < 12; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: 'plain' });
     const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(1, 8), hex(10, 1)], spawnFacing: [0, 3] };
     const roster = FAMILIARS.map((k) => k.id).filter((id) => kindOf(id).element !== 'air').slice(0, 20);
-    const st = createMatch(map, { ai: [true, true], masters: ['regent', 'oni'], rosters: [roster, roster] });
+    // a harmless enemy Master (Hermit), so the Vortex is the danger
+    const st = createMatch(map, { ai: [true, true], masters: ['regent', 'hermit'], rosters: [roster, roster] });
     const me = st.units.find((u) => u.side === 0)!;
     // a Vortex two turns from killing the Regent, on an otherwise empty board
     st.units.push({ id: 77, kind: 'djinn', side: 1, pos: hex(7, 4), facing: 3, hp: 10, av: 20, stranded: false });
@@ -164,5 +165,23 @@ describe('Plan: Defend (docs/ai-plan.md)', () => {
     const a = chooseAction(setup(40));
     expect(a.command.type).toBe('summon');
     if (a.command.type === 'summon') expect(kindOf(a.command.kind).element).toBe('fire');
+  });
+});
+
+describe('Plan: Defend on a Magic Stone', () => {
+  it('holds a Stone (cover and heal) under a moderate threat instead of running', () => {
+    const hexes: MapHex[] = [];
+    for (let r = 0; r < 12; r++) for (let q = 0; q < 14; q++) hexes.push({ hex: hex(q, r), height: 1, terrain: q === 4 && r === 7 ? 'stone' : 'plain' });
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(4, 7), hex(13, 0)], spawnFacing: [0, 3] };
+    // the enemy Master is slow and weak (Lich: ATK 5, Move 3), so the Salamander is the danger
+    const st = createMatch(map, { ai: [true, true], masters: ['oracle', 'lich'], rosters: [[], []] });
+    st.stones[0].owner = 0;
+    const me = st.units.find((u) => u.side === 0)!;
+    me.hp = 7;
+    st.units.push({ id: 77, kind: 'salamander', side: 1, pos: hex(9, 5), facing: 3, hp: 10, av: 20, stranded: false });
+    st.units.forEach((u) => { if (u.id !== me.id) u.av = Math.max(u.av, 20); });
+    me.av = 0;
+    st.activeUnitId = me.id;
+    expect(chooseAction(st).to).toEqual(hex(4, 7));
   });
 });

@@ -47,7 +47,7 @@ import {
 } from './sprites';
 import { FLY_LAND_MS, FLY_RISE_MS, KO_FADE_MS, SUMMON_PHASES, animElapsed, fliesKind, moveDurationMs, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
-import { EMPOWER_COLOR, EmpowerFx, StatusAura } from './effects';
+import { EMPOWER_COLOR, EmpowerFx, StatusAura, StoneHealFx } from './effects';
 import { anchorPositions, anchorSources } from './anchors';
 import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
 import { themeOf, type Theme } from './themes';
@@ -1012,6 +1012,12 @@ function EmpowerStep({ step }: { step: Extract<AnimStep, { kind: 'empower' }> })
   return <EmpowerFx step={step} from={from} to={to} />;
 }
 
+function StoneHealStep({ step }: { step: Extract<AnimStep, { kind: 'stoneHeal' }> }) {
+  const match = useGame((s) => s.match);
+  const at = useMemo(() => worldAt(match, step.hex), [match, step.hex]);
+  return <StoneHealFx step={step} at={at} />;
+}
+
 function Projectiles() {
   const anim = useGame((s) => s.anim);
   if (!anim) return null;
@@ -1026,6 +1032,8 @@ function Projectiles() {
           <BurstFx key={`${anim.start}:${i}`} step={st} />
         ) : st.kind === 'empower' ? (
           <EmpowerStep key={`${anim.start}:${i}`} step={st} />
+        ) : st.kind === 'stoneHeal' ? (
+          <StoneHealStep key={`${anim.start}:${i}`} step={st} />
         ) : null,
       )}
     </>

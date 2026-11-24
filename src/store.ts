@@ -302,7 +302,7 @@ export const useGame = create<Store>((set, get) => {
           version: s.version + 1,
         };
       });
-    const anim = get().animate ? { ...planTurnAnim(match, action, performance.now(), alreadyMoved), rate } : null;
+    const anim = get().animate ? { ...planTurnAnim(match, action, performance.now(), alreadyMoved, { events, after: state }), rate } : null;
     signal({ type: 'turn', before: match, action, anim: anim && anim.duration > 0 ? anim : null, events });
     if (!anim || anim.duration <= 0) return finish();
     set({ anim, phase: { kind: 'idle' }, hoverCommand: null, hoverSummon: null });
