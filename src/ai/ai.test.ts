@@ -204,3 +204,23 @@ describe('a hurt Master in a replayed match (Duelist vs Warlock)', () => {
     }
   });
 });
+
+describe('a Master judging hits by when they land (Gorgon vs Herald)', () => {
+  it("doesn't step next to a Wyrm whose Meteor the next hour's Income pays for", async () => {
+    const { readFileSync } = await import('node:fs');
+    const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
+    const r = JSON.parse(readFileSync(new URL('./fixtures/gorgon-vs-herald.replay.json', import.meta.url), 'utf8')).replay;
+    applyTemporaryBalance(r.balance);
+    try {
+      let st = r.initial;
+      // 9:48: the Herald's side has 0 Mana, but its Income lands at 10:00, before its Wyrm and Sling act
+      for (const a of r.actions.slice(0, 28)) st = applyTurn(st, a).state;
+      expect(st.sides[1].mana).toBe(0);
+      const a = chooseAction(st);
+      expect(a.unitId).toBe(1);
+      expect(a.to).not.toEqual({ q: 5, r: 6 }); // there, Sling 3 + Meteor 7 kill it
+    } finally {
+      endTemporaryBalance();
+    }
+  });
+});

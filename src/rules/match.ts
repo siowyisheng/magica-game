@@ -75,6 +75,17 @@ export function manaIncome(state: MatchState, side: SideId): number {
   return INCOME_MULTIPLIER * (STONE_BASE + stonesControlled(state, side)) * mp - upkeep(state, side);
 }
 
+/**
+ * Mana `side` will have `minutes` from now: its Mana plus the Income paid at
+ * each hour mark the clock passes on the way (as it stands now), within 0–cap.
+ */
+export function manaAfter(state: MatchState, side: SideId, minutes: number): number {
+  let mana = state.sides[side].mana;
+  const income = manaIncome(state, side);
+  for (let h = Math.floor(state.clock / 60) + 1; h * 60 <= state.clock + minutes; h++) mana = Math.max(0, Math.min(MANA_MAX, mana + income));
+  return mana;
+}
+
 export function magicAbility(kind: UnitKind, id: string): MagicAbility {
   const a = kind.magic.find((m) => m.id === id);
   if (!a) throw new Error(`${kind.id} has no ability ${id}`);

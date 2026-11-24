@@ -896,3 +896,16 @@ describe('Empower', () => {
     expect(getUnit(applyTurn(r3.state, { ...self, to: getUnit(r3.state, kindle.id).pos }).state, kindle.id).empowered).toBe(3);
   });
 });
+
+describe('manaAfter', () => {
+  it('adds the Income paid at each hour mark passed', async () => {
+    const { manaAfter, manaIncome } = await import('./index');
+    const s = createMatch(testMap(7, 3));
+    s.clock = 588;
+    s.sides[0].mana = 0;
+    const inc = manaIncome(s, 0);
+    expect(manaAfter(s, 0, 11)).toBe(0); // 9:59
+    expect(manaAfter(s, 0, 12)).toBe(Math.max(0, inc)); // 10:00
+    expect(manaAfter(s, 0, 72)).toBe(Math.max(0, Math.max(0, inc) + inc)); // 11:00
+  });
+});
