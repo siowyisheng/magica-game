@@ -53,7 +53,9 @@ node dist-tune/tune.mjs tune --iterations 2000 --balance "C:\path\to\a replay.js
 
 - Uses every CPU core but one. Change with `--workers N`.
 - Prints one line per iteration: the games won by "+" and "−", the time it
-  took, an ETA, and the three weights that have moved most so far.
+  took, an ETA, and the three weights that have moved most so far ("most
+  moved": furthest from their defaults since the run began, resumes included;
+  `kill ×1.08` means 8% above the default).
 - Writes to `tune-out/` (or `--out DIR`): `tuned-weights.json` (the current
   best guess, rewritten every iteration), `checkpoint.json` and `log.jsonl`.
 - **Safe to stop** (Ctrl+C) at any time. Continue with the same command plus
@@ -63,6 +65,16 @@ How long: a game takes about 1–10 s on one core (3 s is typical), and each
 iteration plays 8 games (`--pairs 4`). 2,000 iterations is 16,000 games:
 roughly 2 hours on 8 cores, or 4 on 4 cores. Use the ETA on the first few
 dozen lines to judge, and shorten with `--iterations` if needed.
+
+## Seeing the change in weights
+
+```bash
+node dist-tune/tune.mjs report
+```
+
+Lists every tuned weight with its default, its tuned value and the change in
+percent, biggest change first. It reads `tune-out/tuned-weights.json` (or
+`--out DIR`, or `--weights FILE`), so it works while a run is going.
 
 ## Checking the result
 
@@ -95,7 +107,7 @@ gain, and get checked with the usual arena run and tests.
 | `--out DIR` | `tune-out` | where results go |
 | `--balance FILE` | none | a replay (or balance) `.json` with your stats |
 | `--resume` | | continue from `DIR/checkpoint.json` |
-| `--weights FILE` | | validate: the weights to test |
+| `--weights FILE` | | validate / report: the weights to test or show |
 | `--seed N` | 1 | different seeds give different matchups |
 | `--c F` | 0.15 | starting size of the random nudge (relative) |
 | `--a F` | 0.03 | starting size of the update step |
