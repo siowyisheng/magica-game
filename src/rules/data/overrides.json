@@ -342,8 +342,12 @@
         "def": 7,
         "mp": 4,
         "mdf": 6,
-        "spd": 14,
-        "mov": 6
+        "spd": 13,
+        "mov": 5
+      },
+      "attack": {
+        "range": 5,
+        "trajectory": "direct"
       }
     },
     "tracker": {
