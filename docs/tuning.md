@@ -21,9 +21,11 @@ behind Stockfish's tuning). Each iteration:
 
 Weights are tuned as multipliers on their defaults, so they all move in
 relative terms whatever their scale, within ¼× to 4× the default (shares
-such as `hurtCurve` never above 1). The 35 tuned weights are listed in
-`scripts/tune/params.ts`. Structural ones (`killMaster`, `masterDeathRisk`)
-and counts (`screenTop`, `alignmentHours`) are left alone. Only the Normal AI
+such as `unsureDeath` never above 1). The 25 tuned weights are listed in
+`scripts/tune/params.ts`; each prices one thing. Structural ones
+(`killMaster`, `masterDeathRisk`), counts (`screenTop`, `alignmentHours`)
+and the common pull scale `approach` (only its products with `jobPull`,
+`nearPull` and `masterStage` matter) are left alone. Only the Normal AI
 plays; the Hard AI uses the same weights.
 
 ## Before you start

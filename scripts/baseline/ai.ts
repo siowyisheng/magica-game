@@ -46,7 +46,7 @@ import {
   LOADOUT_SIZE,
   MAX_HP,
 } from '../../src/rules';
-import { hitReach, makePlan } from './plan';
+import { arriveTurns, hitReach, makePlan } from './plan';
 
 export const AI_WEIGHTS = {
   damage: 10,
@@ -72,42 +72,26 @@ export const AI_WEIGHTS = {
   masterRisk: 25,
   /** Master: HP margin kept after the next two enemy rounds (worst case); Posture moves it (M5). */
   masterComfort: 3,
-  /** Master: share of the death penalty for a hex where enemies that may arrive or be summoned could kill it (an estimate, so less than certain death). */
-  masterMaybeDeath: 0.3,
   /** Share of `capture` for killing a unit that holds a Stone my Side doesn't own. */
   stoneReopen: 0.4,
   /** Share of the death penalty for a hit that would kill but isn't sure (the round after, or a fast enemy that might walk over). */
   unsureDeath: 0.4,
-  /** Hits-to-kill at which a Master keeps the standard distance (fewer: more careful, more: bolder). */
-  postureHits: 4,
   /** Least share of an enemy's damage a Familiar is charged with, however many other targets it has. */
   threatShareMin: 0.25,
-  /** Weight of second-round threat to the Master (enemies acting before its turn after next). */
-  masterSecondRound: 1,
   /** Bonus (× kill) for damage that leaves a target finishable by allies before it acts. */
   setupKill: 0.3,
-  /** How much a material / Stone lead raises the pull toward the enemy. */
-  pressure: 0,
   /** How strongly a lead (≈ −1..1) raises the push: pull toward objectives up, fear of damage down. */
   leadPush: 3,
   /** Most the push multiplies the pull (and divides the fear) by. */
   maxPush: 2.5,
-  /** Share of an enemy's threat cancelled when my side can finish it before it acts again. */
-  tradeCredit: 0.5,
   /** 0: damage penalty linear in HP lost; 1: quadratic (scrapes cheap, near-deaths dear). */
   hurtCurve: 0.5,
-  /** Share of a Familiar's pull that goes to the side's shared target (the rest to its nearest objective). */
-  focus: 0.5,
   /** Value of hitting a healer, per point of its heal × the best patient it can reach (÷ 4). */
   support: 0.5,
   /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
   healedDamage: 0.15,
-  /** Damage to an enemy Master that healing is reaching and that can't be finished this round (× normal). */
-  pokeMaster: 0.35,
   /** Value of heal blocked by standing in a healer's way (× damage of the same amount). */
   healBlock: 0.5,
-  /** Lead above which the shared target is the enemy Master. */
-  focusLead: 0.15,
   /** A Master's own hits on enemies count this many times over (it should use its ATK, not only summon). */
   masterHit: 1.5,
   /** Value of any extra Familiar on the board, before what it's for. */
@@ -118,12 +102,6 @@ export const AI_WEIGHTS = {
   masterStage: 1.5,
   /** Pull of a summon hex toward the Front, per hex. */
   summonFront: 1,
-  /** Under Defend: a summon hex from which the answer reaches the threat next turn (× urgency × fit). */
-  answerPlace: 30,
-  /** Under Defend: a summon hex between a non-flying threat and the Master (× urgency). */
-  blockPlace: 12,
-  /** Share of the main threat a new answering Familiar takes off the Master (× urgency × fit). */
-  drawAttention: 0.35,
   /** Defend: value per turn the Master would hold out where it ends (HP-turns over 6 enemy turns; cover and Stone Heal counted). */
   refuge: 40,
   /** The same for a hurt Familiar, × its share of HP lost. */
@@ -274,7 +252,6 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   // the Side's Plan: Posture, Front, Needs, Reserve, Jobs (docs/ai-plan.md)
   const plan = makePlan(state, me.side);
   const posture = plan.posture;
-  const threatCache = new Map<string, number>();
   const dmgCache = new Map<string, number>();
   const maxDamage = (e: EnemyReach, target: Unit, h: Hex, f: Dir) => {
     const key = `${e.unit.id}>${target.id}@${hexKey(h)}|${f}`;
@@ -306,57 +283,87 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   };
 
   /**
-   * The part of the threat that is sure (fix 3): enemies that act before this
-   * Unit's next turn and hit it by their real path this turn. Not the second
-   * round, nor a fast enemy that only might walk over in time.
+   * How surely an enemy gets a hit in that only a straight-line estimate says it can,
+   * from its slack (hexes of reach to spare): ⅓ at the very edge, full 2 hexes inside.
+   * The edge of a straight-line reach is where terrain, blockers and ZOC most often stop it.
    */
-  const sureCache = new Map<string, number>();
-  const threatAt = (h: Hex, f: Dir, delay: number, killed: Set<number>): number => {
-    const key = `${hexKey(h)}|${f}|${delay}|${[...killed].join(',')}`;
-    const hit = threatCache.get(key);
-    if (hit !== undefined) return hit;
+  const reachOdds = (slack: number) => (slack < 0 ? 0 : Math.min(1, (slack + 1) / 3));
+  // Familiars the enemy Master could summon in time (for the Master's danger): the 6
+  // hardest-hitting it can afford, placed next to it after it walks.
+  const enemyMasterU = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isMaster);
+  const enemyBudget = enemyMasterU ? manaAfter(state, enemyMasterU.side, enemyMasterU.av) : 0;
+  const summonables = kind.isMaster && enemyMasterU
+    ? FAMILIARS.filter((k) => k.cost <= enemyBudget && inRoster(state, enemyMasterU.side, k.id))
+        .sort((a, b) => Math.max(b.stats.atk, b.stats.mp) - Math.max(a.stats.atk, a.stats.mp) || a.id.localeCompare(b.id))
+        .slice(0, 6)
+    : [];
+
+  /**
+   * The danger to this Unit at `h` facing `f` before its next turn (and, for a Master,
+   * the round after): one estimate, in two parts.
+   * - sure: enemies acting first that reach it by their real path this turn;
+   * - total: that, plus the less sure, each weighted by how surely it lands: a fast enemy
+   *   closing in over several turns (straight line), the round after, a hit the Master
+   *   can't outrun landing twice, a Familiar the enemy Master could summon in time.
+   * Enemies in `gone` (killed by this move, or finished by allies before they act) are no threat.
+   */
+  const dangerCache = new Map<string, { total: number; sure: number }>();
+  const danger = (h: Hex, f: Dir, delay: number, gone: Set<number>): { total: number; sure: number } => {
+    const key = `${hexKey(h)}|${f}|${delay}|${[...gone].join(',')}`;
+    const hit = dangerCache.get(key);
+    if (hit) return hit;
     let total = 0;
     let sure = 0;
     for (const e of reaches) {
-      if (killed.has(e.unit.id)) continue;
-      // a tie with this Unit's next turn goes by the turn order
+      if (gone.has(e.unit.id) || finishedFirst(e.unit, 0)) continue;
+      const ek = kindOf(e.unit.kind);
       const first = goesBefore(e.unit, e.unit.av, delay);
       const second = !first && kind.isMaster && goesBefore(e.unit, e.unit.av, delay + secondWindow);
       if (!first && !second) continue; // acts after the window
       let d = maxDamage(e, me, h, f);
-      if (first && kind.isMaster) sure += d;
-      // a fast enemy may act more than once before my next turn: it can close in first
-      const ek = kindOf(e.unit.kind);
-      const rep = turnDelay(ek, true, false); // closing in: Move + Wait, the quickest repeat
-      const turnsBefore = first ? turnsBeforeOf(e.unit, e.unit.av, rep, delay) : 1;
-      if (turnsBefore >= 2 && d === 0) {
-        const reach = ek.stats.mov * turnsBefore + Math.max(ek.attack.range, ...ek.magic.map((m) => (m.kind === 'water' ? 0 : m.range + m.radius)));
-        if (hexDistance(e.unit.pos, h) <= reach) d = approxDamage(state, e.unit, me, h, f);
+      // its real path reaches this hex in time: as sure as anything (the round after too, just later)
+      const byPath = d > 0;
+      let odds = 1;
+      if (first && d === 0) {
+        // a fast enemy may get several turns before mine: it can close in first (straight line)
+        const turns = turnsBeforeOf(e.unit, e.unit.av, turnDelay(ek, true, false), delay);
+        if (turns >= 2) {
+          odds = reachOdds(ek.stats.mov * turns + hitReach(ek) - hexDistance(e.unit.pos, h));
+          if (odds > 0) d = approxDamage(state, e.unit, me, h, f);
+        }
       }
-      // enemies go for the Master; a Familiar only bears its share of an enemy that has other targets
-      // (not a hit that would kill it: an enemy that can take a kill usually does)
-      const lethal = d >= me.hp;
-      if (!kind.isMaster && d > 0 && !lethal) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
-      // a trade, not just a loss: an enemy my side can finish before it acts again pays for its hit
-      if (!kind.isMaster && d > 0 && !lethal) d *= 1 - w.tradeCredit * Math.min(1, (followUp.get(e.unit.id) ?? 0) / Math.max(1, e.unit.hp));
-      total += second ? d * w.masterSecondRound : d;
+      if (d <= 0) continue;
+      // enemies go for the Master; a Familiar bears only its share of an enemy with other
+      // targets (not of a hit that would kill it: an enemy that can take a kill usually does)
+      if (!kind.isMaster && d < me.hp) d *= Math.max(w.threatShareMin, (d * d) / (d * d + (otherSq.get(e.unit.id) ?? 0)));
+      if (first && byPath) sure += d;
+      total += d * odds;
       // it hits the Master now and again before its turn after next, and the Master can't
-      // outrun it (no more Move than it). If the two hits kill, count the second too: from the
-      // front (the Master can at least turn to face it in between), after a Stone's heal.
-      if (kind.isMaster && first && d > 0 && ek.stats.mov >= kind.stats.mov && goesBefore(e.unit, e.unit.av + turnDelay(ek, true, true), delay + secondWindow)) {
+      // outrun it (no more Move than it): if the two hits kill, the second counts too, from
+      // the front (it can turn to face it in between), after a Stone's heal
+      if (kind.isMaster && first && byPath && ek.stats.mov >= kind.stats.mov && goesBefore(e.unit, e.unit.av + turnDelay(ek, true, true), delay + secondWindow)) {
         const again = Math.min(d, approxDamage(state, e.unit, me, h, facingToward(h, e.unit.pos)));
-        const heal = state.stones.some((s) => hexEq(s.hex, h)) ? 1 : 0;
-        if (d + again >= me.hp + heal) total += again * w.masterSecondRound;
+        if (d + again >= me.hp + (stoneAt(h) ? 1 : 0)) total += again;
       }
     }
-    threatCache.set(key, total);
-    sureCache.set(key, sure);
-    return total;
+    // a Familiar the enemy Master could summon next to itself and act with in time
+    if (summonables.length && enemyMasterU && !gone.has(enemyMasterU.id) && goesBefore(enemyMasterU, enemyMasterU.av, delay)) {
+      const fromSpawn = hexDistance(enemyMasterU.pos, h) - kindOf(enemyMasterU.kind).stats.mov - 1;
+      let best = 0;
+      for (const k of summonables) {
+        if (!goesBefore({ kind: k.id, side: enemyMasterU.side, id: state.nextUnitId }, enemyMasterU.av + turnDelay(k, true, true), delay)) continue;
+        const odds = reachOdds(k.stats.mov + hitReach(k) - fromSpawn);
+        if (odds <= 0) continue;
+        const v: Unit = { id: -99, kind: k.id, side: enemyMasterU.side, pos: neighbor(h, facingToward(h, enemyMasterU.pos)), facing: 0, hp: MAX_HP, av: 0, stranded: false };
+        best = Math.max(best, odds * approxDamage(state, v, me, h, f));
+      }
+      total += best;
+    }
+    const out = { total, sure };
+    dangerCache.set(key, out);
+    return out;
   };
-  const sureThreatAt = (h: Hex, f: Dir, delay: number, killed: Set<number>): number => {
-    threatAt(h, f, delay, killed);
-    return sureCache.get(`${hexKey(h)}|${f}|${delay}|${[...killed].join(',')}`)!;
-  };
+  const threatAt = (h: Hex, f: Dir, delay: number, gone: Set<number>): number => danger(h, f, delay, gone).total;
 
   // Focus fire: how much allies could deal to each enemy before that enemy acts again.
   const allyReaches = allies.map((u) => {
@@ -366,11 +373,20 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     return { unit: u, positions };
   });
   const followUp = new Map<number, number>();
+  /** The most a single ally can deal it before it acts. */
+  const followUpBest = new Map<number, number>();
   for (const e of state.units) {
     if (e.side === me.side) continue;
     let sum = 0;
-    for (const a of allyReaches) if (a.unit.av < e.av) sum += maxDamageFrom(state, a, e, e.pos, e.facing);
+    let best = 0;
+    for (const a of allyReaches) {
+      if (a.unit.av >= e.av) continue;
+      const d = maxDamageFrom(state, a, e, e.pos, e.facing);
+      sum += d;
+      best = Math.max(best, d);
+    }
     followUp.set(e.id, sum);
+    followUpBest.set(e.id, best);
   }
 
   // Enemy healing (1, 3): how much each enemy can be healed before my side's next
@@ -396,18 +412,21 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     for (const p of state.units) if (p.side === h.unit.side && p.id !== h.unit.id && healReach(h, p.pos)) best = Math.max(best, unitValue(p));
     support.set(h.unit.id, (w.support * rawHeal(h.unit) * best) / 4);
   }
+  /**
+   * Whether enemy `e` dies to my side before it acts, healing included (one estimate for
+   * the value of setting up a kill and for whether that enemy is still a threat). With
+   * `dealt` > 0 (this move's hit), allies together finish it; with nothing dealt, one ally
+   * must manage it alone, so two enemies are never both written off on the same ally.
+   */
+  const finishedFirst = (e: Unit, dealt: number): boolean => {
+    const left = e.hp - dealt + (healIn.get(e.id) ?? 0);
+    return dealt > 0 ? left <= (followUp.get(e.id) ?? 0) : left <= (followUpBest.get(e.id) ?? 0);
+  };
   /** What hitting an enemy is worth: its own value plus the healing it keeps doing. */
   const targetValue = (t: Unit) => unitValue(t) + (support.get(t.id) ?? 0);
 
-  // Pressure: a lead in material and Stones (and the clock running out while behind) pulls units forward.
-  const sideValue = (s: number) => state.units.filter((u) => u.side === s).reduce((a, u) => a + unitValue(u) * u.hp, 0);
-  const myStones = state.stones.filter((x) => x.owner === me.side).length;
-  const theirStones = state.stones.filter((x) => x.owner !== null && x.owner !== me.side).length;
-  // The AI never plays for the Time Limit: a lead (material, Stones, Mana) is a reason to attack.
-  const manaLead = (state.sides[me.side].mana - state.sides[1 - me.side].mana) / MANA_MAX;
-  const lead = (sideValue(me.side) - sideValue(1 - me.side)) / Math.max(10, sideValue(me.side) + sideValue(1 - me.side)) + 0.08 * (myStones - theirStones) + 0.2 * manaLead;
-  // Posture: Kill pushes harder; Squeeze is patient
-  const pressure = Math.max(1, Math.min(w.maxPush, (1 + w.leadPush * lead) * (1 + 0.6 * posture.kill) * (1 - 0.3 * posture.squeeze)));
+  // Push from a lead (the Plan's one measure of being ahead): pulls toward objectives up, fear of damage down.
+  const pressure = Math.max(1, Math.min(w.maxPush, 1 + w.leadPush * plan.lead));
   const guardWeight = w.guard * (1 + 0.5 * posture.squeeze);
   /** Boldness: how much less a Familiar minds taking damage when its side is ahead. */
   const boldness = 1 / pressure;
@@ -448,99 +467,12 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     return out;
   };
   const objs = objectives();
-  const enemyMaster = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isMaster);
-  // One shared target for the whole side: the enemy Master when ahead or when it's within
-  // reach of our army, otherwise the enemy-held (or free) Stone nearest our Familiars.
-  const myFamiliars = state.units.filter((u) => u.side === me.side && !kindOf(u.kind).isMaster);
-  const focusTarget: Hex | null = (() => {
-    if (!enemyMaster) return null;
-    const near = myFamiliars.some((u) => hexDistance(u.pos, enemyMaster.pos) <= kindOf(u.kind).stats.mov * 2 + kindOf(u.kind).attack.range);
-    // peel: while a healer keeps the enemy Master up, the healer is the target
-    const medic = healers
-      .filter((h) => healReach(h, enemyMaster.pos))
-      .sort((a, b) => hexDistance(a.unit.pos, enemyMaster.pos) - hexDistance(b.unit.pos, enemyMaster.pos) || a.unit.id - b.unit.id)[0];
-    if (medic && (lead > w.focusLead || near)) return medic.unit.pos;
-    if (lead > w.focusLead || near) return enemyMaster.pos;
-    return plan.front ?? enemyMaster.pos;
-  })();
-
-  // Master posture from the matchup: how many hits the strongest enemies need
-  // to kill it (fragile ones keep away), and how hard it hits back (durable
-  // hitters move up to threaten).
-  let fragility = 1;
-  if (kind.isMaster) {
-    const enemies = state.units.filter((u) => u.side !== me.side);
-    const incoming = enemies.map((e) => approxDamage(state, e, me, me.pos, me.facing)).sort((a, b) => b - a).slice(0, 3);
-    const perHit = incoming.length ? incoming.reduce((a, b) => a + b, 0) / incoming.length : 0;
-    const hitsToKill = me.hp / Math.max(0.5, perHit);
-    fragility = Math.max(0.35, Math.min(1.5, w.postureHits / hitsToKill));
-  }
   /**
    * The Master's comfort margin (M1, M5): HP it wants left after the next two
-   * enemy rounds. Kill and Squeeze accept less; a Master that dies in few
-   * hits wants a little more.
+   * enemy rounds. Kill and Squeeze accept less. (A fragile Master needs no extra:
+   * the hits it fears are already bigger in its danger.)
    */
-  // (Defend doesn't raise it: its hold-out estimate already weighs cover and healing over several turns)
-  const comfort = w.masterComfort - Math.max(posture.kill, posture.squeeze) + 2 * Math.max(0, fragility - 1);
-  /**
-   * Straight-line worst case for the Master at `h` (M1): every enemy that could
-   * reach it within the actions it gets before the Master's next turn (fast
-   * enemies act more than once), or before the one after, hits it once. Terrain
-   * is ignored, so it errs toward caution; it only feeds the margin, so it only
-   * matters when the hits could leave the Master near killable.
-   */
-  /**
-   * How surely an enemy gets its hit in, from its slack (hexes of reach to spare,
-   * straight-line): ⅓ at the very edge of its reach, full 2 hexes inside it. The edge
-   * of a straight-line reach is where terrain, blockers and ZOC most often stop it.
-   */
-  const reachOdds = (slack: number) => (slack < 0 ? 0 : Math.min(1, (slack + 1) / 3));
-  const potentialCache = new Map<string, number>();
-  // Familiars the enemy could summon before the Master's next turn: a summoned Familiar
-  // can act almost at once, so the enemy Master's reach grows by theirs (cheap: the 6
-  // hardest-hitting it can afford, placed next to it).
-  const enemyMasterU = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isMaster);
-  const enemyBudget = enemyMasterU ? manaAfter(state, enemyMasterU.side, enemyMasterU.av) : 0;
-  const summonables = kind.isMaster && enemyMasterU
-    ? FAMILIARS.filter((k) => k.cost <= enemyBudget && inRoster(state, enemyMasterU.side, k.id))
-        .sort((a, b) => Math.max(b.stats.atk, b.stats.mp) - Math.max(a.stats.atk, a.stats.mp) || a.id.localeCompare(b.id))
-        .slice(0, 6)
-    : [];
-  const summonThreat = (h: Hex, delay: number, f: Dir): number => {
-    if (!enemyMasterU || !goesBefore(enemyMasterU, enemyMasterU.av, delay) || !summonables.length) return 0;
-    const em = kindOf(enemyMasterU.kind);
-    // it may walk first, then summon next to where it stops
-    const fromSpawn = hexDistance(enemyMasterU.pos, h) - em.stats.mov - 1;
-    let best = 0;
-    for (const k of summonables) {
-      // a new Familiar first acts a summoned turn's delay after its Master's turn
-      if (!goesBefore({ kind: k.id, side: enemyMasterU.side, id: state.nextUnitId }, enemyMasterU.av + turnDelay(k, true, true), delay)) continue;
-      const odds = reachOdds(k.stats.mov + hitReach(k) - fromSpawn);
-      if (odds <= 0) continue;
-      const v: Unit = { id: -99, kind: k.id, side: enemyMasterU.side, pos: neighbor(h, facingToward(h, enemyMasterU.pos)), facing: 0, hp: MAX_HP, av: 0, stranded: false };
-      best = Math.max(best, odds * approxDamage(state, v, me, h, f));
-    }
-    return best;
-  };
-  const potentialThreat = (h: Hex, delay: number, f: Dir, killed: Set<number>): number => {
-    const key = `${hexKey(h)}|${delay}|${f}|${[...killed].join(',')}`;
-    const hit = potentialCache.get(key);
-    if (hit !== undefined) return hit;
-    let total = 0;
-    for (const e of state.units) {
-      if (e.side === me.side || killed.has(e.id)) continue;
-      const ek = kindOf(e.kind);
-      const rep = turnDelay(ek, true, false);
-      // only what can get there before the Master's next turn (the round after is in the threat check)
-      const actions = turnsBeforeOf(e, e.av, rep, delay);
-      // one action: its real path is already in the threat check, which is exact for it
-      if (actions < 2) continue;
-      total += reachOdds(ek.stats.mov * actions + hitReach(ek) - hexDistance(e.pos, h)) * approxDamage(state, e, me, h, f);
-    }
-    total += summonThreat(h, delay, f);
-    potentialCache.set(key, total);
-    return total;
-  };
+  const comfort = w.masterComfort - Math.max(posture.kill, posture.squeeze);
   /** HP a Master at `h` gets back before the next round's hits: a Stone, a friendly healer in reach (M4). Cover is in the damage. */
   const recovery = (h: Hex): number => {
     let r = stoneAt(h) ? 1 : 0;
@@ -568,10 +500,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     const parts: { dmg: number; arrive: number }[] = [];
     for (const e of state.units) {
       if (e.side === me.side) continue;
-      const ek = kindOf(e.kind);
-      const reach = ek.stats.mov + hitReach(ek);
-      const d = hexDistance(e.pos, h);
-      const arrive = d <= reach ? 0 : Math.ceil((d - reach) / Math.max(1, ek.stats.mov));
+      const arrive = arriveTurns(e, h);
       if (arrive > 5) continue;
       const dmg = approxDamage(state, e, me, h, me.facing);
       if (dmg > 0) parts.push({ dmg, arrive });
@@ -598,7 +527,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     if (stone) {
       if (stone.owner !== me.side) s += w.capture * stoneUrgency * (stone.owner === null ? 1 : 1.5);
       else if (needsGuard(h)) s += guardWeight;
-      s += w.onStone * (10 - me.hp + 1) * 0.3;
+      // a hurt Familiar likes the Stone's heal (a Master's counts in its safety margin instead)
+      if (!kind.isMaster) s += w.onStone * (10 - me.hp + 1) * 0.3;
     }
     if (kind.isMaster) {
       // No keep-away: how dangerous a hex is comes from the margin cost (M1, M2).
@@ -612,7 +542,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       // its Job, plus a little for whatever objective is nearest (opportunities)
       let minD = 99;
       for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
-      const job = plan.jobs.get(me.id)?.hex ?? focusTarget;
+      const job = plan.jobs.get(me.id)?.hex ?? plan.front;
       if (me.hp < MAX_HP) s += w.refugeFamiliar * (1 - me.hp / MAX_HP) * survivalTurns(h);
       s -= w.approach * pressure * (w.nearPull * minD + (job ? w.jobPull * hexDistance(job, h) : 0));
     }
@@ -758,18 +688,15 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
                 const heal = healIn.get(t.id) ?? 0;
                 // only damage that outlasts the healing coming its way counts in full
                 const net = e.lethal ? dealt : Math.max(0, dealt - heal);
-                const canFinish = !e.lethal && t.hp - dealt + heal <= (followUp.get(t.id) ?? 0);
-                let dmgValue = (net + (dealt - net) * w.healedDamage) * w.damage * v * (kind.isMaster ? w.masterHit : 1);
-                // a Master that can't be finished this round just gets healed up: don't pour the lead into it
-                if (kindOf(t.kind).isMaster && !e.lethal && !canFinish && heal > 0) dmgValue *= w.pokeMaster;
-                score += dmgValue;
+                const canFinish = !e.lethal && finishedFirst(t, dealt);
+                score += (net + (dealt - net) * w.healedDamage) * w.damage * v * (kind.isMaster ? w.masterHit : 1);
                 if (e.lethal) {
                   killed.add(t.id);
                   score += kindOf(t.kind).isMaster ? w.killMaster : w.kill * v;
                   // it was holding a Stone my Side doesn't own: that Stone is open to take again
                   if (state.stones.some((st) => hexEq(st.hex, t.pos) && st.owner !== me.side)) score += w.capture * w.stoneReopen;
                 } else if (canFinish) {
-                  // allies can finish it before it acts, healing included
+                  // allies finish it before it acts, healing included: worth part of a kill, and no threat
                   score += w.kill * v * w.setupKill;
                   finished.add(t.id);
                 }
@@ -793,25 +720,18 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         const isAnswer = sk.kind.name === plan.reserveAnswer || (mainThreat !== null && plan.answerFit(sk.kind, mainThreat.unit) >= 0.6);
         score += sk.value - spendCost(sk.kind.cost, isAnswer);
         const h = neighbor(dest, command.dir);
-        // toward the Front (R3), and onto or next to a Stone the Side doesn't hold
-        if (plan.front) score -= w.summonFront * hexDistance(h, plan.front);
+        // toward where it's needed: the threat it answers under Defend, else the Front (R3);
+        // and onto or next to a Stone the Side doesn't hold
+        const place = mainThreat ? mainThreat.unit.pos : plan.front;
+        if (place) score -= w.summonFront * hexDistance(h, place);
         const stone = state.stones.find((s) => hexEq(s.hex, h));
         if (stone && stone.owner !== me.side) score += w.capture * 0.4;
         else if (state.stones.some((s) => s.owner !== me.side && hexDistance(s.hex, h) === 1)) score += w.capture * 0.15;
-        // Defend (F2): where the answer reaches the threat next turn, and in its way
-        if (mainThreat) {
-          const tk = kindOf(mainThreat.unit.kind);
-          const fitA = plan.answerFit(sk.kind, mainThreat.unit);
-          if (hexDistance(h, mainThreat.unit.pos) <= sk.kind.stats.mov + hitReach(sk.kind)) score += w.answerPlace * mainThreat.urgency * fitA;
-          if (!tk.moveTypes.includes('fly') && hexDistance(h, mainThreat.unit.pos) < hexDistance(dest, mainThreat.unit.pos)) score += w.blockPlace * mainThreat.urgency;
-        }
       }
 
-      const gone = kind.isMaster && finished.size ? new Set([...killed, ...finished]) : killed;
+      const gone = finished.size ? new Set([...killed, ...finished]) : killed;
       let facing: Dir;
       let threat: number;
-      /** The threat before F3's discount: a decoy doesn't make a hit that could kill the Master any less lethal. */
-      let rawThreat: number;
       /** First-round damage the new Familiar would block (its body in the way of a path or a Direct shot). */
       let blocked = 0;
       if (command.type === 'summon') {
@@ -820,13 +740,6 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         // a Master in danger: the Familiar it summons stands in the way too
         if (kind.isMaster && threat >= me.hp) blocked = blockedBy(dest, facing, delay, gone, command.kind, neighbor(dest, command.dir));
         threat = Math.max(0, threat - blocked);
-        rawThreat = threat;
-        // F3: a new Familiar that answers the main threat and can reach it draws part of it off the Master
-        if (mainThreat) {
-          const sk = kindOf(command.kind);
-          const h = neighbor(dest, command.dir);
-          if (hexDistance(h, mainThreat.unit.pos) <= sk.stats.mov + hitReach(sk)) threat *= 1 - w.drawAttention * mainThreat.urgency * Math.min(1, plan.answerFit(sk, mainThreat.unit));
-        }
       } else {
         ({ facing, threat } = bestFacing(dest, delay, gone));
         if (command.type !== 'wait') {
@@ -837,27 +750,22 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
             threat = threatAt(dest, facing, delay, gone);
           }
         }
-        rawThreat = threat;
       }
       const v = unitValue(me);
       let safety = 0;
       let doomed = false;
       if (kind.isMaster) {
-        // HP is a budget (M1): scrapes are cheap; what costs is being left near killable
-        const potential = potentialThreat(dest, delay, facing, gone);
-        // hits past its HP change nothing (fix 2): death is priced on its own below
-        const margin = me.hp + recovery(dest) - Math.min(me.hp, Math.max(threat, potential));
+        // One curve for the Master's safety (docs/ai.md): HP is a budget. Each HP it may lose
+        // costs a little; falling below its comfort margin costs steeply; death ends the curve.
+        // Hits past its HP change nothing; Stone Heal and healers count in the margin.
+        const margin = me.hp + recovery(dest) - Math.min(me.hp, threat);
         safety += w.masterHpCost * Math.min(threat, me.hp) + w.masterRisk * Math.max(0, comfort - margin) ** 2;
-        if (rawThreat >= me.hp) {
-          // graded by how sure it is (fix 3): full when enemies that act first can reach and kill it by their
-          // real path this turn; less when it also takes the round after, or a fast enemy that might walk over
-          const sure = Math.max(0, sureThreatAt(dest, facing, delay, gone) - blocked);
+        if (threat >= me.hp) {
+          // death, graded by how sure it is: full when enemies acting first kill it by their real
+          // path this turn; less when it needs the round after, a straight-line guess or a summon
+          const sure = Math.max(0, danger(dest, facing, delay, gone).sure - blocked);
           doomed = sure >= me.hp;
           safety += w.masterDeathRisk * (doomed ? 1 : w.unsureDeath + (1 - w.unsureDeath) * (sure / me.hp));
-        } else if (potential >= me.hp) {
-          // could be killed by enemies that may get there (or be summoned) first: nearly a veto
-          // (Stone Heal and healers come after the hits, so they don't count here)
-          safety += w.masterDeathRisk * w.masterMaybeDeath;
         }
       } else {
         // scrapes a Unit can absorb cost little; damage that nearly kills it costs the most
