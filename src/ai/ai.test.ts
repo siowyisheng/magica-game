@@ -266,3 +266,45 @@ describe('a Familiar counting enemy turns that tie with its own (Lancer vs Oracl
     }
   });
 });
+
+describe("a Master counting a hit it can't outrun twice (Savage vs Ronin)", () => {
+  it("doesn't step into the reach of a Savage that would hit it again before it can escape", async () => {
+    const { readFileSync } = await import('node:fs');
+    const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
+    const r = JSON.parse(readFileSync(new URL('./fixtures/savage-vs-ronin.replay.json', import.meta.url), 'utf8')).replay;
+    applyTemporaryBalance(r.balance);
+    try {
+      // 6:21, the first turn: the Savage (Move 5, Direct range 5) hits for 6 at (6,3), then again
+      // before the Ronin (Move 3) can get out of its reach
+      const a = chooseAction(r.initial);
+      expect(a.unitId).toBe(2);
+      expect(a.to).not.toEqual({ q: 6, r: 3 });
+    } finally {
+      endTemporaryBalance();
+    }
+  });
+
+  it('summons a Familiar into the line of a Direct shot that would kill it', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
+    const r = JSON.parse(readFileSync(new URL('./fixtures/savage-vs-ronin.replay.json', import.meta.url), 'utf8')).replay;
+    applyTemporaryBalance(r.balance);
+    try {
+      // 7:03, the replay's own line: the Ronin at 5 HP, every hex it can reach in the Savage's reach
+      let st = r.initial;
+      for (const a of r.actions.slice(0, 2)) st = applyTurn(st, a).state;
+      const a = chooseAction(st);
+      expect(a.command.type).toBe('summon');
+      // the Savage's next turn: it can no longer shoot the Ronin
+      const after = applyTurn(st, a).state;
+      const savage = after.units.find((u: { kind: string }) => u.kind === 'savage')!;
+      const ronin = after.units.find((u: { kind: string }) => u.kind === 'ronin')!;
+      expect(ronin).toBeDefined();
+      const shot = chooseAction(after);
+      expect(shot.unitId).toBe(savage.id);
+      if (shot.command.type === 'attack') expect(shot.command.target).not.toEqual(ronin.pos);
+    } finally {
+      endTemporaryBalance();
+    }
+  });
+});
