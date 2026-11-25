@@ -263,6 +263,20 @@ describe('random maps', () => {
     }
   });
 
+  it('leave every tile touching at least 3 other tiles', () => {
+    for (const { seed, map } of maps) {
+      const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));
+      for (const h of map.hexes) {
+        if (h.terrain === 'pit') continue;
+        const n = DIRS.filter((d) => {
+          const x = byKey.get(hexKey(neighbor(h.hex, d)));
+          return x && x.terrain !== 'pit';
+        }).length;
+        expect(n, `seed ${seed}: tile ${hexKey(h.hex)}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
   it('usually have Pits, mostly on the edges', () => {
     let withPits = 0;
     let pits = 0;
