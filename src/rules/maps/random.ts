@@ -9,6 +9,10 @@
 //   shapes: one large lake, a few lakes, many small pools, a thin river through the
 //   middle with fords, or thin streams; sometimes a second, smaller kind as well.
 // - Pits bite into the edges (and sometimes the middle), so each map has its own shape.
+// - Plateaus 2–3 Heights above their surroundings, with cliffs on most sides and one
+//   or two step ramps: a walking Unit can reach every dry hex but a pillar. About a
+//   quarter of maps have a pair of pillars (1–2 hexes) that only Fly reaches.
+// - At least half of every body of water's shore is Wade Entries (beaches).
 // - 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (every
 //   neighbour is a hex that isn't a Pit). About 2/3 of maps have an odd count; those
 //   have 1, 3 or 5 Stones exactly on the symmetry line (the hexes as far from one
@@ -282,6 +286,49 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   }
   for (const c of b.cells) if (c.terrain === 'pit') c.height = PLAIN;
 
+  // ---- cliffs: plateaus 2–3 above the ground around them, cliffs on most sides, with
+  // one or two step ramps so a walking Unit can climb on; rarely a pillar (1–2 hexes)
+  // that only Fly reaches. All mirrored; never touching water, Pits or the Masters' corners.
+  const pillars = new Set<Cell>();
+  const raised = new Set<Cell>();
+  const solid = (c: Cell) => c.terrain !== 'pit' && c.height >= WATER_LEVEL && nbrs(c).every((n) => n.terrain !== 'pit' && n.height >= WATER_LEVEL);
+  const setH = (c: Cell, h: number) => (c.height = b.mirror(c).height = h);
+  const raise = (cells: Cell[], top: number) => {
+    for (const c of cells) for (const x of [c, b.mirror(c)]) ((x.height = top), (x.terrain = x.terrain === 'rough' ? 'rough' : 'plain'), raised.add(x));
+  };
+  for (let i = int(1, 3); i > 0; i--) {
+    const roots = b.cells.filter((c) => solid(c) && away(c, 5) && !raised.has(c) && hexDistance(c.hex, b.mirror(c).hex) > 6);
+    if (!roots.length) break;
+    const plateau = grow(pick(roots), int(3, 10)).filter((c) => solid(c) && away(c, 4) && !raised.has(c) && hexDistance(c.hex, b.mirror(c).hex) > 3);
+    if (plateau.length < 2) continue;
+    const base = Math.max(...plateau.flatMap((c) => nbrs(c).filter((n) => !plateau.includes(n)).map((n) => n.height)));
+    const top = base + int(2, 3);
+    raise(plateau, top);
+    // ramps: steps down from the edge, one Height at a time
+    for (let k = r() < 0.4 ? 2 : 1; k > 0; k--) {
+      let cur = pick(plateau);
+      for (let h = top - 1; h > base; h--) {
+        const out = nbrs(cur).filter((n) => solid(n) && !raised.has(n) && away(n, 3) && !pillars.has(n));
+        if (!out.length) break;
+        const far = out.filter((n) => !nbrs(n).some((m) => plateau.includes(m) && m !== cur));
+        cur = pick(far.length ? far : out);
+        setH(cur, h);
+        raised.add(cur);
+        raised.add(b.mirror(cur));
+      }
+    }
+  }
+  if (r() < 0.25) {
+    const roots = b.cells.filter((c) => solid(c) && away(c, 4) && !raised.has(c) && nbrs(c).every((n) => !raised.has(n)) && hexDistance(c.hex, b.mirror(c).hex) > 3);
+    if (roots.length) {
+      const c = pick(roots);
+      const cells = r() < 0.5 ? [c] : [c, ...nbrs(c).filter((n) => roots.includes(n)).slice(0, 1)];
+      const top = Math.max(...cells.flatMap((x) => nbrs(x).map((n) => n.height))) + int(2, 3);
+      raise(cells, top);
+      for (const x of cells) (pillars.add(x), pillars.add(b.mirror(x)));
+    }
+  }
+
   // ---- the Masters' corners: dry, level, clear
   for (const s of [spawn0, spawn1]) for (const c of b.cells) if (hexDistance(c.hex, s.hex) <= 2) ((c.height = PLAIN), (c.terrain = 'plain'));
 
@@ -359,7 +406,7 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   const obstacles: MapObstacle[] = [];
   const taken = new Set<string>();
   const defs: ObstacleDefense[] = [2, 4, 6];
-  const spots = b.cells.filter((c) => isLand(c) && c.terrain !== 'stone' && d0(c) >= 3 && d1(c) >= 3 && offLine(c) > 0);
+  const spots = b.cells.filter((c) => isLand(c) && c.terrain !== 'stone' && !pillars.has(c) && d0(c) >= 3 && d1(c) >= 3 && offLine(c) > 0);
   for (let i = int(3, 10); i > 0 && spots.length; ) {
     const c = pick(spots);
     const m = b.mirror(c);
@@ -391,6 +438,11 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   // a walking Unit gets from one Master to the other and onto every Stone
   const reach = walkable(map, spawn0.hex, taken);
   if (!reach.has(hexKey(spawn1.hex)) || !stones.every((s) => reach.has(hexKey(s.hex)))) return null;
+  // and onto every dry hex but the pillars (Obstacles aside: they can be broken)
+  const open = walkable(map, spawn0.hex, new Set());
+  if (b.cells.some((c) => isLand(c) && !pillars.has(c) && !open.has(hexKey(c.hex)))) return null;
+  // a pillar is out of a walker's reach
+  if ([...pillars].some((c) => open.has(hexKey(c.hex)))) return null;
   return map;
 }
 

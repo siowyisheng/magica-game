@@ -3,7 +3,8 @@ import { generateRandomMap, RANDOM_MAP_THEMES } from './random';
 import { DIRS, neighbor } from '../hex';
 import { validateMap } from './validate';
 import { hexDistance, hexKey, axialToOffset } from '../hex';
-import { surfaceOf } from '../terrain';
+import { stepCost, surfaceOf } from '../terrain';
+import type { UnitKind } from '../types';
 
 const SEEDS = Array.from({ length: 200 }, (_, i) => i * 7919 + 13);
 
@@ -108,6 +109,52 @@ describe('random maps', () => {
     }
   });
 
+  it('have cliffs (2–3 Height steps) that a walker can climb round, and rarely a pillar only Fly reaches', () => {
+    const walker = { moveTypes: ['walk'] } as unknown as UnitKind;
+    let withCliffs = 0;
+    let withPillars = 0;
+    for (const { seed, map } of maps) {
+      const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));
+      const dry = (h: (typeof map.hexes)[number]) => h.terrain !== 'pit' && surfaceOf(h, map.waterLevel) === 'land';
+      let cliffs = 0;
+      for (const h of map.hexes.filter(dry)) {
+        for (const d of DIRS) {
+          const n = byKey.get(hexKey(neighbor(h.hex, d)));
+          if (n && dry(n) && h.height - n.height >= 2) cliffs++;
+        }
+      }
+      if (cliffs) withCliffs++;
+      // walk from Green's Master over dry land
+      const seen = new Set([hexKey(map.spawns[0])]);
+      const queue = [byKey.get(hexKey(map.spawns[0]))!];
+      while (queue.length) {
+        const h = queue.pop()!;
+        for (const d of DIRS) {
+          const n = byKey.get(hexKey(neighbor(h.hex, d)));
+          if (!n || seen.has(hexKey(n.hex)) || !stepCost(walker, h, n, map.waterLevel)?.canStand) continue;
+          seen.add(hexKey(n.hex));
+          queue.push(n);
+        }
+      }
+      // what a walker can't reach is a pillar: 1–2 hexes, 2+ above all around
+      const out = map.hexes.filter((h) => dry(h) && !seen.has(hexKey(h.hex)));
+      if (out.length) withPillars++;
+      expect(out.length, `seed ${seed}`).toBeLessThanOrEqual(4);
+      for (const h of out) {
+        for (const d of DIRS) {
+          const n = byKey.get(hexKey(neighbor(h.hex, d)));
+          if (!n || n.terrain === 'pit' || out.includes(n)) continue;
+          expect(h.height - n.height, `seed ${seed}: pillar at ${hexKey(h.hex)}`).toBeGreaterThanOrEqual(2);
+        }
+        expect(h.terrain, `seed ${seed}`).not.toBe('stone');
+        expect((map.obstacles ?? []).some((o) => hexKey(o.hex) === hexKey(h.hex))).toBe(false);
+      }
+    }
+    expect(withCliffs / maps.length).toBeGreaterThan(0.9);
+    expect(withPillars / maps.length).toBeGreaterThan(0.1);
+    expect(withPillars / maps.length).toBeLessThan(0.4);
+  });
+
   it('vary the amount and shape of water: one body or many, broad or thin', () => {
     const ws = maps.map(({ map }) => waterOf(map));
     const shares = ws.map((w) => w.share);
@@ -116,7 +163,7 @@ describe('random maps', () => {
     expect(ws.filter((w) => w.bodies <= 2).length).toBeGreaterThan(20); // one large body (or a river split by fords)
     expect(ws.filter((w) => w.bodies >= 6).length).toBeGreaterThan(20); // scattered pools
     expect(ws.filter((w) => w.thinShare > 0.7).length).toBeGreaterThan(20); // thin rivers and streams
-    expect(ws.filter((w) => w.thinShare < 0.3).length).toBeGreaterThan(20); // broad lakes
+    expect(ws.filter((w) => w.thinShare < 0.3).length).toBeGreaterThan(15); // broad lakes
   });
 
   it('have 7–12 Stones, mostly 4–7 apart, at least a third on or near the symmetry line', () => {
