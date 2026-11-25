@@ -30,7 +30,7 @@ A recorded match that can be watched back turn by turn, played forward, stepped 
 _Avoid_: Recording, demo, VOD
 
 **Familiar**:
-A Unit that a Master brings onto a hex next to it. The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
+A Unit that a Master brings onto a hex next to it, at most 1 Height above or below the Master (water counts at the Water Level). The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
 _Avoid_: Summon (as a noun; "Summon" is the Command), monster, minion, creature
 
 **Side**:
@@ -51,7 +51,7 @@ The hidden exchange rate that keeps Masters balanced: each stat is priced in Mag
 _Avoid_: Point buy, stat total
 
 **Move Type**:
-A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex. Slow only ever comes paired with Swim: it marks swimmers that move with difficulty on land.
+A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex. Slow only ever comes paired with Swim: it marks swimmers that move with difficulty on land. Wade only steps into or out of Shallow Water at a **Wade Entry**.
 _Avoid_: Movement class
 
 **Move Range**:
@@ -122,6 +122,10 @@ _Avoid_: Fire mode, arc type
 **Clear Angle**:
 Whether a Direct shot can reach its target. Seen from above, every Unit and Obstacle is a body at its hex centre, and the shot is a small projectile. For blocking, a Unit's body is wide (most of its hex), so Units screen what stands behind them; an Obstacle's is smaller. The angle is clear when some straight line from the shooter to any point across the target's body passes every other body, allies included. Height, Pits, water and Magic Stones never block.
 
+**Wade Entry**:
+The edge between a land hex and a Shallow Water hex exactly 1 Height below it, like a beach. A Unit that wades (and cannot swim) steps into and out of Shallow Water only across a Wade Entry; anywhere else the bank is too high. On a Random Map at least half of every body of water's shore is Wade Entries.
+_Avoid_: Beach, ramp
+
 **Stranded**:
 A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage, then may move by its normal rules into hexes it can enter, and then act as usual. If it stays where it is, it can only Wait.
 
@@ -179,7 +183,7 @@ A neutral map object placed on dry Plain or Rough at the start of a match. No Un
 _Avoid_: Wall, prop, blocker
 
 **Random Map**:
-A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting at opposite corners and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. It has 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, all Shallow, in varying amounts and shapes: one large lake, a few lakes, many small pools, a thin river through the middle with fords, or thin streams, sometimes with a second, smaller kind as well. A walking Unit can always reach the other Master and every Stone.
+A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting at opposite corners and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. It has plateaus 2–3 Heights up with cliffs and step ramps, and on about a quarter of maps a pair of **pillars**: one or two hexes high above everything around them, which only Fly reaches. It has 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, all Shallow, in varying amounts and shapes: one large lake, a few lakes, many small pools, a thin river through the middle with fords, or thin streams, sometimes with a second, smaller kind as well. A walking Unit can always reach the other Master, every Stone and every dry hex but the pillars.
 _Avoid_: Procedural map, generated level
 
 **Theme**:

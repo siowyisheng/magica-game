@@ -35,7 +35,7 @@ import {
   alignmentBonus,
   ALIGN_STAT,
   resultingFacing,
-  canPlace,
+  canSummonAt,
   inRoster,
   planAttack,
   shotAllowed,
@@ -649,7 +649,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
       for (const sk of summonKinds) {
         for (const d of DIRS) {
           const h = neighbor(dest, d);
-          if (!canPlace(view, sk.kind, h, me.id)) continue;
+          if (!canSummonAt(view, sk.kind, dest, h, me.id)) continue;
           commands.push({ type: 'summon', kind: sk.kind.id, dir: d });
         }
       }

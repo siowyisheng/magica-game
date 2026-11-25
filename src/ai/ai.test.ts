@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyTurn, createMatch, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex } from '../rules';
+import { applyTurn, createMatch, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex, type MatchState } from '../rules';
 import { autoLoadout, chooseAction } from './ai';
 import { loadoutProblems, kindOf, randomLoadout, mulberry32, FAMILIARS } from '../rules';
 
@@ -230,12 +230,13 @@ describe('a safe Master stages forward (Lamia vs Oracle)', () => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance, endTemporaryBalance, hexDistance } = await import('../rules');
     const { makePlan } = await import('./plan');
-    const r = JSON.parse(readFileSync(new URL('./fixtures/lamia-vs-oracle.replay.json', import.meta.url), 'utf8')).replay;
+    // the position after 150 turns, saved: the replay was recorded before Wade Entries and
+    // can no longer be played forward
+    const r = JSON.parse(readFileSync(new URL('./fixtures/lamia-vs-oracle.at150.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
     try {
-      let st = r.initial;
       // 19:51: the Lamia at full HP in its back corner, well ahead, every enemy far off
-      for (const a of r.actions.slice(0, 150)) st = applyTurn(st, a).state;
+      const st = r.state;
       const me = st.units.find((u: { id: number }) => u.id === st.activeUnitId)!;
       expect(me.id).toBe(1);
       const plan = makePlan(st, 0);
@@ -319,6 +320,9 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
     for (const a of r.actions.slice(0, n)) st = applyTurn(st, a).state;
     return st;
   };
+  /** Without the Djinn: since Wade Entries, the wading enemies' Zone of Control no longer covers
+   * the water, so the Hydra can swim round and kill the Djinn instead; that hides the Comet choice. */
+  const noDjinn = (st: MatchState): MatchState => ({ ...st, units: st.units.filter((u) => u.kind !== 'djinn') });
   const done = async () => (await import('../rules')).endTemporaryBalance();
 
   it('counts the hex a Unit leaves as open to the enemy (the Halo leaving its Stone)', async () => {
@@ -335,7 +339,7 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
 
   it('settles a tie with an enemy turn by the turn order: a faster Hydra kills the Comet first', async () => {
     try {
-      const st = await at(55);
+      const st = noDjinn(await at(55));
       const a = chooseAction(st);
       expect(a.unitId).toBe(27);
       expect(a.command).toEqual({ type: 'attack', target: { q: 4, r: 6 } });
@@ -346,7 +350,7 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
 
   it('kills the Comet holding an enemy Stone', async () => {
     try {
-      const st = await at(48);
+      const st = noDjinn(await at(48));
       const a = chooseAction(st);
       expect(a.unitId).toBe(27);
       expect(a.command).toEqual({ type: 'attack', target: { q: 4, r: 6 } });
