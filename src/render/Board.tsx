@@ -49,7 +49,7 @@ import { FLY_LAND_MS, FLY_RISE_MS, KO_FADE_MS, SUMMON_PHASES, animElapsed, flies
 import { Overlay } from '../ui/Overlay';
 import { EMPOWER_COLOR, EmpowerFx, StatusAura, StoneHealFx } from './effects';
 import { anchorPositions, anchorSources } from './anchors';
-import { STEP, columnGeo, hexToWorld, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
+import { STEP, columnGeo, hexToWorld, HeightEdges, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
 import { themeOf, type Theme } from './themes';
 
 export { STEP, hexToWorld };
@@ -124,7 +124,40 @@ export function CameraControls({ onRightClick }: { onRightClick?: () => void } =
 // Flat hexagons aligned with the (pointy-top) tile columns.
 const ringGeo = new THREE.RingGeometry(0.74, 0.92, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
 
-const STONE_NEUTRAL = '#a8804a'; // light brown (glow brightens it)
+const STONE_NEUTRAL = '#9a84d8'; // soft violet: unlike any Theme's ground (glow brightens it)
+
+/**
+ * The top of a Magic Stone: a carved rune (a hex ring around a diamond, six dots),
+ * light on a mid-grey face. The owner's colour tints it; the light lines glow most.
+ */
+const runeTex = (() => {
+  const n = 32;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const ctx = cv.getContext('2d')!;
+  const c = (n - 1) / 2;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const dx = Math.abs(x - c);
+      const dy = Math.abs(y - c);
+      const ring = Math.max(dx, dx * 0.5 + dy * 0.866); // hexagonal distance
+      const diamond = dx + dy;
+      const ang = Math.atan2(y - c, x - c);
+      const dot = Math.hypot(x - c, y - c);
+      const nearDot = Math.abs(dot - 7) < 1.3 && Math.abs(((ang / (Math.PI / 3) + 6.5) % 1) - 0.5) < 0.12;
+      let col = (x * 7 + y * 13) % 11 === 0 ? '#9c9c9c' : '#a8a8a8';
+      if ((ring >= 12 && ring < 13.2) || (diamond > 4.6 && diamond <= 6)) col = '#5c5c5c';
+      if ((ring >= 10.6 && ring < 12) || diamond <= 4.6 || nearDot) col = '#ffffff';
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
 
 const lightTex = (() => {
   const n = 64;
@@ -142,7 +175,13 @@ const lightTex = (() => {
 
 /** A Magic Stone hex: the whole column takes its controller's colour and glows softly. */
 export function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: number; owner: SideId | null }) {
-  const mat = useRef<THREE.MeshLambertMaterial>(null);
+  // sides plain, top carved with the rune
+  const mats = useMemo(() => {
+    const side = new THREE.MeshLambertMaterial({ flatShading: true });
+    const top = new THREE.MeshLambertMaterial({ map: runeTex, emissiveMap: runeTex, flatShading: true });
+    return [side, top, side];
+  }, []);
+  useEffect(() => () => mats.forEach((m) => m.dispose()), [mats]);
   const light = useRef<THREE.Sprite>(null);
   const lightMat = useRef<THREE.SpriteMaterial>(null);
   useFrame(({ clock }) => {
@@ -160,11 +199,11 @@ export function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: numbe
         if (p >= 0.5) shown = st.side;
       }
     }
-    if (mat.current) {
-      const c = shown === null ? STONE_NEUTRAL : SIDE_COLORS[shown];
-      mat.current.color.set(c);
-      mat.current.emissive.set(c);
-      mat.current.emissiveIntensity = 0.24 + 0.18 * pulse + 1.2 * glow;
+    const c = shown === null ? STONE_NEUTRAL : SIDE_COLORS[shown];
+    for (const m of mats) {
+      m.color.set(c);
+      m.emissive.set(c);
+      m.emissiveIntensity = (m === mats[1] ? 0.5 : 0.24) + 0.18 * pulse + 1.2 * glow;
     }
     if (light.current && lightMat.current) {
       light.current.visible = glow > 0.001;
@@ -173,12 +212,9 @@ export function StoneColumn({ hex: h, height, owner }: { hex: Hex; height: numbe
       lightMat.current.opacity = glow;
     }
   });
-  const color = owner === null ? STONE_NEUTRAL : SIDE_COLORS[owner];
   return (
     <>
-      <mesh geometry={columnGeo(height)}>
-        <meshLambertMaterial ref={mat} color={color} emissive={color} emissiveIntensity={0.3} flatShading />
-      </mesh>
+      <mesh geometry={columnGeo(height)} material={mats} />
       <sprite ref={light} visible={false} position={[0, height * STEP + 0.6, 0]} raycast={() => null} renderOrder={12}>
         <spriteMaterial ref={lightMat} map={lightTex} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} />
       </sprite>
@@ -205,7 +241,7 @@ function Tile({ mh, theme, owner, depth }: { mh: MapHex; theme: Theme; owner?: S
       {mh.terrain === 'stone' ? (
         <StoneColumn hex={h} height={mh.height} owner={owner ?? null} />
       ) : mh.terrain === 'pit' ? (
-        <PitTile mh={mh} theme={theme} />
+        <PitTile mh={mh} />
       ) : (
         <ThemedTile mh={mh} theme={theme} depth={depth} />
       )}
@@ -1106,6 +1142,7 @@ function Scene() {
           <ObstacleView key={o.id} o={o} theme={theme} match={match} />
         ))}
       </group>
+      <HeightEdges map={match.map} waterLevel={match.waterLevel} />
       <Water match={match} />
       <Highlights />
       <Units />
