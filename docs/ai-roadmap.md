@@ -64,7 +64,10 @@ from the display, and self-play and arena harnesses exist.
 
 ## Recommended path, cheapest first
 
-1. **Search instead of a hand-modelled danger estimate.** MCTS (or a deeper
+1. **Search instead of a hand-modelled danger estimate.** *Tried first as a
+   cheap test: Hard trying the enemy's top 3 replies instead of one scored 41%
+   against today's Hard (32 games) at 2.3× the thinking time; see ai.md. The
+   leaf judgement (`evaluate()`) needs to improve first (step 3).* MCTS (or a deeper
    version of the Hard AI's lookahead) with the current scorer's top 10–20
    candidates as the move prior and `evaluate()` as the value: AlphaZero's
    search without the learning. It replaces the class of bugs above with the
