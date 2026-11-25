@@ -4,16 +4,19 @@
 //   hex of each odd row is dropped, so the 180° turn through the centre maps the map
 //   onto itself exactly. Everything (terrain, Stones, Obstacles) is mirrored through
 //   the centre, so both Sides get the same map.
-// - The Masters start at opposite corners.
+// - The Masters start opposite each other: near the SW and NE corners (40%), at 8 and
+//   2 o'clock (30%) or at 9 and 3 o'clock (30%), seen from the centre. The symmetry line
+//   (as far from one Master as from the other) turns with them.
 // - Hills, Rough, low ground; always some water, all Shallow, in varying amounts and
 //   shapes: one large lake, a few lakes, many small pools, a thin river through the
 //   middle with fords, or thin streams; sometimes a second, smaller kind as well.
 // - Pits bite into the edges (and sometimes the middle), so each map has its own shape.
-// - Plateaus 2–3 Heights above their surroundings, with cliffs on most sides and one
-//   or two step ramps: a walking Unit can reach every dry hex but a pillar. About a
-//   quarter of maps have a pair of pillars (1–2 hexes) that only Fly reaches.
+// - Heights run from 1 (Shallow Water) to 4. Plateaus at 4 with part of the ground
+//   around them dropped to 2, so most edges are 2-Height cliffs and the rest steps:
+//   a walking Unit can reach every dry hex but a pillar. About a quarter of maps have
+//   a pair of pillars (1–2 hexes) that only Fly reaches.
 // - At least half of every body of water's shore is Wade Entries (beaches).
-// - 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (every
+// - 7–12 Magic Stones, mostly 4–7 hexes apart (rarely 2–3), never on the map's edge (every
 //   neighbour is a hex that isn't a Pit). About 2/3 of maps have an odd count; those
 //   have 1, 3 or 5 Stones exactly on the symmetry line (the hexes as far from one
 //   Master as from the other): one on the centre hex, the rest in mirrored pairs.
@@ -41,6 +44,8 @@ const WATER_LEVEL = 2;
 const PLAIN = 3;
 const SHALLOW = 1;
 const LOW = 2;
+/** The highest ground: hilltops, plateaus and pillars. */
+const HIGH = 4;
 /** Most of the map Pits may take. */
 const MAX_PIT_SHARE = 0.18;
 
@@ -145,22 +150,54 @@ function walkable(map: MapDef, from: Hex, blocked: Set<string>): Set<string> {
   return seen;
 }
 
-function attempt(r: () => number, seed: number, themes: string[], oddStones: boolean): MapDef | null {
+/**
+ * Where the Masters start, as clock positions seen from the map's centre (Green's first,
+ * Red's opposite): SW and NE corners, 8 and 2 o'clock, or 9 and 3 o'clock.
+ */
+export type RandomMapStart = 'corners' | '8-2' | '9-3';
+/** How often each kind of start comes up. */
+export const RANDOM_MAP_STARTS: [RandomMapStart, number][] = [
+  ['corners', 0.4],
+  ['8-2', 0.3],
+  ['9-3', 0.3],
+];
+
+/** Green's starting hex: one hex in from the edge, at the start's clock position from the centre. */
+function startCell(b: Board, start: RandomMapStart): Cell {
+  if (start === 'corners') return b.at(offsetToAxial(1, b.rows - 2))!;
+  // positions in hex widths; rows are 0.866 hex widths apart, row numbers grow southward
+  const pos = (c: Cell) => [c.col + 0.5 * (c.row & 1), c.row * (Math.sqrt(3) / 2)];
+  const all = b.cells.map(pos);
+  const cx = all.reduce((a, p) => a + p[0], 0) / all.length;
+  const cy = all.reduce((a, p) => a + p[1], 0) / all.length;
+  // a clock face stretched to the map's shape: 8 o'clock is on the west edge, a bit over
+  // halfway from the middle to the bottom, however wide the map
+  const hx = Math.max(...all.map((p) => p[0])) - cx;
+  const hy = Math.max(...all.map((p) => p[1])) - cy;
+  const ang = start === '9-3' ? 0 : Math.PI / 6; // below due west
+  const dx = -hx * Math.cos(ang);
+  const dy = hy * Math.sin(ang);
+  const t = Math.min(hx / Math.abs(dx), dy ? hy / Math.abs(dy) : Infinity);
+  const [tx, ty] = [cx + dx * t, cy + dy * t];
+  // the nearest hex with all six neighbours on the map
+  const inner = b.cells.filter((c) => !b.edge(c));
+  return inner.reduce((best, c) => {
+    const [x, y] = pos(c);
+    const [bx, by] = pos(best);
+    return (x - tx) ** 2 + (y - ty) ** 2 < (bx - tx) ** 2 + (by - ty) ** 2 ? c : best;
+  });
+}
+
+function attempt(r: () => number, seed: number, themes: string[], oddStones: boolean, width: number, rows: number, start: RandomMapStart): MapDef | null {
   const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
   const int = (lo: number, hi: number) => lo + Math.floor(r() * (hi - lo + 1));
-  const range = (lo: number, hi: number) => Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
-  // An odd Stone count needs a centre hex: an odd number of rows, and a width that puts
-  // a hex's centre on the middle of the middle row.
-  const rows = oddStones ? pick(range(RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS).filter((n) => n % 2 === 1)) : int(RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS);
-  const midRowOdd = ((rows - 1) / 2) % 2 === 1;
-  const width = oddStones ? pick(range(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH).filter((n) => (n % 2 === 0) === midRowOdd)) : int(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH);
   const b = new Board(width, rows);
   const anyCell = () => pick(b.cells);
   const centre = b.centre();
   if (oddStones && !centre) throw new Error(`no centre hex on a ${width}×${rows} map`);
 
-  // Masters at opposite corners (one hex in, so they have room)
-  const spawn0 = b.at(offsetToAxial(1, rows - 2))!;
+  // Masters at opposite starts, one hex in from the edge; the symmetry line runs between them
+  const spawn0 = startCell(b, start);
   const spawn1 = b.mirror(spawn0);
   const d0 = (c: Cell) => hexDistance(c.hex, spawn0.hex);
   const d1 = (c: Cell) => hexDistance(c.hex, spawn1.hex);
@@ -170,9 +207,8 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   // ---- relief: hills, low ground, Rough
   for (let i = int(2, 5); i > 0; i--) {
     const radius = int(1, 2);
-    const peak = r() < 0.5;
-    b.blob(anyCell(), radius, (c, d) => {
-      c.height = Math.max(c.height, d === 0 && peak ? 5 : 4);
+    b.blob(anyCell(), radius, (c) => {
+      c.height = Math.max(c.height, HIGH);
     });
   }
   for (let i = int(0, 2); i > 0; i--) b.blob(anyCell(), 1, (c) => c.height === PLAIN && (c.height = LOW));
@@ -286,46 +322,49 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   }
   for (const c of b.cells) if (c.terrain === 'pit') c.height = PLAIN;
 
-  // ---- cliffs: plateaus 2–3 above the ground around them, cliffs on most sides, with
-  // one or two step ramps so a walking Unit can climb on; rarely a pillar (1–2 hexes)
-  // that only Fly reaches. All mirrored; never touching water, Pits or the Masters' corners.
+  // ---- cliffs: plateaus at the top Height (4) with part of the ground around them
+  // dropped to low ground (2), so most of the edge is a 2-Height cliff and the rest a
+  // step a walking Unit climbs; rarely a pillar (1–2 hexes) with all the ground around
+  // it dropped, which only Fly reaches. All mirrored; never touching water, Pits or the
+  // Masters' corners.
   const pillars = new Set<Cell>();
   const raised = new Set<Cell>();
   const solid = (c: Cell) => c.terrain !== 'pit' && c.height >= WATER_LEVEL && nbrs(c).every((n) => n.terrain !== 'pit' && n.height >= WATER_LEVEL);
   const setH = (c: Cell, h: number) => (c.height = b.mirror(c).height = h);
-  const raise = (cells: Cell[], top: number) => {
-    for (const c of cells) for (const x of [c, b.mirror(c)]) ((x.height = top), (x.terrain = x.terrain === 'rough' ? 'rough' : 'plain'), raised.add(x));
+  const raise = (cells: Cell[]) => {
+    for (const c of cells) for (const x of [c, b.mirror(c)]) ((x.height = HIGH), raised.add(x));
   };
+  /** The ground around `cells`, outside them. */
+  const ringOf = (cells: Cell[]) => [...new Set(cells.flatMap((c) => nbrs(c)).filter((n) => !cells.includes(n)))];
+  const droppable = (c: Cell) => solid(c) && !raised.has(c) && away(c, 3);
   for (let i = int(1, 3); i > 0; i--) {
     const roots = b.cells.filter((c) => solid(c) && away(c, 5) && !raised.has(c) && hexDistance(c.hex, b.mirror(c).hex) > 6);
     if (!roots.length) break;
     const plateau = grow(pick(roots), int(3, 10)).filter((c) => solid(c) && away(c, 4) && !raised.has(c) && hexDistance(c.hex, b.mirror(c).hex) > 3);
     if (plateau.length < 2) continue;
-    const base = Math.max(...plateau.flatMap((c) => nbrs(c).filter((n) => !plateau.includes(n)).map((n) => n.height)));
-    const top = base + int(2, 3);
-    raise(plateau, top);
-    // ramps: steps down from the edge, one Height at a time
-    for (let k = r() < 0.4 ? 2 : 1; k > 0; k--) {
-      let cur = pick(plateau);
-      for (let h = top - 1; h > base; h--) {
-        const out = nbrs(cur).filter((n) => solid(n) && !raised.has(n) && away(n, 3) && !pillars.has(n));
-        if (!out.length) break;
-        const far = out.filter((n) => !nbrs(n).some((m) => plateau.includes(m) && m !== cur));
-        cur = pick(far.length ? far : out);
-        setH(cur, h);
-        raised.add(cur);
-        raised.add(b.mirror(cur));
-      }
+    const ring = ringOf(plateau).filter(droppable);
+    raise(plateau);
+    // one or two ways up stay at Plain; most of the rest drops to a cliff
+    const ways = new Set(Array.from({ length: r() < 0.4 ? 2 : 1 }, () => pick(ring)));
+    const cliff = 0.5 + r() * 0.4;
+    for (const c of ring) {
+      if (ways.has(c)) setH(c, PLAIN);
+      else if (r() < cliff) setH(c, LOW);
+      raised.add(c);
+      raised.add(b.mirror(c));
     }
   }
   if (r() < 0.25) {
-    const roots = b.cells.filter((c) => solid(c) && away(c, 4) && !raised.has(c) && nbrs(c).every((n) => !raised.has(n)) && hexDistance(c.hex, b.mirror(c).hex) > 3);
+    const roots = b.cells.filter((c) => solid(c) && away(c, 4) && !raised.has(c) && nbrs(c).every((n) => !raised.has(n) && droppable(n)) && hexDistance(c.hex, b.mirror(c).hex) > 4);
     if (roots.length) {
       const c = pick(roots);
       const cells = r() < 0.5 ? [c] : [c, ...nbrs(c).filter((n) => roots.includes(n)).slice(0, 1)];
-      const top = Math.max(...cells.flatMap((x) => nbrs(x).map((n) => n.height))) + int(2, 3);
-      raise(cells, top);
-      for (const x of cells) (pillars.add(x), pillars.add(b.mirror(x)));
+      const ring = ringOf(cells);
+      if (ring.every(droppable)) {
+        raise(cells);
+        for (const n of ring) setH(n, LOW);
+        for (const x of cells) (pillars.add(x), pillars.add(b.mirror(x)));
+      }
     }
   }
 
@@ -335,15 +374,26 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   // ---- Magic Stones
   const n = oddStones ? pick([7, 9, 11]) : pick([8, 10, 12]);
   const stones: Cell[] = [];
-  const spaced = (c: Cell) => stones.every((s) => hexDistance(s.hex, c.hex) >= 4);
+  /** Stones are kept this far apart as a rule; now and then (or when nothing else fits) only CLOSE_STONES. */
+  const SPACING = 4;
+  const CLOSE_STONES = 2;
+  const spaced = (c: Cell, min: number) => stones.every((s) => hexDistance(s.hex, c.hex) >= min);
   const nearest = (c: Cell) => Math.min(...stones.map((s) => hexDistance(s.hex, c.hex)));
   const free = (c: Cell) => isLand(c) && c.terrain !== 'stone' && !b.edge(c) && d0(c) >= 3 && d1(c) >= 3;
-  /** Place a mirrored pair, preferring spots 4–7 hexes from the nearest Stone so far. */
+  /**
+   * Place a mirrored pair, preferring spots 4–7 hexes from the nearest Stone so far. The
+   * spacing is a guideline: about one pair in 12 (or one that fits nowhere else) may sit
+   * 2–3 hexes from another Stone.
+   */
   const place = (cands: Cell[]): boolean => {
-    const ok = cands.filter((c) => {
-      const m = b.mirror(c);
-      return free(c) && spaced(c) && hexDistance(c.hex, m.hex) >= 4 && free(m) && spaced(m);
-    });
+    const fits = (min: number) =>
+      cands.filter((c) => {
+        const m = b.mirror(c);
+        return free(c) && spaced(c, min) && hexDistance(c.hex, m.hex) >= min && free(m) && spaced(m, min);
+      });
+    let ok = r() < 1 / 12 ? fits(CLOSE_STONES).filter((c) => nearest(c) < SPACING) : [];
+    if (!ok.length) ok = fits(SPACING);
+    if (!ok.length) ok = fits(CLOSE_STONES);
     if (!ok.length) return false;
     const good = stones.length ? ok.filter((c) => nearest(c) <= 7) : ok;
     const c = pick(good.length ? good : ok);
@@ -450,8 +500,24 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
 export function generateRandomMap(seed: number, themes: string[] = RANDOM_MAP_THEMES): MapDef {
   const r = mulberry(seed);
   const oddStones = r() < RANDOM_MAP_ODD_STONES;
+  let roll = r();
+  const start = (RANDOM_MAP_STARTS.find(([, p]) => (roll -= p) < 0) ?? RANDOM_MAP_STARTS[0])[0];
+  // the size is picked once, so every size turns up as often as it should; only a size
+  // that keeps failing (wide and short: no room for the Stones near the line) is re-picked
+  const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
+  const int = (lo: number, hi: number) => lo + Math.floor(r() * (hi - lo + 1));
+  const range = (lo: number, hi: number) => Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+  let rows = 0;
+  let width = 0;
   for (let i = 0; i < 500; i++) {
-    const map = attempt(r, seed, themes, oddStones);
+    if (i % 100 === 0) {
+      // An odd Stone count needs a centre hex: an odd number of rows, and a width that puts
+      // a hex's centre on the middle of the middle row.
+      rows = oddStones ? pick(range(RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS).filter((n) => n % 2 === 1)) : int(RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS);
+      const midRowOdd = ((rows - 1) / 2) % 2 === 1;
+      width = oddStones ? pick(range(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH).filter((n) => (n % 2 === 0) === midRowOdd)) : int(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH);
+    }
+    const map = attempt(r, seed, themes, oddStones, width, rows, start);
     if (map) return map;
   }
   throw new Error(`no valid random map for seed ${seed}`);
