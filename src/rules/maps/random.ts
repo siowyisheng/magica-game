@@ -11,6 +11,7 @@
 //   shapes: one large lake, a few lakes, many small pools, a thin river through the
 //   middle with fords, or thin streams; sometimes a second, smaller kind as well.
 // - Pits bite into the edges (and sometimes the middle), so each map has its own shape.
+//   Every tile touches at least 3 other tiles: no stray hexes or thin spurs.
 // - Heights run from 1 (Shallow Water) to 4. Plateaus at 4 with part of the ground
 //   around them dropped to 2, so most edges are 2-Height cliffs and the rest steps:
 //   a walking Unit can reach every dry hex but a pillar. About a quarter of maps have
@@ -48,7 +49,11 @@ const SHALLOW = 1;
 const LOW = 2;
 /** The highest ground: hilltops, plateaus and pillars. */
 const HIGH = 4;
-/** Most of the map Pits may take. */
+/** Fewest other tiles (not Pits) every tile must touch. */
+export const MIN_TILE_NEIGHBOURS = 3;
+/** Most of the map Pits may take in the end. */
+const MAX_PIT_SHARE_AFTER_CLEANUP = 0.2;
+/** Most of the map Pits may take when carved (stray tiles turned to Pit can add a little). */
 const MAX_PIT_SHARE = 0.18;
 
 function mulberry(seed: number) {
@@ -372,6 +377,20 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
 
   // ---- the Masters' corners: dry, level, clear
   for (const s of [spawn0, spawn1]) for (const c of b.cells) if (hexDistance(c.hex, s.hex) <= 2) ((c.height = PLAIN), (c.terrain = 'plain'));
+
+  // ---- no stray hexes: every tile touches at least 3 others (Pits and the map's edge
+  // don't count). A tile that doesn't becomes a Pit, and that may strand a neighbour,
+  // so repeat until none is left. The rule is symmetric, so the map stays mirrored.
+  const solidNbrs = (c: Cell) => nbrs(c).filter((n) => n.terrain !== 'pit').length;
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const c of b.cells) {
+      if (c.terrain === 'pit' || c === spawn0 || c === spawn1 || solidNbrs(c) >= MIN_TILE_NEIGHBOURS) continue;
+      ((c.terrain = 'pit'), (c.height = PLAIN));
+      changed = true;
+    }
+  }
+  if (pits() > MAX_PIT_SHARE_AFTER_CLEANUP) return null;
 
   // ---- Magic Stones
   const n = oddStones ? pick([7, 9, 11]) : pick([8, 10, 12]);
