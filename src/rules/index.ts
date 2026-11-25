@@ -8,7 +8,7 @@ export * from './match';
 export * from './data/tuning';
 export { ELEMENTS } from './data/familiars';
 export { SCAFFOLD_MAP } from './maps/scaffold';
-export { generateRandomMap, RANDOM_MAP_THEMES, RANDOM_MAP_WIDTH, RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS } from './maps/random';
+export { generateRandomMap, RANDOM_MAP_THEMES, RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH, RANDOM_MAP_ODD_STONES, RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS } from './maps/random';
 export * from './reach';
 export * from './statgen';
 export * from './familiargen';
