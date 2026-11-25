@@ -519,6 +519,14 @@ describe('water level bounds and map water rules', () => {
     expect(s.maxWaterLevel).toBe(SCAFFOLD_MAP.waterLevel + 1);
     expect(validateMapWater(SCAFFOLD_MAP)).toEqual([]);
   });
+
+  it('a map with only Shallow Water is valid; one with Deep must keep some after an Ebb', async () => {
+    const { validateMapWater } = await import('./index');
+    const shallowOnly = testMap(6, 6, (q) => (q === 0 ? { height: 1 } : { height: 3 }), 2);
+    expect(validateMapWater(shallowOnly)).toEqual([]);
+    const deepThatDrains = testMap(6, 6, (q) => (q === 0 ? { height: 0 } : { height: 3 }), 2);
+    expect(validateMapWater(deepThatDrains)).toEqual(['no Deep Water remains at Water Level 1']);
+  });
 });
 
 describe('stranded movement', () => {

@@ -152,7 +152,7 @@ The floating amount of damage (or healing) a Command does to one target: shown i
 How high a hex is. Walk and Slow can climb at most 1 Height per hex they move, at +1 Move Point; going down 1 Height is free. Fly ignores Height.
 
 **Water Level**:
-The map's water surface Height. No unit can change it at present: Rise and Ebb, which change it by one step at a time from 1 below its starting value to 1 above it, are defined but no unit has them. Every map with water keeps some Deep Water at the lowest level, and the highest level floods at most 40% of the map. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
+The map's water surface Height. No unit can change it at present: Rise and Ebb, which change it by one step at a time from 1 below its starting value to 1 above it, are defined but no unit has them. Every map with Deep Water keeps some at the lowest level (a map may have only Shallow Water), and the highest level floods at most 40% of the map. On maps with no water, neither spell can be cast. A hex 1 below the Water Level is **Shallow Water**; a hex 2 or more below it is **Deep Water**.
 
 **Plain**:
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.
@@ -179,7 +179,7 @@ A neutral map object placed on dry Plain or Rough at the start of a match. No Un
 _Avoid_: Wall, prop, blocker
 
 **Random Map**:
-A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting at opposite corners and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. It has 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, in varying amounts of Shallow and Deep. A walking Unit can always reach the other Master and every Stone.
+A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting at opposite corners and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. It has 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, all Shallow, in varying amounts and shapes: one large lake, a few lakes, many small pools, a thin river through the middle with fords, or thin streams, sometimes with a second, smaller kind as well. A walking Unit can always reach the other Master and every Stone.
 _Avoid_: Procedural map, generated level
 
 **Theme**:

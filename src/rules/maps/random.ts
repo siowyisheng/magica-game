@@ -5,8 +5,9 @@
 //   onto itself exactly. Everything (terrain, Stones, Obstacles) is mirrored through
 //   the centre, so both Sides get the same map.
 // - The Masters start at opposite corners.
-// - Hills, Rough, low ground; always some water (lakes, a river along the
-//   symmetry line with fords, or both), with varying amounts of Shallow and Deep.
+// - Hills, Rough, low ground; always some water, all Shallow, in varying amounts and
+//   shapes: one large lake, a few lakes, many small pools, a thin river through the
+//   middle with fords, or thin streams; sometimes a second, smaller kind as well.
 // - Pits bite into the edges (and sometimes the middle), so each map has its own shape.
 // - 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (every
 //   neighbour is a hex that isn't a Pit). About 2/3 of maps have an odd count; those
@@ -34,7 +35,6 @@ export const RANDOM_MAP_THEMES = ['meadow', 'desert', 'ruins', 'tundra', 'volcan
 
 const WATER_LEVEL = 2;
 const PLAIN = 3;
-const DEEP = -1;
 const SHALLOW = 1;
 const LOW = 2;
 /** Most of the map Pits may take. */
@@ -174,34 +174,94 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   for (let i = int(1, 3); i > 0; i--) b.blob(anyCell(), 1, (c) => c.height === PLAIN && (c.height = LOW));
   for (let i = int(3, 7); i > 0; i--) b.blob(anyCell(), int(0, 1), (c) => (c.terrain = 'rough'));
 
-  // ---- water: always some; lakes, a river along the symmetry line, or both
-  const style = pick(['lakes', 'river', 'both']);
-  const deepShare = 0.25 + r() * 0.6;
-  if (style !== 'river') {
-    for (let i = int(1, 3); i > 0; i--) {
-      const radius = int(1, 2);
-      b.blob(anyCell(), radius, (c, d) => {
-        const h = d === 0 ? (r() < deepShare ? DEEP : SHALLOW) : d < radius ? (r() < deepShare / 2 ? DEEP : SHALLOW) : LOW;
-        c.height = Math.min(c.height, h);
-        c.terrain = c.terrain === 'rough' && h < WATER_LEVEL ? 'plain' : c.terrain;
-      });
+  // ---- water: always some, all Shallow, in one of several shapes (sometimes two)
+  const water = new Set<Cell>();
+  const fords = new Set<Cell>();
+  const nbrs = (c: Cell) => DIRS.map((d) => b.at(neighbor(c.hex, d))).filter((n): n is Cell => !!n);
+  /** A random connected patch of `size` cells grown from `start`. */
+  const grow = (start: Cell, size: number): Cell[] => {
+    const got = [start];
+    const has = new Set([start]);
+    for (let tries = 0; got.length < size && tries < size * 20; tries++) {
+      const n = pick(nbrs(pick(got)));
+      if (n && !has.has(n)) (got.push(n), has.add(n));
     }
-  }
-  if (style !== 'lakes') {
-    const band = style === 'river' ? 1 : 0;
-    for (const c of b.cells) {
-      const o = offLine(c);
-      if (o > band) continue;
-      c.height = Math.min(c.height, o === 0 && r() < deepShare ? DEEP : SHALLOW);
-      c.terrain = 'plain';
-      const m = b.mirror(c);
-      m.height = c.height;
-      m.terrain = 'plain';
+    return got;
+  };
+  /** A wandering line from `start`, heading for `target` (or keeping its heading), `width` 1 or 2. */
+  const wander = (start: Cell, steps: number, target: Cell | null, width: number, stop: (c: Cell) => boolean): Cell[] => {
+    const got = [start];
+    let cur = start;
+    let heading = pick([...DIRS]);
+    for (let i = 0; i < steps && !stop(cur); i++) {
+      const opts = DIRS.map((d) => ({ d, c: b.at(neighbor(cur.hex, d)) })).filter((o): o is { d: Dir; c: Cell } => !!o.c && !got.includes(o.c));
+      if (!opts.length) break;
+      const w = (o: { d: Dir; c: Cell }) => {
+        if (target) {
+          const gain = hexDistance(cur.hex, target.hex) - hexDistance(o.c.hex, target.hex);
+          return gain > 0 ? 4 : gain === 0 ? 1 : 0.1;
+        }
+        return o.d === heading ? 5 : Math.abs(((o.d - heading + 9) % 6) - 3) === 2 ? 1.5 : 0.1;
+      };
+      let x = r() * opts.reduce((a, o) => a + w(o), 0);
+      const next = opts.find((o) => (x -= w(o)) <= 0) ?? opts[opts.length - 1];
+      heading = next.d;
+      cur = next.c;
+      got.push(cur);
+      if (width > 1) {
+        const side = pick(nbrs(cur));
+        if (side && !got.includes(side)) got.push(side);
+      }
     }
-    // fords: low land across the river, in mirrored pairs
-    const line = b.cells.filter((c) => offLine(c) <= band);
-    for (let i = int(1, 2); i > 0 && line.length; i--) b.blob(pick(line), 1, (c) => c.height < WATER_LEVEL && (c.height = LOW));
-  }
+    return got;
+  };
+  const away = (c: Cell, k: number) => d0(c) > k && d1(c) > k;
+  /** Cells next to (or on) their own mirror: a patch grown from one of these joins its mirror. */
+  const middle = centre ? [centre] : b.cells.filter((c) => hexDistance(c.hex, b.mirror(c).hex) <= 1);
+  /** Add cells and their mirrors to the water; `apart`: only if nothing touches water already. */
+  const flood = (cells: Cell[], apart = false): boolean => {
+    const all = cells.flatMap((c) => [c, b.mirror(c)]).filter((c) => away(c, 2));
+    if (apart && all.some((c) => water.has(c) || nbrs(c).some((n) => water.has(n) && !all.includes(n)))) return false;
+    for (const c of all) water.add(c);
+    return true;
+  };
+  const shapes = ['lake', 'lakes', 'pools', 'river', 'streams'] as const;
+  type Shape = (typeof shapes)[number];
+  const make = (shape: Shape, scale: number) => {
+    const area = b.cells.length;
+    switch (shape) {
+      case 'lake': // one large body across the middle
+        flood(grow(pick(middle), Math.round(area * (0.06 + r() * 0.2) * scale)));
+        break;
+      case 'lakes': // a few medium bodies
+        for (let i = int(1, 3); i > 0; i--) flood(grow(pick(b.cells.filter((c) => away(c, 4))), Math.round(int(5, 24) * scale)), true);
+        break;
+      case 'pools': // many small, separate pools
+        for (let i = int(3, 7); i > 0; i--) flood(grow(pick(b.cells.filter((c) => away(c, 3))), int(1, 4)), true);
+        break;
+      case 'river': {
+        // a thin river through the middle to two opposite edges, with fords
+        const ends = b.cells.filter((c) => b.edge(c) && away(c, 5));
+        if (!ends.length) break;
+        const width = r() < 0.3 && scale === 1 ? 2 : 1;
+        const course = wander(pick(middle), 60, pick(ends), width, (c) => b.edge(c));
+        flood(course);
+        for (let i = int(1, 3); i > 0; i--) {
+          const f = pick(course);
+          for (const c of [f, ...(width > 1 ? nbrs(f) : [])]) for (const x of [c, b.mirror(c)]) if (water.delete(x)) fords.add(x);
+        }
+        break;
+      }
+      case 'streams': // a few thin, wandering streams
+        for (let i = int(1, 3); i > 0; i--) flood(wander(pick(b.cells.filter((c) => away(c, 3))), int(4, 10), null, 1, () => false), true);
+        break;
+    }
+  };
+  make(pick([...shapes]), 1);
+  if (r() < 0.35) make(pick(['lakes', 'pools', 'streams'] as Shape[]), 0.5);
+  if (!water.size) return null;
+  for (const c of water) ((c.height = SHALLOW), (c.terrain = 'plain'));
+  for (const c of fords) ((c.height = LOW), (c.terrain = 'plain'));
 
   // ---- Pits: bites out of the edges, so every map has its own outline; sometimes a
   // chasm inside. Never near the Masters' corners or the centre.
@@ -224,15 +284,6 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
 
   // ---- the Masters' corners: dry, level, clear
   for (const s of [spawn0, spawn1]) for (const c of b.cells) if (hexDistance(c.hex, s.hex) <= 2) ((c.height = PLAIN), (c.terrain = 'plain'));
-
-  // water rules: some Deep, and not too much low ground (the map validator checks the rest)
-  if (!b.cells.some((c) => c.height <= DEEP)) {
-    const shallow = b.cells.filter((c) => c.height === SHALLOW);
-    if (!shallow.length) return null;
-    const c = pick(shallow);
-    c.height = DEEP;
-    b.mirror(c).height = DEEP;
-  }
 
   // ---- Magic Stones
   const n = oddStones ? pick([7, 9, 11]) : pick([8, 10, 12]);
@@ -294,6 +345,9 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
     taken.add(hexKey(m.hex));
     i--;
   }
+
+  // still some water after the corners, Pits and Stones took their share
+  if (!b.cells.some((c) => c.terrain !== 'pit' && c.height < WATER_LEVEL)) return null;
 
   const hexes: MapHex[] = b.cells.map((c) => ({ hex: c.hex, height: c.height, terrain: c.terrain }));
   const mid = b.cells.reduce((a, c) => ({ q: a.q + c.hex.q / b.cells.length, r: a.r + c.hex.r / b.cells.length }), { q: 0, r: 0 });

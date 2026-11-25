@@ -44,12 +44,49 @@ describe('random maps', () => {
     }
   });
 
-  it('always have water, with some Deep', () => {
-    for (const { map } of maps) {
-      const surf = map.hexes.map((h) => surfaceOf(h, map.waterLevel));
-      expect(surf.some((s) => s !== 'land')).toBe(true);
-      expect(map.hexes.some((h) => map.waterLevel - 1 - h.height >= 2)).toBe(true);
+  /** Water hexes, and how many separate bodies they form. */
+  const waterOf = (map: (typeof maps)[number]['map']) => {
+    const wet = map.hexes.filter((h) => surfaceOf(h, map.waterLevel) !== 'land');
+    const keys = new Set(wet.map((h) => hexKey(h.hex)));
+    const seen = new Set<string>();
+    let bodies = 0;
+    let thin = 0; // water hexes with at most 2 water neighbours: rivers, streams
+    for (const h of wet) {
+      const around = DIRS.filter((d) => keys.has(hexKey(neighbor(h.hex, d)))).length;
+      if (around <= 2) thin++;
+      if (seen.has(hexKey(h.hex))) continue;
+      bodies++;
+      const queue = [h.hex];
+      seen.add(hexKey(h.hex));
+      while (queue.length) {
+        const x = queue.pop()!;
+        for (const d of DIRS) {
+          const k = hexKey(neighbor(x, d));
+          if (keys.has(k) && !seen.has(k)) (seen.add(k), queue.push(neighbor(x, d)));
+        }
+      }
     }
+    const ground = map.hexes.filter((h) => h.terrain !== 'pit').length;
+    return { share: wet.length / ground, bodies, thinShare: wet.length ? thin / wet.length : 0, wet };
+  };
+
+  it('always have water, all of it Shallow', () => {
+    for (const { seed, map } of maps) {
+      const { wet } = waterOf(map);
+      expect(wet.length, `seed ${seed}`).toBeGreaterThan(0);
+      for (const h of wet) expect(surfaceOf(h, map.waterLevel), `seed ${seed}`).toBe('shallow');
+    }
+  });
+
+  it('vary the amount and shape of water: one body or many, broad or thin', () => {
+    const ws = maps.map(({ map }) => waterOf(map));
+    const shares = ws.map((w) => w.share);
+    expect(Math.min(...shares)).toBeLessThan(0.04);
+    expect(Math.max(...shares)).toBeGreaterThan(0.15);
+    expect(ws.filter((w) => w.bodies <= 2).length).toBeGreaterThan(20); // one large body (or a river split by fords)
+    expect(ws.filter((w) => w.bodies >= 6).length).toBeGreaterThan(20); // scattered pools
+    expect(ws.filter((w) => w.thinShare > 0.7).length).toBeGreaterThan(20); // thin rivers and streams
+    expect(ws.filter((w) => w.thinShare < 0.3).length).toBeGreaterThan(20); // broad lakes
   });
 
   it('have 7–12 Stones, mostly 4–7 apart, at least a third on or near the symmetry line', () => {
