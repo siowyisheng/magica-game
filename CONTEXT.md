@@ -33,6 +33,10 @@ _Avoid_: Recording, demo, VOD
 A Unit that a Master brings onto a hex next to it, at most 1 Height above or below the Master (water counts at the Water Level). The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
 _Avoid_: Summon (as a noun; "Summon" is the Command), monster, minion, creature
 
+**Class**:
+What a Familiar does with its one acting Command, shown by an icon wherever it appears (the word only in detailed views): **Fighter** (a physical Attack, ATK against DEF), **Caster** (damaging Magic, MP against MDF), **Healer** (Magic that restores HP) or **Support** (other helpful Magic, such as Empower). A Familiar uses ATK or MP, never both.
+_Avoid_: Role, archetype, type (Move Type is something else)
+
 **Side**:
 One of the two opposing players (human or AI) and every Unit they control. The Side Colour is green for the human player by default and red for the opponent.
 _Avoid_: Team, faction, player (when meaning the group of Units)
