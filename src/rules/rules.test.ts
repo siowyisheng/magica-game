@@ -550,6 +550,24 @@ describe('terrain blocks Direct shots', () => {
   });
 });
 
+describe('range-1 reach and Height', () => {
+  it('a range-1 Attack reaches a neighbour at most 1 Height up or down; a ranged one ignores Height', async () => {
+    const { attackTargets } = await import('./index');
+    // q = 0..3 at heights 3, 4, 6, 4
+    const hs = [3, 4, 6, 4];
+    const s = createMatch(testMap(4, 1, (q) => ({ height: hs[q] }), 0));
+    s.units = [];
+    s.obstacles = [];
+    const imp = place(s, 'imp', 0, 1, 0); // range 1, height 4
+    const low = place(s, 'imp', 1, 0, 0); // height 3: 1 below
+    const high = place(s, 'imp', 1, 2, 0); // height 6: 2 above
+    const ids = (u: Unit) => attackTargets(s, u, u.pos).map((t) => t.id);
+    expect(ids(imp)).toEqual([low.id]);
+    const archer = place(s, 'archer', 0, 3, 0); // range 4, height 4, next to the high imp
+    expect(ids(archer)).toContain(high.id);
+  });
+});
+
 describe('summon height', () => {
   it('a Master summons only onto a neighbour at most 1 Height above or below it', async () => {
     const { canSummonAt, kindOf } = await import('./index');

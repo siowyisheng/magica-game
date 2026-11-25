@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, isObstacle, hexDistance, kindOf, trajectoryOf, primaryMagic } from '../rules';
+import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, isObstacle, hexDistance, kindOf, trajectoryOf, primaryMagic, meleeReach } from '../rules';
 import { blockedShot, hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
@@ -150,6 +150,8 @@ export function Overlay() {
       const ab = phase.command === 'attack' ? k.attack : k.magic.find((m) => m.id === (phase.command as { magic: string }).magic);
       if (ab && 'range' in ab && trajectoryOf(ab) === 'direct' && hexDistance(phase.to, hoverHex) <= ab.range) {
         tags.push({ unit: t, note: 'No clear shot' });
+      } else if (ab && 'range' in ab && trajectoryOf(ab) === null && hexDistance(phase.to, hoverHex) === 1 && !meleeReach(match, phase.to, hoverHex)) {
+        tags.push({ unit: t, note: 'Too high or low' });
       }
     }
   }
@@ -157,7 +159,9 @@ export function Overlay() {
   if (u && !quick && phase.kind === 'move' && phase.selected) {
     const t = (hoverUnitId !== null ? targetById(match, hoverUnitId) : undefined) ?? (hoverHex ? targetAt(match, hoverHex) : undefined);
     if (t && t.id !== u.id && (isObstacle(t) || t.side !== u.side || primaryMagic(u)?.kind === 'heal' || primaryMagic(u)?.kind === 'empower') && blockedShot(match, u, t)) {
-      tags.push({ unit: t, note: 'No clear shot' });
+      // a range-1 user is stopped by Height, a ranged one by a blocked Direct shot
+      const melee = isObstacle(t) || t.side !== u.side ? kindOf(u.kind).attack.range <= 1 : (primaryMagic(u)?.range ?? 2) <= 1;
+      tags.push({ unit: t, note: melee ? 'Too high or low' : 'No clear shot' });
     }
   }
 

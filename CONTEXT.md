@@ -116,7 +116,7 @@ A damaging Magic Ability centred on the caster, with no range: it hits every Uni
 _Avoid_: Nova, self-AoE
 
 **Trajectory**:
-How a ranged Attack or Magic Ability (range above 1) travels. **High** arcs over everything and always reaches a target in range. **Direct** flies straight and needs a Clear Angle. Abilities with range 1 have no Trajectory.
+How a ranged Attack or Magic Ability (range above 1) travels. **High** arcs over everything and always reaches a target in range. **Direct** flies straight and needs a Clear Angle. Abilities with range 1 have no Trajectory; they reach a neighbouring Unit (enemy or ally) only when its hex is at most 1 Height above or below the user's (water counts at the Water Level). A ranged ability used on a neighbour ignores Height.
 _Avoid_: Fire mode, arc type
 
 **Clear Angle**:
