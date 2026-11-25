@@ -782,8 +782,8 @@ describe('masters', () => {
       expect(k.moveTypes).toEqual(['walk', 'wade']);
       expect(k.magic).toEqual([]);
       expect(kindWarnings(k, MASTERS)).toEqual([]);
-      // within 0.4 MP of the Stat Budget (the designer's hand-tuned spreads reach 0.39)
-      expect(Math.abs(budgetError(k.stats, k.attack.range)), k.id).toBeLessThanOrEqual(0.4);
+      // within 0.6 MP of the Stat Budget (the designer's hand-tuned spreads reach 0.55: Savage)
+      expect(Math.abs(budgetError(k.stats, k.attack.range)), k.id).toBeLessThanOrEqual(0.6);
     }
     expect(new Set(MASTERS.map((k) => k.element).filter(Boolean)).size).toBe(4);
     expect(MASTERS.filter((k) => k.element).length).toBe(4);
@@ -794,7 +794,8 @@ describe('masters', () => {
     expect(MASTERS.filter((k) => k.stats.mdf < 3).length).toBeLessThanOrEqual(1);
     const ranged = MASTERS.filter((k) => k.attack.range > 1);
     expect(ranged.map((k) => k.attack.range).sort()).toEqual([3, 4, 4, 5, 6]);
-    expect(ranged.every((k) => k.attack.trajectory === (k.attack.range <= 4 ? 'direct' : 'high'))).toBe(true);
+    // range 4 or less is always Direct; longer may be either (the Savage shoots Direct at 5)
+    for (const k of ranged.filter((k) => k.attack.range <= 4)) expect(k.attack.trajectory, k.id).toBe('direct');
   });
 
   it('lets each Side start with its chosen Master', () => {
