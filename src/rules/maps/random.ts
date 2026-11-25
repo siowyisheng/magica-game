@@ -5,8 +5,8 @@
 //   onto itself exactly. Everything (terrain, Stones, Obstacles) is mirrored through
 //   the centre, so both Sides get the same map.
 // - The Masters start opposite each other: near the SW and NE corners (40%), at 8 and
-//   2 o'clock (30%) or at 9 and 3 o'clock (30%), seen from the centre. The symmetry line
-//   (as far from one Master as from the other) turns with them.
+//   2 o'clock (30%) or at 9 and 3 o'clock (30%, on maps 18+ wide), seen from the centre.
+//   The symmetry line (as far from one Master as from the other) turns with them.
 // - Hills, Rough, low ground; always some water, all Shallow, in varying amounts and
 //   shapes: one large lake, a few lakes, many small pools, a thin river through the
 //   middle with fords, or thin streams; sometimes a second, smaller kind as well.
@@ -33,6 +33,8 @@ import { validateMap } from './validate';
 
 export const RANDOM_MAP_MIN_WIDTH = 16;
 export const RANDOM_MAP_MAX_WIDTH = 21;
+/** Narrowest map for 9 and 3 o'clock starts, which face each other across the width. */
+export const RANDOM_MAP_MIN_WIDTH_ACROSS = 18;
 export const RANDOM_MAP_MIN_ROWS = 13;
 export const RANDOM_MAP_MAX_ROWS = 21;
 /** Share of maps with an odd number of Magic Stones. */
@@ -515,7 +517,8 @@ export function generateRandomMap(seed: number, themes: string[] = RANDOM_MAP_TH
       // a hex's centre on the middle of the middle row.
       rows = oddStones ? pick(range(RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS).filter((n) => n % 2 === 1)) : int(RANDOM_MAP_MIN_ROWS, RANDOM_MAP_MAX_ROWS);
       const midRowOdd = ((rows - 1) / 2) % 2 === 1;
-      width = oddStones ? pick(range(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH).filter((n) => (n % 2 === 0) === midRowOdd)) : int(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH);
+      const minWidth = start === '9-3' ? RANDOM_MAP_MIN_WIDTH_ACROSS : RANDOM_MAP_MIN_WIDTH;
+      width = oddStones ? pick(range(minWidth, RANDOM_MAP_MAX_WIDTH).filter((n) => (n % 2 === 0) === midRowOdd)) : int(minWidth, RANDOM_MAP_MAX_WIDTH);
     }
     const map = attempt(r, seed, themes, oddStones, width, rows, start);
     if (map) return map;

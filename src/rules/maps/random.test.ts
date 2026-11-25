@@ -48,7 +48,10 @@ describe('random maps', () => {
       const below = (Math.atan2(y, -x) * 180) / Math.PI;
       if (a.col <= 1 && a.row >= rows - 2) kinds.corners++;
       else if (below > 15) kinds['8-2']++;
-      else kinds['9-3']++;
+      else {
+        kinds['9-3']++;
+        expect(width, `seed ${seed}: 9/3 o'clock starts need room`).toBeGreaterThanOrEqual(18);
+      }
       // never more than one hex in from the west edge, except at the corner start
       expect(a.col, `seed ${seed}`).toBeLessThanOrEqual(1);
     }
