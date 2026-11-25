@@ -32,7 +32,7 @@ import {
   randomLoadout,
   targetAt,
   targetById,
-  canPlace,
+  canSummonAt,
   activeBalance,
   applyTemporaryBalance,
   endTemporaryBalance,
@@ -696,10 +696,10 @@ export function hoverQuick(
   return plans.attack || plans.magic ? { target, plans } : null;
 }
 
-/** Directions around `to` where `kind` could be summoned (hex on map, free, standable). */
+/** Directions around `to` where `kind` could be summoned (hex on map, free, standable, at most 1 Height up or down). */
 export function validSummonDirs(match: MatchState, masterId: number, to: Hex, kind: string): Dir[] {
   const sk = kindOf(kind);
-  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => canPlace(match, sk, neighbor(to, d), masterId));
+  return ([0, 1, 2, 3, 4, 5] as Dir[]).filter((d) => canSummonAt(match, sk, to, neighbor(to, d), masterId));
 }
 
 /**

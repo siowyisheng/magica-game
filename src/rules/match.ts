@@ -11,7 +11,7 @@ import {
 } from './data/tuning';
 import { DEFAULT_MASTER, kindOf } from './kinds';
 import { affectedUnits, attackTargets, computeDamage, computeEmpower, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
-import { canPlace, isStranded, mapHexAt, reachable, surfaceOf, targetAt } from './terrain';
+import { canPlace, canSummonAt, isStranded, mapHexAt, reachable, surfaceOf, targetAt } from './terrain';
 import { isObstacle, type GameEvent, type MagicAbility, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
 
 // ---------- delays ----------
@@ -215,6 +215,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
       const h = neighbor(action.to, cmd.dir);
       if (!mapHexAt(state.map, h)) return 'off map';
       if (!canPlace(view, sk, h, unit.id)) return 'the Familiar cannot be placed there';
+      if (!canSummonAt(view, sk, action.to, h, unit.id)) return 'too high or low to summon onto';
       return null;
     }
   }

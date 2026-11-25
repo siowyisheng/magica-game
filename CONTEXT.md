@@ -30,7 +30,7 @@ A recorded match that can be watched back turn by turn, played forward, stepped 
 _Avoid_: Recording, demo, VOD
 
 **Familiar**:
-A Unit that a Master brings onto a hex next to it. The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
+A Unit that a Master brings onto a hex next to it, at most 1 Height above or below the Master (water counts at the Water Level). The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
 _Avoid_: Summon (as a noun; "Summon" is the Command), monster, minion, creature
 
 **Side**:

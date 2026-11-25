@@ -529,6 +529,23 @@ describe('water level bounds and map water rules', () => {
   });
 });
 
+describe('summon height', () => {
+  it('a Master summons only onto a neighbour at most 1 Height above or below it', async () => {
+    const { canSummonAt, kindOf } = await import('./index');
+    // q = 0..4 at heights 3, 4, 6, 2, 3
+    const hs = [3, 4, 6, 2, 3];
+    const s = createMatch(testMap(5, 1, (q) => ({ height: hs[q] }), 0));
+    s.units = [];
+    const imp = kindOf('imp');
+    const from = hex(1, 0);
+    expect(canSummonAt(s, imp, from, hex(0, 0))).toBe(true); // 1 below
+    expect(canSummonAt(s, imp, from, hex(2, 0))).toBe(false); // 2 above
+    const low = hex(3, 0);
+    expect(canSummonAt(s, imp, hex(4, 0), low)).toBe(true); // 1 below
+    expect(canSummonAt(s, imp, hex(2, 0), low)).toBe(false); // 4 below
+  });
+});
+
 describe('wade entries', () => {
   it('a wading Unit steps into and out of Shallow Water only from land exactly 1 above the water hex', async () => {
     const { stepCost, kindOf } = await import('./index');

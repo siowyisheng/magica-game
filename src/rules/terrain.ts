@@ -137,6 +137,21 @@ export function canPlace(state: MatchState, kind: UnitKind, h: Hex, ignoreId?: n
   return !occ || occ.id === ignoreId;
 }
 
+/** Most a summoned Familiar's hex may be above or below its Master's. */
+export const SUMMON_MAX_STEP = 1;
+
+/**
+ * Whether a Master standing on `from` could summon `kind` onto the neighbouring hex `h`:
+ * placeable there, and at most 1 Height above or below the Master (water counts at the
+ * Water Level).
+ */
+export function canSummonAt(state: MatchState, kind: UnitKind, from: Hex, h: Hex, masterId?: number): boolean {
+  if (!canPlace(state, kind, h, masterId)) return false;
+  const a = mapHexAt(state.map, from);
+  const b = mapHexAt(state.map, h)!;
+  return !!a && Math.abs(surfaceHeight(b, state.waterLevel) - surfaceHeight(a, state.waterLevel)) <= SUMMON_MAX_STEP;
+}
+
 /** Hexes in the Zone of Control of `side`'s enemies. */
 export function enemyZoc(state: MatchState, side: number): Set<string> {
   const zoc = new Set<string>();
