@@ -33,16 +33,31 @@ describe('random maps', () => {
     }
   });
 
-  it('start the Masters at opposite corners', () => {
-    for (const { map } of maps) {
+  it('start the Masters opposite each other: SW/NE corners 40%, 8/2 o\'clock 30%, 9/3 o\'clock 30%', () => {
+    const kinds = { corners: 0, '8-2': 0, '9-3': 0 };
+    for (const { seed, map } of maps) {
       const { rows, width } = size(map);
       const a = axialToOffset(map.spawns[0]);
       const b = axialToOffset(map.spawns[1]);
-      expect(a.col).toBeLessThanOrEqual(1);
-      expect(a.row).toBeGreaterThanOrEqual(rows - 2);
-      expect(b.col).toBeGreaterThanOrEqual(width - 3);
-      expect(b.row).toBeLessThanOrEqual(1);
+      // mirrored through the centre
+      expect(a.row + b.row, `seed ${seed}`).toBe(rows - 1);
+      // Green's angle below due west, seen from the centre (rows are 0.866 hex widths apart)
+      const x = a.col + 0.5 * (a.row & 1) - (width - 1) / 2;
+      const y = (a.row - (rows - 1) / 2) * (Math.sqrt(3) / 2);
+      expect(x, `seed ${seed}`).toBeLessThan(0);
+      const below = (Math.atan2(y, -x) * 180) / Math.PI;
+      if (a.col <= 1 && a.row >= rows - 2) kinds.corners++;
+      else if (below > 15) kinds['8-2']++;
+      else kinds['9-3']++;
+      // never more than one hex in from the west edge, except at the corner start
+      expect(a.col, `seed ${seed}`).toBeLessThanOrEqual(1);
     }
+    expect(kinds.corners / maps.length).toBeGreaterThan(0.3);
+    expect(kinds.corners / maps.length).toBeLessThan(0.5);
+    expect(kinds['8-2'] / maps.length).toBeLessThan(0.4);
+    expect(kinds['9-3'] / maps.length).toBeLessThan(0.4);
+    expect(kinds['8-2'] / maps.length).toBeGreaterThan(0.2);
+    expect(kinds['9-3'] / maps.length).toBeGreaterThan(0.2);
   });
 
   /** Water hexes, and how many separate bodies they form. */

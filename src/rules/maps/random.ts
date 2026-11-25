@@ -4,7 +4,9 @@
 //   hex of each odd row is dropped, so the 180° turn through the centre maps the map
 //   onto itself exactly. Everything (terrain, Stones, Obstacles) is mirrored through
 //   the centre, so both Sides get the same map.
-// - The Masters start at opposite corners.
+// - The Masters start opposite each other: near the SW and NE corners (40%), at 8 and
+//   2 o'clock (30%) or at 9 and 3 o'clock (30%), seen from the centre. The symmetry line
+//   (as far from one Master as from the other) turns with them.
 // - Hills, Rough, low ground; always some water, all Shallow, in varying amounts and
 //   shapes: one large lake, a few lakes, many small pools, a thin river through the
 //   middle with fords, or thin streams; sometimes a second, smaller kind as well.
@@ -148,7 +150,45 @@ function walkable(map: MapDef, from: Hex, blocked: Set<string>): Set<string> {
   return seen;
 }
 
-function attempt(r: () => number, seed: number, themes: string[], oddStones: boolean, width: number, rows: number): MapDef | null {
+/**
+ * Where the Masters start, as clock positions seen from the map's centre (Green's first,
+ * Red's opposite): SW and NE corners, 8 and 2 o'clock, or 9 and 3 o'clock.
+ */
+export type RandomMapStart = 'corners' | '8-2' | '9-3';
+/** How often each kind of start comes up. */
+export const RANDOM_MAP_STARTS: [RandomMapStart, number][] = [
+  ['corners', 0.4],
+  ['8-2', 0.3],
+  ['9-3', 0.3],
+];
+
+/** Green's starting hex: one hex in from the edge, at the start's clock position from the centre. */
+function startCell(b: Board, start: RandomMapStart): Cell {
+  if (start === 'corners') return b.at(offsetToAxial(1, b.rows - 2))!;
+  // positions in hex widths; rows are 0.866 hex widths apart, row numbers grow southward
+  const pos = (c: Cell) => [c.col + 0.5 * (c.row & 1), c.row * (Math.sqrt(3) / 2)];
+  const all = b.cells.map(pos);
+  const cx = all.reduce((a, p) => a + p[0], 0) / all.length;
+  const cy = all.reduce((a, p) => a + p[1], 0) / all.length;
+  // a clock face stretched to the map's shape: 8 o'clock is on the west edge, a bit over
+  // halfway from the middle to the bottom, however wide the map
+  const hx = Math.max(...all.map((p) => p[0])) - cx;
+  const hy = Math.max(...all.map((p) => p[1])) - cy;
+  const ang = start === '9-3' ? 0 : Math.PI / 6; // below due west
+  const dx = -hx * Math.cos(ang);
+  const dy = hy * Math.sin(ang);
+  const t = Math.min(hx / Math.abs(dx), dy ? hy / Math.abs(dy) : Infinity);
+  const [tx, ty] = [cx + dx * t, cy + dy * t];
+  // the nearest hex with all six neighbours on the map
+  const inner = b.cells.filter((c) => !b.edge(c));
+  return inner.reduce((best, c) => {
+    const [x, y] = pos(c);
+    const [bx, by] = pos(best);
+    return (x - tx) ** 2 + (y - ty) ** 2 < (bx - tx) ** 2 + (by - ty) ** 2 ? c : best;
+  });
+}
+
+function attempt(r: () => number, seed: number, themes: string[], oddStones: boolean, width: number, rows: number, start: RandomMapStart): MapDef | null {
   const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
   const int = (lo: number, hi: number) => lo + Math.floor(r() * (hi - lo + 1));
   const b = new Board(width, rows);
@@ -156,8 +196,8 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   const centre = b.centre();
   if (oddStones && !centre) throw new Error(`no centre hex on a ${width}×${rows} map`);
 
-  // Masters at opposite corners (one hex in, so they have room)
-  const spawn0 = b.at(offsetToAxial(1, rows - 2))!;
+  // Masters at opposite starts, one hex in from the edge; the symmetry line runs between them
+  const spawn0 = startCell(b, start);
   const spawn1 = b.mirror(spawn0);
   const d0 = (c: Cell) => hexDistance(c.hex, spawn0.hex);
   const d1 = (c: Cell) => hexDistance(c.hex, spawn1.hex);
@@ -460,6 +500,8 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
 export function generateRandomMap(seed: number, themes: string[] = RANDOM_MAP_THEMES): MapDef {
   const r = mulberry(seed);
   const oddStones = r() < RANDOM_MAP_ODD_STONES;
+  let roll = r();
+  const start = (RANDOM_MAP_STARTS.find(([, p]) => (roll -= p) < 0) ?? RANDOM_MAP_STARTS[0])[0];
   // the size is picked once, so every size turns up as often as it should; only a size
   // that keeps failing (wide and short: no room for the Stones near the line) is re-picked
   const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
@@ -475,7 +517,7 @@ export function generateRandomMap(seed: number, themes: string[] = RANDOM_MAP_TH
       const midRowOdd = ((rows - 1) / 2) % 2 === 1;
       width = oddStones ? pick(range(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH).filter((n) => (n % 2 === 0) === midRowOdd)) : int(RANDOM_MAP_MIN_WIDTH, RANDOM_MAP_MAX_WIDTH);
     }
-    const map = attempt(r, seed, themes, oddStones, width, rows);
+    const map = attempt(r, seed, themes, oddStones, width, rows, start);
     if (map) return map;
   }
   throw new Error(`no valid random map for seed ${seed}`);
