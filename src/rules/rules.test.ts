@@ -529,6 +529,27 @@ describe('water level bounds and map water rules', () => {
   });
 });
 
+describe('terrain blocks Direct shots', () => {
+  it('a hex in the path 2+ Heights above the shooter blocks; 1 above, or Pits, never do', async () => {
+    const { clearShot } = await import('./index');
+    // a row q = 0..4; the shooter at q = 0, the target at q = 4, the middle hex varies
+    const shot = (shooter: number, middle: Partial<MapHex>) => {
+      const s = createMatch(testMap(5, 1, (q) => (q === 0 ? { height: shooter } : q === 2 ? { height: 3, ...middle } : { height: 3 }), 0));
+      s.units = [];
+      s.obstacles = [];
+      return clearShot(s, -1, hex(0, 0), hex(4, 0));
+    };
+    expect(shot(3, { height: 4 })).toBe(true); // 1 above
+    expect(shot(3, { height: 5 })).toBe(false); // 2 above
+    expect(shot(4, { height: 5 })).toBe(true); // from higher ground, 1 above
+    expect(shot(3, { height: 9, terrain: 'pit' })).toBe(true); // a Pit is empty
+    // the target's own hex never blocks
+    const s = createMatch(testMap(3, 1, (q) => ({ height: q === 2 ? 6 : 3 }), 0));
+    s.units = [];
+    expect(clearShot(s, -1, hex(0, 0), hex(2, 0))).toBe(true);
+  });
+});
+
 describe('summon height', () => {
   it('a Master summons only onto a neighbour at most 1 Height above or below it', async () => {
     const { canSummonAt, kindOf } = await import('./index');
