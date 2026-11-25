@@ -529,6 +529,23 @@ describe('water level bounds and map water rules', () => {
   });
 });
 
+describe('wade entries', () => {
+  it('a wading Unit steps into and out of Shallow Water only from land exactly 1 above the water hex', async () => {
+    const { stepCost, kindOf } = await import('./index');
+    const regent = kindOf('regent'); // walk + wade
+    const shark = kindOf('shark'); // swim
+    const water = { hex: hex(0, 0), height: 1, terrain: 'plain' as HexTerrain };
+    const beach = { hex: hex(1, 0), height: 2, terrain: 'plain' as HexTerrain };
+    const bank = { hex: hex(1, 0), height: 3, terrain: 'plain' as HexTerrain };
+    expect(stepCost(regent, beach, water, 2)).not.toBeNull();
+    expect(stepCost(regent, water, beach, 2)).not.toBeNull();
+    expect(stepCost(regent, bank, water, 2)).toBeNull();
+    expect(stepCost(regent, water, bank, 2)).toBeNull();
+    // swimmers are free to leave anywhere they can climb
+    expect(stepCost(shark, bank, water, 2)).not.toBeNull();
+  });
+});
+
 describe('stranded movement', () => {
   it('a stranded unit may move into hexes it can enter and act; staying put allows only Wait', async () => {
     const { validateTurn, reachable } = await import('./index');

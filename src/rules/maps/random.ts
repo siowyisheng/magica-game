@@ -171,7 +171,7 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
       c.height = Math.max(c.height, d === 0 && peak ? 5 : 4);
     });
   }
-  for (let i = int(1, 3); i > 0; i--) b.blob(anyCell(), 1, (c) => c.height === PLAIN && (c.height = LOW));
+  for (let i = int(0, 2); i > 0; i--) b.blob(anyCell(), 1, (c) => c.height === PLAIN && (c.height = LOW));
   for (let i = int(3, 7); i > 0; i--) b.blob(anyCell(), int(0, 1), (c) => (c.terrain = 'rough'));
 
   // ---- water: always some, all Shallow, in one of several shapes (sometimes two)
@@ -329,6 +329,31 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
     return m >= 4 && m <= 7;
   }).length;
   if (inBand < stones.length * 0.75) return null;
+
+  // ---- Wade Entries: in every body of water, at least half (50–90%) of the edges to the
+  // land around it are beaches, land exactly 1 above the water hex, where wading Units
+  // step in and out. Land is lowered to make them, in mirrored pairs.
+  const wet = (c: Cell) => c.terrain !== 'pit' && c.height < WATER_LEVEL;
+  const dry = (c: Cell) => c.terrain !== 'pit' && c.height >= WATER_LEVEL;
+  const seenWet = new Set<Cell>();
+  for (const start of b.cells) {
+    if (!wet(start) || seenWet.has(start)) continue;
+    const body: Cell[] = [start];
+    seenWet.add(start);
+    for (let i = 0; i < body.length; i++) for (const n of nbrs(body[i])) if (wet(n) && !seenWet.has(n)) (seenWet.add(n), body.push(n));
+    const shore = body.flatMap((w) => nbrs(w).filter(dry).map((l) => ({ w, l })));
+    if (!shore.length) continue;
+    const share = 0.5 + r() * 0.4;
+    const entry = (e: { w: Cell; l: Cell }) => e.l.height - e.w.height === 1;
+    for (let guard = 0; shore.filter(entry).length < share * shore.length && guard < shore.length; guard++) {
+      const bad = shore.filter((e) => !entry(e));
+      // grow beaches: prefer land next to an existing one
+      const nearBeach = bad.filter((e) => nbrs(e.l).some((n) => dry(n) && n.height === e.w.height + 1 && nbrs(n).some(wet)));
+      const { w, l } = pick(nearBeach.length && r() < 0.7 ? nearBeach : bad);
+      if (l === spawn0 || l === spawn1) continue;
+      l.height = b.mirror(l).height = w.height + 1;
+    }
+  }
 
   // ---- Obstacles: 3–10 per Side, mirrored, on dry Plain or Rough
   const obstacles: MapObstacle[] = [];

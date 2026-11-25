@@ -51,7 +51,7 @@ The hidden exchange rate that keeps Masters balanced: each stat is priced in Mag
 _Avoid_: Point buy, stat total
 
 **Move Type**:
-A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex. Slow only ever comes paired with Swim: it marks swimmers that move with difficulty on land.
+A way of moving: Walk, Slow, Fly, Swim or Wade. A Unit can have several Move Types and uses the cheapest one that applies when it enters each hex. Slow only ever comes paired with Swim: it marks swimmers that move with difficulty on land. Wade only steps into or out of Shallow Water at a **Wade Entry**.
 _Avoid_: Movement class
 
 **Move Range**:
@@ -121,6 +121,10 @@ _Avoid_: Fire mode, arc type
 
 **Clear Angle**:
 Whether a Direct shot can reach its target. Seen from above, every Unit and Obstacle is a body at its hex centre, and the shot is a small projectile. For blocking, a Unit's body is wide (most of its hex), so Units screen what stands behind them; an Obstacle's is smaller. The angle is clear when some straight line from the shooter to any point across the target's body passes every other body, allies included. Height, Pits, water and Magic Stones never block.
+
+**Wade Entry**:
+The edge between a land hex and a Shallow Water hex exactly 1 Height below it, like a beach. A Unit that wades (and cannot swim) steps into and out of Shallow Water only across a Wade Entry; anywhere else the bank is too high. On a Random Map at least half of every body of water's shore is Wade Entries.
+_Avoid_: Beach, ramp
 
 **Stranded**:
 A Unit that starts its turn on a hex none of its Move Types may enter. It takes 1 damage, then may move by its normal rules into hexes it can enter, and then act as usual. If it stays where it is, it can only Wait.

@@ -78,6 +78,36 @@ describe('random maps', () => {
     }
   });
 
+  it('give every body of water Wade Entries on at least half its shore', () => {
+    for (const { seed, map } of maps) {
+      const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));
+      const isWet = (h: (typeof map.hexes)[number]) => h.terrain !== 'pit' && surfaceOf(h, map.waterLevel) !== 'land';
+      const seen = new Set<string>();
+      for (const start of map.hexes) {
+        if (!isWet(start) || seen.has(hexKey(start.hex))) continue;
+        const body = [start];
+        seen.add(hexKey(start.hex));
+        let edges = 0;
+        let entries = 0;
+        for (let i = 0; i < body.length; i++) {
+          for (const d of DIRS) {
+            const n = byKey.get(hexKey(neighbor(body[i].hex, d)));
+            if (!n || n.terrain === 'pit') continue;
+            if (isWet(n)) {
+              if (!seen.has(hexKey(n.hex))) (seen.add(hexKey(n.hex)), body.push(n));
+            } else {
+              edges++;
+              if (n.height - body[i].height === 1) entries++;
+            }
+          }
+        }
+        if (!edges) continue;
+        expect(entries, `seed ${seed}: body at ${hexKey(start.hex)}`).toBeGreaterThanOrEqual(1);
+        expect(entries / edges, `seed ${seed}: body at ${hexKey(start.hex)}`).toBeGreaterThanOrEqual(0.5);
+      }
+    }
+  });
+
   it('vary the amount and shape of water: one body or many, broad or thin', () => {
     const ws = maps.map(({ map }) => waterOf(map));
     const shares = ws.map((w) => w.share);

@@ -56,6 +56,14 @@ function typeCost(t: MoveType, mh: MapHex, surface: Surface): { cost: number; st
 }
 
 /**
+ * A Wade Entry: the edge between a land hex and a Shallow Water hex exactly 1
+ * below it, where a wading Unit can step in or out.
+ */
+export function isWadeEntry(land: MapHex, water: MapHex): boolean {
+  return land.terrain !== 'pit' && land.height - water.height === 1;
+}
+
+/**
  * Cost for a Unit of `kind` to step from `from` into `to`, using the cheapest
  * applicable Move Type. `canStand` is true when any of its Move Types may end
  * there. Returns null when impassable.
@@ -67,6 +75,11 @@ export function stepCost(
   waterLevel: number,
 ): { cost: number; canStand: boolean } | null {
   const surface = surfaceOf(to, waterLevel);
+  const fromSurface = surfaceOf(from, waterLevel);
+  const swims = kind.moveTypes.includes('swim');
+  /** A step between land and Shallow Water. */
+  const shoreStep =
+    fromSurface === 'land' && surface === 'shallow' ? { land: from, water: to } : fromSurface === 'shallow' && surface === 'land' && to.terrain !== 'pit' ? { land: to, water: from } : null;
   const dh = surfaceHeight(to, waterLevel) - surfaceHeight(from, waterLevel);
   let best: number | null = null;
   let canStand = false;
@@ -74,6 +87,8 @@ export function stepCost(
     const c = typeCost(t, to, surface);
     if (!c) continue;
     let cost = c.cost;
+    // Wading in (Wade) and out (Walk / Slow) of Shallow Water only at a Wade Entry; swimmers are free
+    if (shoreStep && t !== 'fly' && !swims && !isWadeEntry(shoreStep.land, shoreStep.water)) continue;
     if (t !== 'fly') {
       if (dh > 1 || dh < -1) continue;
       if (dh === 1) cost += 1;
