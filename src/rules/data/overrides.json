@@ -185,7 +185,7 @@
       "stats": {
         "atk": 9,
         "def": 6,
-        "mp": 12,
+        "mp": 11,
         "mdf": 6,
         "spd": 11,
         "mov": 5
@@ -342,8 +342,12 @@
         "def": 7,
         "mp": 4,
         "mdf": 6,
-        "spd": 14,
-        "mov": 6
+        "spd": 13,
+        "mov": 5
+      },
+      "attack": {
+        "range": 5,
+        "trajectory": "direct"
       }
     },
     "tracker": {
@@ -835,7 +839,7 @@
       "range": 6,
       "radius": 0,
       "manaCost": 6,
-      "trajectory": "high",
+      "trajectory": "direct",
       "id": "meteor"
     },
     "water-jet": {
