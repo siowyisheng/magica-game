@@ -122,6 +122,10 @@ interface Options {
   resume: boolean;
   weights: string | null;
   maps: MapMode;
+  /** Tune only these weights (default: all in params.ts). */
+  params: string[] | null;
+  /** Start from these weights (a tuned-weights.json): tuned ones begin there, the rest stay fixed there. */
+  start: string | null;
 }
 
 /**
@@ -131,7 +135,7 @@ interface Options {
 const unmangle = (arg: string) => (process.platform === 'win32' && arg.includes('^') ? arg.replace(/\^(.)/g, '$1').replace(/\^$/, '').replace(/^"(.*)"$/, '$1') : arg);
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { command: 'tune', iterations: 1000, pairs: 4, workers: Math.max(1, availableParallelism() - 1), out: 'tune-out', seed: 1, c: 0.15, a: 0.03, maxTurns: 1000, balance: null, resume: false, weights: null, maps: 'mixed' };
+  const o: Options = { command: 'tune', iterations: 1000, pairs: 4, workers: Math.max(1, availableParallelism() - 1), out: 'tune-out', seed: 1, c: 0.15, a: 0.03, maxTurns: 1000, balance: null, resume: false, weights: null, maps: 'mixed', params: null, start: null };
   const args = argv.map(unmangle);
   if (args[0] === 'tune' || args[0] === 'validate' || args[0] === 'report') o.command = args.shift() as Options['command'];
   if (o.command === 'validate') o.pairs = 200;
@@ -154,6 +158,14 @@ function parseArgs(argv: string[]): Options {
       case '--balance': o.balance = v(); break;
       case '--resume': o.resume = true; break;
       case '--weights': o.weights = v(); break;
+      case '--params': {
+        const names = v().split(',').map((n) => n.trim()).filter(Boolean);
+        const unknown = names.filter((n) => !PARAMS.some((p) => p.name === n));
+        if (unknown.length) throw new Error(`--params: not a tuned weight: ${unknown.join(', ')} (see scripts/tune/params.ts)`);
+        o.params = names;
+        break;
+      }
+      case '--start': o.start = v(); break;
       case '--maps': {
         const m = v();
         if (m !== 'scaffold' && m !== 'random' && m !== 'mixed') throw new Error('--maps is scaffold, random or mixed');
@@ -179,6 +191,7 @@ Options: --iterations N (1000)  --pairs N per iteration (4; validate: 200)  --wo
          --out DIR (tune-out)  --seed N (1)  --c F (0.15)  --a F (0.03)  --max-turns N (1000)
          --balance FILE (a replay .json or a balance .json, to tune on your local stats)
          --maps scaffold|random|mixed (mixed: half Scaffold Ford, half random maps)
+         --params a,b,c (tune only these; the rest stay fixed)  --start FILE (begin from a tuned-weights.json)
          --resume (continue from <out>/checkpoint.json)  --weights FILE (validate)`;
 
 function loadBalance(path: string | null): Balance | null {
@@ -192,11 +205,6 @@ const valueOf = (name: keyof Weights, x: number, max?: number) => {
   const v = (AI_WEIGHTS[name] as number) * Math.exp(x);
   return max !== undefined ? Math.min(max, v) : v;
 };
-const overridesOf = (x: number[]): Overrides => {
-  const o: Overrides = {};
-  PARAMS.forEach((p, i) => (o[p.name as keyof Weights] = valueOf(p.name as keyof Weights, x[i], p.max)));
-  return o;
-};
 const round3 = (v: number) => Number(v.toPrecision(3));
 const LIMIT = Math.log(4);
 
@@ -207,26 +215,45 @@ async function tune(o: Options, pool: Pool) {
   mkdirSync(o.out, { recursive: true });
   const ckPath = join(o.out, 'checkpoint.json');
   const logPath = join(o.out, 'log.jsonl');
-  let x = PARAMS.map(() => 0);
+  // the weights tuned in this run, and the rest held fixed (at --start's values, or the defaults)
+  const active = o.params ? PARAMS.filter((p) => o.params!.includes(p.name)) : PARAMS;
+  let base: Overrides = {};
+  if (o.start) {
+    const raw = JSON.parse(readFileSync(o.start, 'utf8'));
+    base = raw.weights ?? raw;
+    console.log(`starting from ${o.start}`);
+  }
+  const xOf = (name: string) => {
+    const v = base[name as keyof Weights];
+    return typeof v === 'number' ? Math.max(-LIMIT, Math.min(LIMIT, Math.log(v / (AI_WEIGHTS[name as keyof Weights] as number)))) : 0;
+  };
+  let x = active.map((p) => xOf(p.name));
   let start = 0;
   if (o.resume && existsSync(ckPath)) {
     const ck = JSON.parse(readFileSync(ckPath, 'utf8'));
-    x = PARAMS.map((p) => ck.x?.[p.name] ?? 0);
+    x = active.map((p, i) => ck.x?.[p.name] ?? x[i]);
+    base = ck.base ?? base;
     start = ck.iteration;
     console.log(`resuming at iteration ${start}`);
   }
+  const fixed: Overrides = Object.fromEntries(Object.entries(base).filter(([n]) => !active.some((p) => p.name === n)));
+  const setOf = (xs: number[]): Overrides => {
+    const out: Overrides = { ...fixed };
+    active.forEach((p, i) => (out[p.name as keyof Weights] = valueOf(p.name as keyof Weights, xs[i], p.max)));
+    return out;
+  };
   // SPSA gains (Spall): a_k = a / (k + 1 + A)^0.602, c_k = c / (k + 1)^0.101, A = 10% of the run
   const A = Math.max(1, Math.round(o.iterations * 0.1));
   const aNorm = o.a * Math.pow(A + 1, 0.602);
-  console.log(`SPSA: ${PARAMS.length} weights · ${o.iterations} iterations · ${o.pairs * 2} games each · maps: ${o.maps} · ${o.workers} workers`);
+  console.log(`SPSA: ${active.length} weights${o.params ? ` (${o.params.join(', ')})` : ''} · ${o.iterations} iterations · ${o.pairs * 2} games each · maps: ${o.maps} · ${o.workers} workers`);
   const t0 = Date.now();
   for (let k = start; k < o.iterations; k++) {
     const ck = o.c / Math.pow(k + 1, 0.101);
     const ak = aNorm / Math.pow(k + 1 + A, 0.602);
     const r = rng(o.seed * 1_000_003 + k * 7919);
-    const delta = PARAMS.map(() => (r() < 0.5 ? -1 : 1));
-    const plus = overridesOf(x.map((v, i) => v + ck * delta[i]));
-    const minus = overridesOf(x.map((v, i) => v - ck * delta[i]));
+    const delta = active.map(() => (r() < 0.5 ? -1 : 1));
+    const plus = setOf(x.map((v, i) => v + ck * delta[i]));
+    const minus = setOf(x.map((v, i) => v - ck * delta[i]));
     // the same setups for both, each played twice with sides swapped (common random numbers)
     const jobs: Job[] = [];
     for (let p = 0; p < o.pairs; p++) {
@@ -252,13 +279,14 @@ async function tune(o: Options, pool: Pool) {
       x[i] += ak * result * delta[i];
       x[i] = Math.max(-LIMIT, Math.min(LIMIT, x[i]));
     }
-    const weights = Object.fromEntries(PARAMS.map((p, i) => [p.name, round3(valueOf(p.name as keyof Weights, x[i], p.max))]));
-    writeFileSync(ckPath, JSON.stringify({ iteration: k + 1, options: o, x: Object.fromEntries(PARAMS.map((p, i) => [p.name, x[i]])), weights }, null, 1));
+    // the whole set: the fixed weights plus the tuned ones (validate tests exactly this)
+    const weights = Object.fromEntries(Object.entries(setOf(x)).map(([n, v]) => [n, round3(v as number)]));
+    writeFileSync(ckPath, JSON.stringify({ iteration: k + 1, options: o, base, x: Object.fromEntries(active.map((p, i) => [p.name, x[i]])), weights }, null, 1));
     writeFileSync(join(o.out, 'tuned-weights.json'), JSON.stringify(weights, null, 1));
     appendFileSync(logPath, JSON.stringify({ k: k + 1, plus: wins, minus: losses, draws, result: round3(result), ak: round3(ak), ck: round3(ck), sec: (Date.now() - t) / 1000, ...(k % 25 === 24 ? { weights } : {}) }) + '\n');
     const done = k + 1 - start;
     const eta = ((Date.now() - t0) / done) * (o.iterations - k - 1);
-    const moved = PARAMS.map((p, i) => ({ n: p.name, m: Math.exp(x[i]) })).sort((u, v) => Math.abs(Math.log(v.m)) - Math.abs(Math.log(u.m))).slice(0, 3);
+    const moved = active.map((p, i) => ({ n: p.name, m: Math.exp(x[i]) })).sort((u, v) => Math.abs(Math.log(v.m)) - Math.abs(Math.log(u.m))).slice(0, 3);
     console.log(`iter ${k + 1}/${o.iterations}  +${wins} −${losses} =${draws}  result ${result >= 0 ? '+' : ''}${result.toFixed(2)}  ${((Date.now() - t) / 1000).toFixed(1)} s  ETA ${(eta / 3.6e6).toFixed(1)} h  most moved: ${moved.map((u) => `${u.n} ×${u.m.toFixed(2)}`).join(', ')}`);
   }
   console.log(`done: ${join(o.out, 'tuned-weights.json')}`);

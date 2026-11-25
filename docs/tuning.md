@@ -69,6 +69,26 @@ iteration plays 8 games (`--pairs 4`). 2,000 iterations is 16,000 games:
 roughly 2 hours on 8 cores, or 4 on 4 cores. Use the ETA on the first few
 dozen lines to judge, and shorten with `--iterations` if needed.
 
+## Continuing a few weights
+
+When a run ends with some weights still climbing, tune just those, starting
+from where the run ended, with bigger steps:
+
+```bash
+node dist-tune/tune.mjs tune --params capture,masterHit --start tune-out/tuned-weights.json --out tune-out-2 --iterations 500 --a 0.1 --c 0.2 --seed 2 --balance "path/to/a-replay.json"
+```
+
+- `--params`: only these weights are tuned; every other weight stays fixed at
+  its `--start` value (or its default if `--start` doesn't list it).
+- `--start`: begin from a previous run's `tuned-weights.json`.
+- `--a 0.1`: about 3× the default step (0.03); `--c 0.2`: bigger "+"/"−"
+  nudges (default 0.15), so the two sides play more differently.
+- `--out tune-out-2` keeps the first run's results; `--seed 2` gives new
+  matchups.
+- The new `tune-out-2/tuned-weights.json` holds the whole set (the fixed
+  weights and the newly tuned ones), so `validate` and `report` use it as is.
+- The ¼×–4× bounds are still measured from the defaults.
+
 ## Seeing the change in weights
 
 ```bash
@@ -111,6 +131,8 @@ gain, and get checked with the usual arena run and tests.
 | `--balance FILE` | none | a replay (or balance) `.json` with your stats |
 | `--resume` | | continue from `DIR/checkpoint.json` |
 | `--weights FILE` | | validate / report: the weights to test or show |
+| `--params a,b` | all | tune only these weights; the rest stay fixed |
+| `--start FILE` | none | begin from a previous `tuned-weights.json` |
 | `--seed N` | 1 | different seeds give different matchups |
 | `--maps M` | mixed | `scaffold`, `random` (a new random map per setup) or `mixed` (half each) |
 | `--c F` | 0.15 | starting size of the random nudge (relative) |
