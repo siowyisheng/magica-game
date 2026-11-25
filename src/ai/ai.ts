@@ -56,71 +56,71 @@ const FAMILIAR_HOLD_OUT = 0.67;
 const EVAL_STONE = 0.375;
 
 export const AI_WEIGHTS = {
-  damage: 10,
+  damage: 10.5,
   /** Killing a Familiar, on top of the damage itself (× its value): it removes its future turns. */
-  kill: 60,
+  kill: 75.4,
   /** What one HP of my own side is worth: lost to enemies (as danger), to my own area Magic, or healed. */
-  ownHp: 9,
+  ownHp: 6.77,
   killMaster: 100000,
   /** Value of an Empower (× its ATK × damage): the extra damage it should add to the target's next Attack. */
-  empower: 1.2,
+  empower: 1.21,
   /** Share of that value when no enemy is within the target's reach next turn. */
   empowerIdle: 0.3,
-  deathRisk: 70,
+  deathRisk: 56.1,
   masterDeathRisk: 5000,
-  capture: 80,
+  capture: 116,
   approach: 3,
   /** Master: cost per HP it may lose this round and the next, while its margin stays comfortable (M1). */
-  masterHpCost: 2,
+  masterHpCost: 2.09,
   /** Master: cost per (HP short of comfort)², once the hits could leave it near killable (M1). */
-  masterRisk: 25,
+  masterRisk: 25.8,
   /** Master: HP margin kept after the next two enemy rounds (worst case); Posture moves it (M5). */
-  masterComfort: 3,
+  masterComfort: 2.33,
   /** Share of `capture` for killing a unit that holds a Stone my Side doesn't own. */
-  stoneReopen: 0.4,
+  stoneReopen: 0.395,
   /** Share of the death penalty for a hit that would kill but isn't sure (the round after, or a fast enemy that might walk over). */
-  unsureDeath: 0.4,
+  unsureDeath: 0.439,
   /** Least share of an enemy's damage a Familiar is charged with, however many other targets it has. */
   threatShareMin: 0.25,
   /** Bonus (× kill) for damage that leaves a target finishable by allies before it acts. */
-  setupKill: 0.3,
+  setupKill: 0.308,
   /** How strongly a lead (≈ −1..1) raises the push: pull toward objectives up, fear of damage down. */
-  leadPush: 3,
+  leadPush: 3.12,
   /** Most the push multiplies the pull (and divides the fear) by. */
   maxPush: 2.5,
   /** Value of hitting a healer, per point of its heal × the best patient it can reach (÷ 4). */
-  support: 0.5,
+  support: 0.497,
   /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
   healedDamage: 0.15,
   /** A Master's own hits on enemies count this many times over (it should use its ATK, not only summon). */
-  masterHit: 1.5,
+  masterHit: 1.95,
   /** Value of any extra Familiar on the board, before what it's for. */
-  summonBase: 10,
+  summonBase: 12.7,
   /** Value of a Familiar's fit for the Plan's Needs (docs/ai-plan.md §5). */
-  needScale: 45,
+  needScale: 55.2,
   /** Pull of the Master toward the Plan's Front (× approach): it summons where the action is. */
-  masterStage: 1.5,
+  masterStage: 1.86,
   /** Pull of a summon hex toward the Front, per hex. */
-  summonFront: 1,
+  summonFront: 1.15,
   /** A Familiar's pull toward its Job, and toward its nearest objective (× approach). */
-  jobPull: 1,
-  nearPull: 0.25,
+  jobPull: 1.23,
+  nearPull: 0.268,
   /** Hours ahead over which an aligned Familiar's Time of Day is judged, and the most it moves the Familiar's value. */
   alignmentHours: 8,
   alignmentValue: 0.15,
   summonNegativeIncome: 35,
-  manaSpend: 0.25,
+  manaSpend: 0.294,
   /** Save for an unaffordable Familiar whose value is at least this × the best affordable one… */
   saveMargin: 1.25,
   /** …and that income will pay for within this many hours. */
   saveHours: 2,
   /** Extra cost per point of Mana spent out of that reserve. */
-  reserveSpend: 0.6,
+  reserveSpend: 0.652,
   strandEnemy: 30,
   strandAlly: 35,
-  delay: 0.15,
+  delay: 0.134,
   /** Value of threat removed from allies by standing in enemies' way (× threat). */
-  screen: 0.6,
+  screen: 0.558,
   /** How many of the best destinations are re-scored for screening. */
   screenTop: 8,
   /** Per enemy that breaking an Obstacle would bring into this Unit's Attack Reach. */

@@ -1,6 +1,6 @@
 # How the AI decides
 
-This explains how the computer opponent picks its moves. It describes the code in `src/ai/ai.ts` as it is now. The numbers mentioned here are the defaults in `AI_WEIGHTS`, so if you change the weights, trust the code over this page. For where the AI could go next (search, weight tuning, a learned evaluation, AlphaZero), see [ai-roadmap.md](ai-roadmap.md).
+This explains how the computer opponent picks its moves. The weights' defaults come from a 2,000-iteration self-play tuning run (SPSA, [tuning.md](tuning.md)), validated over 400 games against the hand-set values. It describes the code in `src/ai/ai.ts` as it is now. The numbers mentioned here are the defaults in `AI_WEIGHTS`, so if you change the weights, trust the code over this page. For where the AI could go next (search, weight tuning, a learned evaluation, AlphaZero), see [ai-roadmap.md](ai-roadmap.md).
 
 ## The short version
 
@@ -29,29 +29,29 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 **Good things**
 
 - **No pointless hits.** An Attack, or a damaging Magic ability, is never a candidate unless it deals more than 0 damage to at least one enemy or Obstacle.
-- **Damage** to enemies, scaled by the target's value. Units are valued by cost and HP. Masters are worth more. Each point of damage is worth `damage` (10) × the target's value.
+- **Damage** to enemies, scaled by the target's value. Units are valued by cost and HP. Masters are worth more. Each point of damage is worth `damage` (10.5) × the target's value.
 - **Healing it will undo.** The AI works out how much each enemy can be healed before its own side's next hits land: every enemy healer that acts first and can reach it, at the healer's real heal amount. Damage only counts in full for what outlasts that healing; the rest is worth `healedDamage` (15%).
   - The "set up a kill" check below counts that healing too.
-- **Support value.** Hitting an enemy healer is worth more than its Cost says. It adds `support` (0.5) × its heal amount × the value of the best patient it can reach (÷ 4), so a Mender beside a hurt Master is a priority target.
-- **A Master's own hits** count `masterHit` (1.5) times over, so one with a good ATK uses it rather than only summoning. It still won't step where it could be killed.
-- **Kills** get a large bonus on top of the damage. Killing an enemy Familiar is worth `kill` (60) × its value. Killing an enemy Master is worth `killMaster` (100,000), which is effectively "win the game."
+- **Support value.** Hitting an enemy healer is worth more than its Cost says. It adds `support` (0.497) × its heal amount × the value of the best patient it can reach (÷ 4), so a Mender beside a hurt Master is a priority target.
+- **A Master's own hits** count `masterHit` (1.95) times over, so one with a good ATK uses it rather than only summoning. It still won't step where it could be killed.
+- **Kills** get a large bonus on top of the damage. Killing an enemy Familiar is worth `kill` (75.4) × its value. Killing an enemy Master is worth `killMaster` (100,000), which is effectively "win the game."
 - **Setting up a kill.** If the hit doesn't kill but leaves the target low enough that allies can finish it before it acts (its healing counted), that counts for part of a kill (`setupKill`, 0.3), and that enemy is no longer a threat to this Unit (see **Finished first** below).
-- **Healing** allies is worth `ownHp` (9) × value per HP: the same price as an HP of my own side lost (healing enemies costs the same).
-- **Empower** on an ally (or itself) is worth `empower` (1.2) × its ATK bonus × `damage`, the extra damage it should add to that Unit's next Attack. It's worth only `empowerIdle` (30%) of that when no enemy is within the Unit's Move + Attack range + 1, and nothing when the Unit is already Empowered.
+- **Healing** allies is worth `ownHp` (6.77) × value per HP: the same price as an HP of my own side lost (healing enemies costs the same).
+- **Empower** on an ally (or itself) is worth `empower` (1.21) × its ATK bonus × `damage`, the extra damage it should add to that Unit's next Attack. It's worth only `empowerIdle` (30%) of that when no enemy is within the Unit's Move + Attack range + 1, and nothing when the Unit is already Empowered.
 - **Breaking Obstacles** is valued by how many enemies would then be able to reach you. Each one that breaking the Obstacle would open up is worth `obstacleOpening` (25), scaled by how much of its HP this hit takes. This is what makes the AI break a wall that blocks its only shot.
-- **Stones.** Standing on a Stone you don't own is worth `capture` (80), ×1.5 if the enemy holds it. Standing on a Stone you already own is worth a little, more for a wounded Unit (Stone Heal).
+- **Stones.** Standing on a Stone you don't own is worth `capture` (116), ×1.5 if the enemy holds it. Standing on a Stone you already own is worth a little, more for a wounded Unit (Stone Heal).
 - **Guarding Stones.** An own Stone is *threatened* when an enemy can really end its next move on it: its movement says so, not a straight-line distance (the Plan's R1, [ai-plan.md](ai-plan.md)). Standing on a threatened own Stone that no other Unit is already on is worth 1.125 × `capture` (taking a free Stone is 1 ×, an enemy one 1.5 ×: one Stone value, the same ratios as the Plan's Jobs), since the enemy can't capture a Stone that is occupied. Threatened, unguarded own Stones also join the objectives every Familiar is pulled toward, so a nearby Familiar or the Master steps onto them. Stones are valued for their Mana, the same at every hour: **the AI never plays for the Time Limit**, and nothing in its scoring rewards running out the clock.
 - **Water.** When a Magic ability changes the Water Level, the AI counts which Units it would strand. Stranding an enemy is good (`strandEnemy`, 30 × value). Stranding an ally is bad (`strandAlly`, 35).
-- **Reopening a Stone.** Killing a unit that holds a Stone my Side doesn't own is worth `stoneReopen` (40%) of `capture` on top of the kill: that Stone is open to take again.
+- **Reopening a Stone.** Killing a unit that holds a Stone my Side doesn't own is worth `stoneReopen` (39.5%) of `capture` on top of the kill: that Stone is open to take again.
 - **Summoning** is scored in its own section below.
 
 **Bad things**
 
-- **Friendly fire.** Damage to its own Units costs `ownHp` (9) × value per point: the one price of an HP of my own side.
-- **Mana spent.** Casting a Magic ability or Summoning costs `manaSpend` (0.25) per point of Mana, unless the Mana would overflow the cap anyway. Spending free Mana is never penalised. If the AI is **saving up** for a better Summon (see section 2), each point spent out of that reserve costs `reserveSpend` (0.6) more.
-- **Time.** Every candidate pays `delay` (0.15) per unit of timeline delay its action causes. Slower actions are a little worse.
+- **Friendly fire.** Damage to its own Units costs `ownHp` (6.77) × value per point: the one price of an HP of my own side.
+- **Mana spent.** Casting a Magic ability or Summoning costs `manaSpend` (0.294) per point of Mana, unless the Mana would overflow the cap anyway. Spending free Mana is never penalised. If the AI is **saving up** for a better Summon (see section 2), each point spent out of that reserve costs `reserveSpend` (0.652) more.
+- **Time.** Every candidate pays `delay` (0.134) per unit of timeline delay its action causes. Slower actions are a little worse.
 - **Danger: one safety curve for every Unit.** The AI estimates the damage enemies could deal this Unit at its end position (the danger estimate below), capped at its HP. The cost has the same shape for every Unit: each HP it may lose costs a little, losses that leave it near death cost steeply, and death ends the curve, graded by how sure it is (`unsureDeath`).
-  - **A Familiar** prices an HP as its own worth: `ownHp` (9) × value, divided by the side's push (bolder when ahead), convex over its whole HP (half linear, half quadratic in the share lost). A Rook barely minds a 2-damage poke; a 1-HP Familiar minds everything. Death: `deathRisk` (70) × value.
+  - **A Familiar** prices an HP as its own worth: `ownHp` (6.77) × value, divided by the side's push (bolder when ahead), convex over its whole HP (half linear, half quadratic in the share lost). A Rook barely minds a 2-damage poke; a 1-HP Familiar minds everything. Death: `deathRisk` (56.1) × value.
   - **A Master** prices its HP as a budget against a comfort margin (see the HP budget below). Death: `masterDeathRisk` (5,000).
 - **A Master's HP is a budget** (see below), not something to keep whole.
 
@@ -70,9 +70,9 @@ The threat estimate is smarter than "worst-case damage":
 
 Strong play lets a Master advance and take hits it can afford. So a Master's safety is **one curve** over the **margin** it keeps: its HP, plus the HP it will get back (a Stone's heal, a friendly healer that can reach it), minus the worst damage it could take before its next turn.
 
-- Every point of danger (the total above) costs a little: `masterHpCost` (2) per HP.
-- Below a **comfort** margin the cost rises quadratically: `masterRisk` (25) × shortfall². Comfort is `masterComfort` (3) HP, lower by up to 1 under Kill or Squeeze. (A fragile Master needs nothing extra: the hits it fears are already bigger.) Hits past its HP count no further: overkill changes nothing, and death is priced on its own.
-- **Being killable, graded by how sure it is.** If the threat reaches its HP, it pays `masterDeathRisk` (5,000) in full when the hits are **sure**: enemies that act before its next turn and reach it by their real path this turn. When the kill needs the less sure parts (the round after, a straight-line guess, a summon), it pays `unsureDeath` (40%) of it, rising to the full penalty as the sure part nears its HP. So of two lethal spots it prefers the one less likely to be a death.
+- Every point of danger (the total above) costs a little: `masterHpCost` (2.09) per HP.
+- Below a **comfort** margin the cost rises quadratically: `masterRisk` (25.8) × shortfall². Comfort is `masterComfort` (2.33) HP, lower by up to 1 under Kill or Squeeze. (A fragile Master needs nothing extra: the hits it fears are already bigger.) Hits past its HP count no further: overkill changes nothing, and death is priced on its own.
+- **Being killable, graded by how sure it is.** If the threat reaches its HP, it pays `masterDeathRisk` (5,000) in full when the hits are **sure**: enemies that act before its next turn and reach it by their real path this turn. When the kill needs the less sure parts (the round after, a straight-line guess, a summon), it pays `unsureDeath` (43.9%) of it, rising to the full penalty as the sure part nears its HP. So of two lethal spots it prefers the one less likely to be a death.
 - **Doomed anyway.** When every move leaves the Master surely killed, threat no longer tells them apart, so it is ignored: the Master does the most useful thing (a hit, a kill set up, a Familiar for Mana that would go to waste).
 - **A hit it can't outrun lands twice** (part of the total). An enemy that can hit the Master this round, acts again before the Master's turn after next, and has at least its Move can follow it wherever it goes. If its hit now plus a second one from the front (the Master can turn to face it in between, and a Stone heals 1 first) would kill, the second counts too. So a Master doesn't take a "cheap" hit that leaves it unable to escape the next.
 - **A summoned Familiar blocks.** When a summon move would leave the Master killable, the AI rechecks each attacking enemy with the new Familiar on the board: its body blocks Direct shots (Clear Angle) and paths (it fills a hex and exerts ZOC). Damage it blocks no longer counts. Only enemies that act before the new Familiar can move are checked. It runs only for lethal threats, so it stays cheap.
@@ -81,16 +81,16 @@ Strong play lets a Master advance and take hits it can afford. So a Master's saf
 
 Every candidate also gets a position score for where it ends up. This is not about the Command itself:
 
-- **Push from a lead.** The side's lead is the Plan's one measure of being ahead (`plan.lead`): its share of HP-weighted material, plus 0.08 per Stone ahead, plus a little for Mana. The push is 1 + `leadPush` (3) × lead, between 1 and `maxPush` (2.5). It multiplies every Familiar's pull toward objectives and divides its fear of damage, so a side that is ahead attacks rather than sits.
+- **Push from a lead.** The side's lead is the Plan's one measure of being ahead (`plan.lead`): its share of HP-weighted material, plus 0.08 per Stone ahead, plus a little for Mana. The push is 1 + `leadPush` (3.12) × lead, between 1 and `maxPush` (2.5). It multiplies every Familiar's pull toward objectives and divides its fear of damage, so a side that is ahead attacks rather than sits.
 - **The Plan.** Each turn the side works out a **Plan** ([ai-plan.md](ai-plan.md)): a Posture (Defend, Expand, Contest, Squeeze, Kill), a **Front**, summon Needs, a Reserve and a **Job** for each Familiar. Squeeze raises the value of guarding a Stone by up to 50%. (The push reads only the lead; Postures don't scale it again.)
-- **Familiars** are pulled by `approach` (3, a fixed scale: the tuner adjusts the pulls themselves) × push × distance toward their Job (`jobPull` 1: a Stone to take or guard, an enemy to hunt, an enemy healer keeping the enemy Master up first, or the Front), plus `nearPull` (0.25) toward the nearest objective, for opportunities.
+- **Familiars** are pulled by `approach` (3, a fixed scale: the tuner adjusts the pulls themselves) × push × distance toward their Job (`jobPull` 1: a Stone to take or guard, an enemy to hunt, an enemy healer keeping the enemy Master up first, or the Front), plus `nearPull` (0.268) toward the nearest objective, for opportunities.
 - **Masters** (their safety is the HP budget above; there is no flat "stay far from enemies" term):
-  - **Staging.** Every Master is pulled toward its objective by `masterStage` (1.5) × `approach` × push, less while Defending, so its Familiars appear where the objectives are. The objective is the Front, or the best Stone or enemy Master when the Front is an enemy threat: it is never pulled toward the threat itself.
+  - **Staging.** Every Master is pulled toward its objective by `masterStage` (1.86) × `approach` × push, less while Defending, so its Familiars appear where the objectives are. The objective is the Front, or the best Stone or enemy Master when the Front is an enemy threat: it is never pulled toward the threat itself.
   - **Holding out (Defend).** While Defending, the Master's position is also judged by how long it would hold out there: its HP left after each of the next 6 enemy turns, summed (priced at 1.6 × `masterRisk` × Defend: the same steepness as its safety curve, over 6 enemy turns instead of 2). Each enemy closes in and then hits every turn, with cover counted by the damage formula, and a Magic Stone heals 1 at the start of each of the Master's turns. So a Master runs when running buys whole turns, and takes a nearby Stone when cover and heal outlast the threat. A Master's Stone Heal counts only here and in its margin. A hurt Familiar gets the same estimate, priced as its own HP (0.67 × `ownHp` × its share of HP lost): a Stone's heal counts for it there, and only there.
 
 **Screening (Zone of Control)**
 
-After all candidates are scored, the best 8 destinations (`screenTop`) are re-scored with ZOC in mind. Ground enemies must stop when they enter this Unit's ZOC, so the AI recomputes the reach of every enemy near the destination, or near the Unit's current hex, with the Unit standing at the destination. It then recomputes the threat to each ally. Threat removed from allies, weighted by their value (the Master counts most), is a bonus of `screen` (0.6) × `ownHp`. A screen given up by moving away is a cost. Cutting a **heal line** counts too: healing the enemy Master or a hurt enemy can no longer receive, because a healer can't get past this Unit, is worth `screen` × the damage it equals (the same weight: standing in an enemy's way). If the re-sorted best destination hasn't been re-scored yet, it is re-scored too (up to 3 rounds).
+After all candidates are scored, the best 8 destinations (`screenTop`) are re-scored with ZOC in mind. Ground enemies must stop when they enter this Unit's ZOC, so the AI recomputes the reach of every enemy near the destination, or near the Unit's current hex, with the Unit standing at the destination. It then recomputes the threat to each ally. Threat removed from allies, weighted by their value (the Master counts most), is a bonus of `screen` (0.558) × `ownHp`. A screen given up by moving away is a cost. Cutting a **heal line** counts too: healing the enemy Master or a hurt enemy can no longer receive, because a healer can't get past this Unit, is worth `screen` × the damage it equals (the same weight: standing in an enemy's way). If the re-sorted best destination hasn't been re-scored yet, it is re-scored too (up to 3 rounds).
 
 **Facing**
 
@@ -102,8 +102,8 @@ Summoning is decided in two steps.
 
 **Step one: which Familiars are worth considering.** Before looking at placements, the AI ranks every Familiar kind it can afford and that is in its Loadout. Each gets a value:
 
-- Starts at `summonBase` (10): any extra Familiar is worth a little.
-- Adds `needScale` (45) × how well it fits the Plan's **Needs**: grab Stones (Move, Fly, cheap), answer a particular enemy (the damage it deals that enemy against the damage it takes, from the damage formula, so Elements count), heal, hold (DEF + MDF), hunt the Master (ATK, Move, Fly) and fight (damage against the enemies near the Front). There is **no bonus for Cost**: an expensive Familiar wins only when its stats serve a Need ([ai-plan.md](ai-plan.md) §5).
+- Starts at `summonBase` (12.7): any extra Familiar is worth a little.
+- Adds `needScale` (55.2) × how well it fits the Plan's **Needs**: grab Stones (Move, Fly, cheap), answer a particular enemy (the damage it deals that enemy against the damage it takes, from the damage formula, so Elements count), heal, hold (DEF + MDF), hunt the Master (ATK, Move, Fly) and fight (damage against the enemies near the Front). There is **no bonus for Cost**: an expensive Familiar wins only when its stats serve a Need ([ai-plan.md](ai-plan.md) §5).
 - An **aligned** Familiar's value is scaled by its Alignment over the next `alignmentHours` (8) game hours. Each hour adds +1 if it falls in its own Time of Day, −1 if in the opposite one, and 0 if Neutral. The average moves the value by up to ±`alignmentValue` (15%).
 - Subtracts `summonNegativeIncome` (35) if it would leave the Master's Mana income negative after the Familiar's upkeep (cost ÷ 8 per turn).
 
@@ -114,7 +114,7 @@ Only the top 4 affordable ones are kept. Ties go to the cheaper Familiar.
 **Step two: where to put it.** For each of those 4 kinds, the AI tries each of the six neighbouring hexes of the Master's end position. Any hex that is legal to place on becomes a candidate, scored with:
 
 - the kind's ranked value (above), added to the score;
-- a penalty of `summonFront` (1) per hex of distance from the new Familiar to where it's needed: the threat it answers while Defending, otherwise the Front;
+- a penalty of `summonFront` (1.15) per hex of distance from the new Familiar to where it's needed: the threat it answers while Defending, otherwise the Front;
 - a bonus of `capture × 0.4` if the hex is a Stone the AI doesn't own, or `capture × 0.15` if it is next to one;
 
 The Familiar then gets the usual threat and death-risk treatment, with its Facing set to the direction it was placed in.

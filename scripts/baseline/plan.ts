@@ -129,6 +129,11 @@ function turnsToKill(state: MatchState, e: Unit, m: Unit): number {
   return arriveTurns(e, m.pos) + Math.ceil(m.hp / dmg);
 }
 
+/** An enemy Stone is worth this × a free one: it swings income both ways. */
+export const ENEMY_STONE_SHARE = 1.5;
+/** Holding an own Stone an enemy could take next turn: this × taking a free one. */
+export const GUARD_SHARE = 1.125;
+
 const urgencyOf = (ttk: number) => clamp((4 - ttk) / 2);
 /**
  * Defend only for real danger: a kill within 2 enemy turns. At 3 the Master still
@@ -259,7 +264,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   let frontKind: Plan['frontKind'] = 'none';
   let bestScore = -Infinity;
   for (const st of open) {
-    const gain = st.owner === null ? 1 : 1.6;
+    const gain = st.owner === null ? 1 : ENEMY_STONE_SHARE;
     const balance = 1 / (1 + Math.exp(-(local(mine, st.hex) - local(theirs, st.hex)) / 3));
     const sc = (gain * (0.35 + balance)) / (1 + eta(mine, st.hex));
     if (sc > bestScore || (sc === bestScore && front && hexKey(st.hex) < hexKey(front))) {
@@ -371,9 +376,9 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   {
     type Obj = { hex: Hex; value: number; cap: number; label: string };
     const objs: Obj[] = [];
-    for (const st of open) objs.push({ hex: st.hex, value: st.owner === null ? 1 : 1.5, cap: 1, label: `take ${st.hex.q},${st.hex.r}` });
+    for (const st of open) objs.push({ hex: st.hex, value: st.owner === null ? 1 : ENEMY_STONE_SHARE, cap: 1, label: `take ${st.hex.q},${st.hex.r}` });
     for (const st of state.stones)
-      if (st.owner === side && threatenedStones.has(hexKey(st.hex))) objs.push({ hex: st.hex, value: 1.2, cap: 1, label: `guard ${st.hex.q},${st.hex.r}` });
+      if (st.owner === side && threatenedStones.has(hexKey(st.hex))) objs.push({ hex: st.hex, value: GUARD_SHARE, cap: 1, label: `guard ${st.hex.q},${st.hex.r}` });
     for (const e of theirs) {
       const t = threats.find((x) => x.unit.id === e.id);
       const isM = kindOf(e.kind).isMaster;
