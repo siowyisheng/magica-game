@@ -46,25 +46,29 @@ import {
   LOADOUT_SIZE,
   MAX_HP,
 } from '../../src/rules';
-import { arriveTurns, hitReach, makePlan } from './plan';
+import { arriveTurns, ENEMY_STONE_SHARE, GUARD_SHARE, hitReach, makePlan } from './plan';
+
+/** Defend: the hold-out estimate (6 enemy turns) is priced at this × the Master's safety steepness (masterRisk). */
+const HOLD_OUT = 1.6;
+/** A hurt Familiar's hold-out estimate, priced at this × its own HP worth (ownHp). */
+const FAMILIAR_HOLD_OUT = 0.67;
+/** The Hard AI's position value counts a Stone at this × capture. */
+const EVAL_STONE = 0.375;
 
 export const AI_WEIGHTS = {
   damage: 10,
+  /** Killing a Familiar, on top of the damage itself (× its value): it removes its future turns. */
   kill: 60,
+  /** What one HP of my own side is worth: lost to enemies (as danger), to my own area Magic, or healed. */
+  ownHp: 9,
   killMaster: 100000,
-  heal: 7,
   /** Value of an Empower (× its ATK × damage): the extra damage it should add to the target's next Attack. */
   empower: 1.2,
   /** Share of that value when no enemy is within the target's reach next turn. */
   empowerIdle: 0.3,
-  friendlyFire: 14,
-  threat: 9,
   deathRisk: 70,
   masterDeathRisk: 5000,
   capture: 80,
-  onStone: 6,
-  /** Holding an own Stone that an enemy could take next turn (standing on it blocks the capture). */
-  guard: 90,
   approach: 3,
   /** Master: cost per HP it may lose this round and the next, while its margin stays comfortable (M1). */
   masterHpCost: 2,
@@ -84,14 +88,10 @@ export const AI_WEIGHTS = {
   leadPush: 3,
   /** Most the push multiplies the pull (and divides the fear) by. */
   maxPush: 2.5,
-  /** 0: damage penalty linear in HP lost; 1: quadratic (scrapes cheap, near-deaths dear). */
-  hurtCurve: 0.5,
   /** Value of hitting a healer, per point of its heal × the best patient it can reach (÷ 4). */
   support: 0.5,
   /** Worth of damage the enemy will heal back before the next hits land (× normal damage). */
   healedDamage: 0.15,
-  /** Value of heal blocked by standing in a healer's way (× damage of the same amount). */
-  healBlock: 0.5,
   /** A Master's own hits on enemies count this many times over (it should use its ATK, not only summon). */
   masterHit: 1.5,
   /** Value of any extra Familiar on the board, before what it's for. */
@@ -102,10 +102,6 @@ export const AI_WEIGHTS = {
   masterStage: 1.5,
   /** Pull of a summon hex toward the Front, per hex. */
   summonFront: 1,
-  /** Defend: value per turn the Master would hold out where it ends (HP-turns over 6 enemy turns; cover and Stone Heal counted). */
-  refuge: 40,
-  /** The same for a hurt Familiar, × its share of HP lost. */
-  refugeFamiliar: 6,
   /** A Familiar's pull toward its Job, and toward its nearest objective (× approach). */
   jobPull: 1,
   nearPull: 0.25,
@@ -243,7 +239,20 @@ interface Candidate {
   doomed?: boolean;
 }
 
-export function rankCandidates(state: MatchState, weights: W): { me: Unit; candidates: Candidate[] } {
+/**
+ * Options for the move scorer. `light`: a cheaper scorer for the moves played inside
+ * Hard's look-ahead (never for the move actually chosen). It skips what costs most and
+ * matters least for guessing a reply: the less-sure danger (straight-line guesses, the
+ * round after, enemy summons, a hit that can't be outrun), checking every Facing (it
+ * faces the most dangerous enemy), allies' follow-up damage, summon blocking, Obstacle
+ * openings and screening.
+ */
+export interface ScoreOptions {
+  light?: boolean;
+}
+
+export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions = {}): { me: Unit; candidates: Candidate[] } {
+  const light = opts.light === true;
   const me = activeUnit(state);
   if (!me) throw new Error('no active unit');
   const kind = kindOf(me.kind);
@@ -318,13 +327,13 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       if (gone.has(e.unit.id) || finishedFirst(e.unit, 0)) continue;
       const ek = kindOf(e.unit.kind);
       const first = goesBefore(e.unit, e.unit.av, delay);
-      const second = !first && kind.isMaster && goesBefore(e.unit, e.unit.av, delay + secondWindow);
+      const second = !light && !first && kind.isMaster && goesBefore(e.unit, e.unit.av, delay + secondWindow);
       if (!first && !second) continue; // acts after the window
       let d = maxDamage(e, me, h, f);
       // its real path reaches this hex in time: as sure as anything (the round after too, just later)
       const byPath = d > 0;
       let odds = 1;
-      if (first && d === 0) {
+      if (!light && first && d === 0) {
         // a fast enemy may get several turns before mine: it can close in first (straight line)
         const turns = turnsBeforeOf(e.unit, e.unit.av, turnDelay(ek, true, false), delay);
         if (turns >= 2) {
@@ -341,13 +350,13 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       // it hits the Master now and again before its turn after next, and the Master can't
       // outrun it (no more Move than it): if the two hits kill, the second counts too, from
       // the front (it can turn to face it in between), after a Stone's heal
-      if (kind.isMaster && first && byPath && ek.stats.mov >= kind.stats.mov && goesBefore(e.unit, e.unit.av + turnDelay(ek, true, true), delay + secondWindow)) {
+      if (!light && kind.isMaster && first && byPath && ek.stats.mov >= kind.stats.mov && goesBefore(e.unit, e.unit.av + turnDelay(ek, true, true), delay + secondWindow)) {
         const again = Math.min(d, approxDamage(state, e.unit, me, h, facingToward(h, e.unit.pos)));
         if (d + again >= me.hp + (stoneAt(h) ? 1 : 0)) total += again;
       }
     }
     // a Familiar the enemy Master could summon next to itself and act with in time
-    if (summonables.length && enemyMasterU && !gone.has(enemyMasterU.id) && goesBefore(enemyMasterU, enemyMasterU.av, delay)) {
+    if (!light && summonables.length && enemyMasterU && !gone.has(enemyMasterU.id) && goesBefore(enemyMasterU, enemyMasterU.av, delay)) {
       const fromSpawn = hexDistance(enemyMasterU.pos, h) - kindOf(enemyMasterU.kind).stats.mov - 1;
       let best = 0;
       for (const k of summonables) {
@@ -366,7 +375,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   const threatAt = (h: Hex, f: Dir, delay: number, gone: Set<number>): number => danger(h, f, delay, gone).total;
 
   // Focus fire: how much allies could deal to each enemy before that enemy acts again.
-  const allyReaches = allies.map((u) => {
+  const allyReaches = (light ? [] : allies).map((u) => {
     const nodes = reachable(state, u);
     const positions: Hex[] = [];
     for (const n of nodes.values()) if (n.canEnd || hexEq(n.hex, u.pos)) positions.push(n.hex);
@@ -427,7 +436,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
 
   // Push from a lead (the Plan's one measure of being ahead): pulls toward objectives up, fear of damage down.
   const pressure = Math.max(1, Math.min(w.maxPush, 1 + w.leadPush * plan.lead));
-  const guardWeight = w.guard * (1 + 0.5 * posture.squeeze);
+  /** Holding an own Stone an enemy could take next turn: the same income as taking one, a little more (it's yours now). */
+  const guardWeight = w.capture * GUARD_SHARE * (1 + 0.5 * posture.squeeze);
   /** Boldness: how much less a Familiar minds taking damage when its side is ahead. */
   const boldness = 1 / pressure;
 
@@ -445,7 +455,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         pref = facingToward(h, e.pos);
       }
     }
-    const order: Dir[] = [pref, ...DIRS.filter((d) => d !== pref)];
+    const order: Dir[] = light ? [pref] : [pref, ...DIRS.filter((d) => d !== pref)];
     for (const f of order) {
       const t = threatAt(h, f, delay, killed);
       if (t < bestT) {
@@ -525,15 +535,14 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
     let s = 0;
     const stone = stoneAt(h);
     if (stone) {
-      if (stone.owner !== me.side) s += w.capture * stoneUrgency * (stone.owner === null ? 1 : 1.5);
+      if (stone.owner !== me.side) s += w.capture * stoneUrgency * (stone.owner === null ? 1 : ENEMY_STONE_SHARE);
       else if (needsGuard(h)) s += guardWeight;
-      // a hurt Familiar likes the Stone's heal (a Master's counts in its safety margin instead)
-      if (!kind.isMaster) s += w.onStone * (10 - me.hp + 1) * 0.3;
     }
     if (kind.isMaster) {
       // No keep-away: how dangerous a hex is comes from the margin cost (M1, M2).
       // Defend: where it survives longest, not just furthest away: a Stone's cover and heal count
-      if (posture.defend > 0) s += w.refuge * posture.defend * survivalTurns(h);
+      // (the same steepness as its safety curve, over 6 enemy turns instead of 2)
+      if (posture.defend > 0) s += w.masterRisk * HOLD_OUT * posture.defend * survivalTurns(h);
       // Advance toward the Front, so the Familiars it summons appear near the objectives (M3)
       // (never toward a threat it is defending against: its Familiars go there)
       // toward the objective (a Stone or the enemy Master), never toward a threat
@@ -543,7 +552,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
       let minD = 99;
       for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
       const job = plan.jobs.get(me.id)?.hex ?? plan.front;
-      if (me.hp < MAX_HP) s += w.refugeFamiliar * (1 - me.hp / MAX_HP) * survivalTurns(h);
+      // a hurt Familiar likes where it holds out longer (cover, a Stone's heal), priced as its own HP
+      if (me.hp < MAX_HP) s += w.ownHp * FAMILIAR_HOLD_OUT * (1 - me.hp / MAX_HP) * survivalTurns(h);
       s -= w.approach * pressure * (w.nearPull * minD + (job ? w.jobPull * hexDistance(job, h) : 0));
     }
     return s;
@@ -675,7 +685,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
           if (isDamage && !effects.some((e) => e.kind === 'damage' && e.amount > 0 && (e.obstacle || state.units.find((u) => u.id === e.unitId)?.side !== me.side))) continue;
           for (const e of effects) {
             if (e.obstacle) {
-              score += obstacleValue(state, me, dest, e.unitId, Math.min(e.amount, e.hpBefore), e.lethal, w);
+              if (!light) score += obstacleValue(state, me, dest, e.unitId, Math.min(e.amount, e.hpBefore), e.lethal, w);
               continue;
             }
             const t = state.units.find((u) => u.id === e.unitId)!;
@@ -683,7 +693,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
             if (e.kind === 'damage') {
               // only the HP it can actually take counts: overkill is worth nothing
               const dealt = Math.min(e.amount, t.hp);
-              if (t.side === me.side) score -= dealt * w.friendlyFire * v;
+              if (t.side === me.side) score -= dealt * w.ownHp * v;
               else {
                 const heal = healIn.get(t.id) ?? 0;
                 // only damage that outlasts the healing coming its way counts in full
@@ -711,7 +721,8 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
                 score += w.empower * e.amount * w.damage * (soon ? 1 : w.empowerIdle);
               }
             } else {
-              score += (t.side === me.side ? 1 : -1) * e.amount * w.heal * v;
+              // an HP healed on my side is worth what one lost costs; on theirs, as much against me
+              score += (t.side === me.side ? 1 : -1) * e.amount * w.ownHp * v;
             }
           }
         }
@@ -738,7 +749,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         facing = command.dir;
         threat = threatAt(dest, facing, delay, gone);
         // a Master in danger: the Familiar it summons stands in the way too
-        if (kind.isMaster && threat >= me.hp) blocked = blockedBy(dest, facing, delay, gone, command.kind, neighbor(dest, command.dir));
+        if (!light && kind.isMaster && threat >= me.hp) blocked = blockedBy(dest, facing, delay, gone, command.kind, neighbor(dest, command.dir));
         threat = Math.max(0, threat - blocked);
       } else {
         ({ facing, threat } = bestFacing(dest, delay, gone));
@@ -752,27 +763,29 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         }
       }
       const v = unitValue(me);
+      // One safety curve for every Unit: each HP it may lose costs a little, losses that leave it
+      // near death cost steeply, and death ends the curve (graded by how sure it is). A Master
+      // prices HP as a budget (masterHpCost, cheap) against a comfort margin; a Familiar prices it
+      // as its own worth (ownHp × value, less when its side is ahead), convex over its whole HP.
+      const lost = Math.min(threat, me.hp);
       let safety = 0;
-      let doomed = false;
+      let deathCost: number;
       if (kind.isMaster) {
-        // One curve for the Master's safety (docs/ai.md): HP is a budget. Each HP it may lose
-        // costs a little; falling below its comfort margin costs steeply; death ends the curve.
-        // Hits past its HP change nothing; Stone Heal and healers count in the margin.
-        const margin = me.hp + recovery(dest) - Math.min(me.hp, threat);
-        safety += w.masterHpCost * Math.min(threat, me.hp) + w.masterRisk * Math.max(0, comfort - margin) ** 2;
-        if (threat >= me.hp) {
-          // death, graded by how sure it is: full when enemies acting first kill it by their real
-          // path this turn; less when it needs the round after, a straight-line guess or a summon
-          const sure = Math.max(0, danger(dest, facing, delay, gone).sure - blocked);
-          doomed = sure >= me.hp;
-          safety += w.masterDeathRisk * (doomed ? 1 : w.unsureDeath + (1 - w.unsureDeath) * (sure / me.hp));
-        }
+        const margin = me.hp + recovery(dest) - lost;
+        safety += w.masterHpCost * lost + w.masterRisk * Math.max(0, comfort - margin) ** 2;
+        deathCost = w.masterDeathRisk;
       } else {
-        // scrapes a Unit can absorb cost little; damage that nearly kills it costs the most
-        const x = Math.min(threat, me.hp) / me.hp;
-        const hurt = (1 - w.hurtCurve) * x + w.hurtCurve * x * x;
-        safety += hurt * me.hp * w.threat * v * boldness;
-        if (threat >= me.hp) safety += w.deathRisk * v;
+        const x = lost / me.hp;
+        safety += w.ownHp * v * boldness * me.hp * (x + x * x) / 2;
+        deathCost = w.deathRisk * v;
+      }
+      let doomed = false;
+      if (threat >= me.hp) {
+        // full when enemies acting first kill it by their real path this turn; less when it needs
+        // the round after, a straight-line guess or a summon
+        const sure = Math.max(0, danger(dest, facing, delay, gone).sure - blocked);
+        doomed = sure >= me.hp;
+        safety += deathCost * (doomed ? 1 : w.unsureDeath + (1 - w.unsureDeath) * (sure / me.hp));
       }
       score -= safety;
 
@@ -790,7 +803,7 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
   // Screening: ground enemies must stop in this Unit's ZOC, so where it ends can
   // shield allies (or, by leaving, expose them). Re-score the best destinations
   // with enemy reach recomputed around this Unit's new position.
-  if (w.screen > 0 && allies.length) {
+  if (!light && w.screen > 0 && allies.length) {
     const ev = (a: Unit, rs: EnemyReach[]) => {
       let t = 0;
       for (const e of rs) if (e.unit.av < a.av) t += maxDamage(e, a, a.pos, a.facing);
@@ -817,14 +830,14 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
         for (const e of rs) if (e.unit.av < a.av) t += maxDamageFrom(view, e, a, a.pos, a.facing);
         after += Math.min(t, a.hp) * unitValue(a);
       }
-      v = (baseThreat - after) * w.threat * w.screen;
+      v = (baseThreat - after) * w.ownHp * w.screen;
       // cutting the heal line: healing the enemy Master (or a hurt enemy) can no longer receive
       if (healers.length) {
         const hs = rs.filter((e) => healers.some((h) => h.unit.id === e.unit.id));
         for (const t of state.units) {
           if (t.side === me.side || (t.hp >= 10 && !kindOf(t.kind).isMaster)) continue;
           const lost = (healIn.get(t.id) ?? 0) - incomingHealFrom(hs, t);
-          if (lost > 0) v += lost * w.damage * unitValue(t) * w.healBlock;
+          if (lost > 0) v += lost * w.damage * unitValue(t) * w.screen;
         }
       }
       done.set(key, v);
@@ -857,11 +870,20 @@ export function rankCandidates(state: MatchState, weights: W): { me: Unit; candi
  * the top candidates are each played out — every Unit then plays Normal
  * until this Unit's next turn — and the resulting positions are compared.
  */
-export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?: 'normal' | 'hard'): TurnAction {
-  const { me, candidates } = rankCandidates(state, weights);
+export interface ChooseOptions {
+  /** Hard: enemy replies tried at the first enemy turn (LOOKAHEAD.replies). */
+  replies?: number;
+  /** Hard: play the look-ahead's moves with the light scorer (LOOKAHEAD.light). */
+  lightPlayouts?: boolean;
+  /** Score this move with the light scorer (used inside playouts). */
+  light?: boolean;
+}
+
+export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?: 'normal' | 'hard', opts?: ChooseOptions): TurnAction {
+  const { me, candidates } = rankCandidates(state, weights, { light: opts?.light });
   const lvl = level ?? state.sides[me.side].aiLevel ?? 'normal';
   if (lvl === 'hard') {
-    const pick = lookahead(state, me, candidates, weights);
+    const pick = lookahead(state, me, candidates, weights, opts?.replies, opts?.lightPlayouts);
     if (pick) return pick;
   }
   // Validate best-first (validation re-runs path-finding, so only check what could be chosen).
@@ -880,9 +902,30 @@ export function chooseAction(state: MatchState, weights: W = AI_WEIGHTS, level?:
   return top[Math.floor(rng() * top.length)].action;
 }
 
-export const LOOKAHEAD = { candidates: 5, maxTurns: 6 };
+/**
+ * Hard's look-ahead: the top `candidates` moves, each played out until this Unit's
+ * next turn (at most `maxTurns`). With `replies` > 1, the first enemy turn after the
+ * move tries that enemy's top `replies` moves and keeps the worst result for me,
+ * instead of assuming it plays exactly what the Normal AI would.
+ */
+// light: the playouts use the light scorer: as strong in the arena (47%, 32 games) at ~⅓ the time
+export const LOOKAHEAD = { candidates: 5, maxTurns: 6, replies: 1, light: true };
 
-function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): TurnAction | null {
+/** The top `n` distinct, legal moves of the active Unit. */
+function topMoves(st: MatchState, w: W, n: number, light = false): TurnAction[] {
+  const out: TurnAction[] = [];
+  const seen = new Set<string>();
+  for (const c of rankCandidates(st, w, { light }).candidates) {
+    if (out.length >= n) break;
+    const key = JSON.stringify(c.action);
+    if (seen.has(key) || validateTurn(st, c.action) !== null) continue;
+    seen.add(key);
+    out.push(c.action);
+  }
+  return out;
+}
+
+function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W, replies = LOOKAHEAD.replies, light = LOOKAHEAD.light): TurnAction | null {
   const picks: Candidate[] = [];
   const seen = new Set<string>();
   for (const c of ranked) {
@@ -895,20 +938,30 @@ function lookahead(state: MatchState, me: Unit, ranked: Candidate[], w: W): Turn
   if (picks.length < 2) return picks[0]?.action ?? null;
   let best: { action: TurnAction; value: number } | null = null;
   const rollout: W = { ...w, screen: 0 }; // playouts skip the screening re-score to stay in budget
-  for (const c of picks) {
-    let st = applyTurn(state, c.action).state;
-    for (let t = 0; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
-      st = applyTurn(st, chooseAction(st, rollout, 'normal')).state;
+  /** Play on until this Unit's turn; branch once, at the first enemy turn, over its top replies (worst for me). */
+  const playout = (start: MatchState, from: number, branched: boolean): number => {
+    let st = start;
+    for (let t = from; t < LOOKAHEAD.maxTurns && st.winner === null && st.activeUnitId !== me.id; t++) {
+      const u = activeUnit(st)!;
+      if (!branched && replies > 1 && u.side !== me.side) {
+        const options = topMoves(st, rollout, replies, light);
+        if (options.length > 1) return Math.min(...options.map((a) => playout(applyTurn(st, a).state, t + 1, true)));
+        branched = true;
+      }
+      st = applyTurn(st, chooseAction(st, rollout, 'normal', { light })).state;
     }
+    return evaluate(st, me.side, w);
+  };
+  for (const c of picks) {
     // position value, with the candidate's own score as a small tie-breaker
-    const value = evaluate(st, me.side) + c.score * 0.01;
+    const value = playout(applyTurn(state, c.action).state, 0, false) + c.score * 0.01;
     if (!best || value > best.value + 1e-9) best = { action: c.action, value };
   }
   return best?.action ?? null;
 }
 
 /** Static value of a position for `side`: material and HP, Masters, Stones, Mana. */
-export function evaluate(st: MatchState, side: number): number {
+export function evaluate(st: MatchState, side: number, w: W = AI_WEIGHTS): number {
   if (st.winner === side) return 1e6;
   if (st.winner !== null && st.winner !== 'draw') return -1e6;
   let v = 0;
@@ -918,7 +971,7 @@ export function evaluate(st: MatchState, side: number): number {
     v += u.side === side ? worth : -worth;
   }
   // Stones count for their Mana, not for the Time Limit: the AI never plays for time.
-  const stoneWeight = 30;
+  const stoneWeight = w.capture * EVAL_STONE;
   for (const s of st.stones) if (s.owner !== null) v += (s.owner === side ? 1 : -1) * stoneWeight;
   v += 0.15 * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
   return v;
