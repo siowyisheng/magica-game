@@ -267,8 +267,23 @@ export function trajectoryOf(a: { range: number; trajectory?: Trajectory }): Tra
   return a.range > 1 ? (a.trajectory ?? 'high') : null;
 }
 
-/** Whether a shot along `trajectory` from `from` can reach `target` (range already checked). */
+/** Most a range-1 Attack or Magic's target hex may be above or below the user's. */
+export const MELEE_MAX_STEP = 1;
+
+/** Whether a range-1 Attack or Magic from `from` reaches the neighbouring hex `target`: at most 1 Height up or down (water at the Water Level). */
+export function meleeReach(state: MatchState, from: Hex, target: Hex): boolean {
+  const a = mapHexAt(state.map, from);
+  const b = mapHexAt(state.map, target);
+  return !a || !b || Math.abs(surfaceHeight(b, state.waterLevel) - surfaceHeight(a, state.waterLevel)) <= MELEE_MAX_STEP;
+}
+
+/**
+ * Whether a shot along `trajectory` from `from` can reach `target` (range already checked).
+ * `null` is a range-1 Attack or Magic: it reaches a neighbour only at most 1 Height up or down.
+ * Ranged abilities used on a neighbour ignore Height.
+ */
 export function shotAllowed(state: MatchState, shooterId: number, trajectory: Trajectory | null, from: Hex, target: Hex): boolean {
+  if (trajectory === null) return hexDistance(from, target) !== 1 || meleeReach(state, from, target);
   return trajectory !== 'direct' || hexDistance(from, target) <= 1 || clearShot(state, shooterId, from, target);
 }
 
