@@ -109,7 +109,11 @@ describe('random maps', () => {
     }
   });
 
-  it('have cliffs (2–3 Height steps) that a walker can climb round, and rarely a pillar only Fly reaches', () => {
+  it('keep every hex at Height 4 or below', () => {
+    for (const { seed, map } of maps) expect(Math.max(...map.hexes.map((h) => h.height)), `seed ${seed}`).toBeLessThanOrEqual(4);
+  });
+
+  it('have cliffs (2-Height steps) that a walker can climb round, and rarely a pillar only Fly reaches', () => {
     const walker = { moveTypes: ['walk'] } as unknown as UnitKind;
     let withCliffs = 0;
     let withPillars = 0;
@@ -166,8 +170,9 @@ describe('random maps', () => {
     expect(ws.filter((w) => w.thinShare < 0.3).length).toBeGreaterThan(15); // broad lakes
   });
 
-  it('have 7–12 Stones, mostly 4–7 apart, at least a third on or near the symmetry line', () => {
+  it('have 7–12 Stones, mostly 4–7 apart (rarely 2–3), at least a third on or near the symmetry line', () => {
     let inBand = 0;
+    let close = 0;
     let total = 0;
     for (const { seed, map } of maps) {
       const stones = map.hexes.filter((h) => h.terrain === 'stone').map((h) => h.hex);
@@ -175,7 +180,8 @@ describe('random maps', () => {
       expect(stones.length).toBeLessThanOrEqual(12);
       for (const s of stones) {
         const nearest = Math.min(...stones.filter((t) => t !== s).map((t) => hexDistance(s, t)));
-        expect(nearest).toBeGreaterThanOrEqual(4);
+        expect(nearest).toBeGreaterThanOrEqual(2);
+        if (nearest < 4) close++;
         if (nearest <= 7) inBand++;
         total++;
       }
@@ -183,6 +189,9 @@ describe('random maps', () => {
       expect(nearLine, `seed ${seed}`).toBeGreaterThanOrEqual(Math.ceil(stones.length / 3));
     }
     expect(inBand / total).toBeGreaterThan(0.75);
+    // closer than 4 now and then, never often
+    expect(close).toBeGreaterThan(0);
+    expect(close / total).toBeLessThan(0.15);
   });
 
   it('have 3–10 Obstacles per Side, mirrored, and are point-symmetric', () => {
