@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateRandomMap, RANDOM_MAP_THEMES } from './random';
+import { DIRS, neighbor } from '../hex';
 import { validateMap } from './validate';
 import { hexDistance, hexKey, axialToOffset } from '../hex';
 import { surfaceOf } from '../terrain';
@@ -13,27 +14,32 @@ describe('random maps', () => {
     expect(JSON.stringify(generateRandomMap(42))).toBe(JSON.stringify(generateRandomMap(42)));
   });
 
-  it('are valid, 18 wide and 13–18 tall, with a known Theme', () => {
+  const size = (map: (typeof maps)[number]['map']) => ({
+    rows: new Set(map.hexes.map((h) => h.hex.r)).size,
+    width: Math.max(...map.hexes.map((h) => axialToOffset(h.hex).col)) + 1,
+  });
+
+  it('are valid, 16–21 wide and 13–21 tall, with a known Theme', () => {
     for (const { seed, map } of maps) {
       expect(validateMap(map), `seed ${seed}`).toEqual([]);
-      const rows = new Set(map.hexes.map((h) => h.hex.r));
-      expect(rows.size).toBeGreaterThanOrEqual(13);
-      expect(rows.size).toBeLessThanOrEqual(18);
-      const cols = map.hexes.map((h) => axialToOffset(h.hex).col);
-      expect(Math.min(...cols)).toBe(0);
-      expect(Math.max(...cols)).toBe(17);
+      const { rows, width } = size(map);
+      expect(rows).toBeGreaterThanOrEqual(13);
+      expect(rows).toBeLessThanOrEqual(21);
+      expect(width).toBeGreaterThanOrEqual(16);
+      expect(width).toBeLessThanOrEqual(21);
+      expect(Math.min(...map.hexes.map((h) => axialToOffset(h.hex).col))).toBe(0);
       expect(RANDOM_MAP_THEMES).toContain(map.theme);
     }
   });
 
   it('start the Masters at opposite corners', () => {
     for (const { map } of maps) {
-      const rows = new Set(map.hexes.map((h) => h.hex.r)).size;
+      const { rows, width } = size(map);
       const a = axialToOffset(map.spawns[0]);
       const b = axialToOffset(map.spawns[1]);
       expect(a.col).toBeLessThanOrEqual(1);
       expect(a.row).toBeGreaterThanOrEqual(rows - 2);
-      expect(b.col).toBeGreaterThanOrEqual(15);
+      expect(b.col).toBeGreaterThanOrEqual(width - 3);
       expect(b.row).toBeLessThanOrEqual(1);
     }
   });
@@ -77,21 +83,78 @@ describe('random maps', () => {
       for (const h of map.hexes) {
         const m = byKey.get(hexKey({ q: sum.q - h.hex.q, r: sum.r - h.hex.r }));
         expect(m, `seed ${seed}: mirror of ${hexKey(h.hex)}`).toBeDefined();
-        if (h.terrain !== 'stone' && m!.terrain !== 'stone') {
-          expect(m!.height).toBe(h.height);
-          expect(m!.terrain).toBe(h.terrain);
-        }
+        expect(m!.height, `seed ${seed}: height at ${hexKey(h.hex)}`).toBe(h.height);
+        expect(m!.terrain, `seed ${seed}: terrain at ${hexKey(h.hex)}`).toBe(h.terrain);
       }
       const obsKeys = new Set(obs.map((o) => hexKey(o.hex)));
       for (const o of obs) expect(obsKeys.has(hexKey({ q: sum.q - o.hex.q, r: sum.r - o.hex.r }))).toBe(true);
     }
   });
 
-  it('vary: rows, Themes, Stone counts and water styles all differ across seeds', () => {
-    const rows = new Set(maps.map(({ map }) => new Set(map.hexes.map((h) => h.hex.r)).size));
+  it('have an odd Stone count about 2/3 of the time, with 1, 3 or 5 exactly on the symmetry line', () => {
+    let odd = 0;
+    const onLineCounts = new Set<number>();
+    for (const { seed, map } of maps) {
+      const stones = map.hexes.filter((h) => h.terrain === 'stone').map((h) => h.hex);
+      if (stones.length % 2 === 0) continue;
+      odd++;
+      // the odd one is on the centre hex, the one the turn maps onto itself
+      const sum = { q: map.spawns[0].q + map.spawns[1].q, r: map.spawns[0].r + map.spawns[1].r };
+      expect(stones.some((s) => 2 * s.q === sum.q && 2 * s.r === sum.r), `seed ${seed}`).toBe(true);
+      const onLine = stones.filter((s) => hexDistance(s, map.spawns[0]) === hexDistance(s, map.spawns[1])).length;
+      expect([1, 3, 5], `seed ${seed}`).toContain(onLine);
+      onLineCounts.add(onLine);
+    }
+    expect(odd / maps.length).toBeGreaterThan(0.55);
+    expect(odd / maps.length).toBeLessThan(0.78);
+    expect(onLineCounts.size).toBe(3);
+  });
+
+  it('never put a Stone on the edge (next to a missing hex or a Pit)', () => {
+    for (const { seed, map } of maps) {
+      const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));
+      for (const s of map.hexes.filter((h) => h.terrain === 'stone')) {
+        for (const d of DIRS) {
+          const n = byKey.get(hexKey(neighbor(s.hex, d)));
+          expect(n && n.terrain !== 'pit', `seed ${seed}: Stone at ${hexKey(s.hex)}`).toBeTruthy();
+        }
+      }
+    }
+  });
+
+  it('usually have Pits, mostly on the edges', () => {
+    let withPits = 0;
+    let pits = 0;
+    let onEdge = 0;
+    for (const { map } of maps) {
+      const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));
+      const ps = map.hexes.filter((h) => h.terrain === 'pit');
+      if (ps.length) withPits++;
+      pits += ps.length;
+      // Pits joined (through other Pits) to the map's outer edge
+      const outer = new Set(ps.filter((p) => DIRS.some((d) => !byKey.has(hexKey(neighbor(p.hex, d))))).map((p) => hexKey(p.hex)));
+      const queue = [...outer];
+      while (queue.length) {
+        const k = queue.pop()!;
+        for (const d of DIRS) {
+          const n = byKey.get(hexKey(neighbor(byKey.get(k)!.hex, d)));
+          if (n && n.terrain === 'pit' && !outer.has(hexKey(n.hex))) outer.add(hexKey(n.hex)), queue.push(hexKey(n.hex));
+        }
+      }
+      onEdge += outer.size;
+      expect(ps.length / map.hexes.length).toBeLessThanOrEqual(0.2);
+    }
+    expect(withPits / maps.length).toBeGreaterThan(0.9);
+    expect(onEdge / pits).toBeGreaterThan(0.75);
+  });
+
+  it('vary: sizes, Themes, Stone counts and water styles all differ across seeds', () => {
+    const rows = new Set(maps.map(({ map }) => size(map).rows));
+    const widths = new Set(maps.map(({ map }) => size(map).width));
     const themes = new Set(maps.map(({ map }) => map.theme));
     const counts = new Set(maps.map(({ map }) => map.hexes.filter((h) => h.terrain === 'stone').length));
-    expect(rows.size).toBe(6);
+    expect(rows.size).toBe(9);
+    expect(widths.size).toBe(6);
     expect(themes.size).toBe(RANDOM_MAP_THEMES.length);
     expect(counts.size).toBeGreaterThanOrEqual(5);
   });

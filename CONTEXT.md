@@ -179,7 +179,7 @@ A neutral map object placed on dry Plain or Rough at the start of a match. No Un
 _Avoid_: Wall, prop, blocker
 
 **Random Map**:
-A map generated from a seed, the same map for the same seed. 18 hexes wide and 13–18 tall, with the Masters starting at opposite corners and everything mirrored through the centre, so both Sides get the same map. It has 7–12 Magic Stones, mostly 4–7 hexes apart, with at least a third of them on or near the symmetry line (about as far from one Master as from the other). It also has 3–10 Obstacles per Side, a random Theme, and always some water, in varying amounts of Shallow and Deep. A walking Unit can always reach the other Master and every Stone.
+A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting at opposite corners and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. It has 7–12 Magic Stones, mostly 4–7 hexes apart, never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, in varying amounts of Shallow and Deep. A walking Unit can always reach the other Master and every Stone.
 _Avoid_: Procedural map, generated level
 
 **Theme**:
