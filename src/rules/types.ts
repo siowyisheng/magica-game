@@ -15,44 +15,47 @@ export interface Stats {
   mov: number;
 }
 
-/** Attack Ability: hits one enemy within `range` (no minimum range). */
-export interface AttackAbility {
-  range: number;
-  /** How a ranged (range > 1) Attack flies; absent for melee. */
-  trajectory?: Trajectory;
-}
-
 /**
- * How a ranged Attack or Magic Ability travels. High arcs over everything
- * and always hits a target in range; Direct flies straight and needs a
- * Clear Angle past Units and Obstacles.
+ * How a ranged Ability travels. High arcs over everything and always hits a
+ * target in range; Direct flies straight and needs a Clear Angle past Units,
+ * Obstacles and high ground.
  */
 export type Trajectory = 'high' | 'direct';
 
+/** Which stat a damaging Ability hits with: ATK against DEF (physical) or MP against MDF (magical). */
+export type Power = 'atk' | 'mp';
+
+/** The name of a Unit's Act button. */
+export type AbilityLabel = 'attack' | 'heal' | 'buff' | 'debuff';
+
 /**
- * Magic Ability. Damage hits enemies only; heals and Empower hit allies
- * (caster included). Damage and heals take their strength from the caster's
- * MP; Empower gives a fixed ATK bonus (`amount`).
+ * Ability: what a Unit does when it Acts. Every Unit has exactly one. Damage
+ * hits enemies (and Obstacles) with ATK or MP (`power`); heals and Empower
+ * help allies (caster included): heals restore MP, Empower gives a fixed ATK
+ * bonus (`amount`). Abilities are free: they cost no Mana.
  */
-export type MagicAbility =
+export type Ability =
   | {
       id: string;
       name: string;
       kind: 'damage' | 'heal' | 'empower';
-      /** Empower only: ATK added to the target until its next Attack. */
+      /** Damage only: ATK against DEF ('atk') or MP against MDF ('mp'). Absent means 'mp'. */
+      power?: Power;
+      /** Empower only: ATK added to the target until its next physical hit. */
       amount?: number;
       /** Maximum distance to the aimed hex. */
       range: number;
       /** 0 = single hex, 1 = aimed hex and its neighbours, 2 = two rings (Burst only). */
       radius: 0 | 1 | 2;
-      manaCost: number;
       /**
-       * Burst (damage only): centred on the caster (range 0), hitting every
-       * Unit and Obstacle in the area, allies included, but not the caster.
+       * Burst (damage only): centred on the user (range 0), hitting every
+       * Unit and Obstacle in the area, allies included, but not the user.
        */
       burst?: boolean;
       /** Set when range > 1. */
       trajectory?: Trajectory;
+      /** The Act button's name; absent means the default for its kind (damage: attack, heal: heal, empower: buff). */
+      label?: AbilityLabel;
     }
   | {
       id: string;
@@ -60,7 +63,7 @@ export type MagicAbility =
       kind: 'water';
       /** +1 = Rise, -1 = Ebb */
       delta: 1 | -1;
-      manaCost: number;
+      label?: AbilityLabel;
     };
 
 /** Static definition of a kind of Unit (a Master or a Familiar). */
@@ -74,10 +77,10 @@ export interface UnitKind {
   cost: number;
   stats: Stats;
   moveTypes: MoveType[];
-  attack: AttackAbility;
-  magic: MagicAbility[];
-  /** Short role label used for placeholder art and UI. */
-  role: string;
+  /** The one thing it does when it Acts. */
+  ability: Ability;
+  /** Its own name for the Ability, shown instead of the Ability's name. */
+  abilityName?: string;
 }
 
 export type HexTerrain = 'plain' | 'rough' | 'stone' | 'pit';
@@ -122,7 +125,7 @@ export interface Unit {
   av: number;
   /** Set at start of turn when the Unit stands on a hex it may not enter. */
   stranded: boolean;
-  /** Empowered: ATK added to this Unit's next Attack, then cleared. */
+  /** Empowered: ATK added to this Unit's next physical hit, then cleared. */
   empowered?: number;
 }
 
@@ -179,8 +182,8 @@ export interface MatchState {
 
 export type Command =
   | { type: 'wait' }
-  | { type: 'attack'; target: Hex }
-  | { type: 'magic'; ability: string; target: Hex }
+  /** Use the Unit's Ability, aimed at `target` (its own hex for a Burst). */
+  | { type: 'act'; target: Hex }
   | { type: 'summon'; kind: string; dir: Dir };
 
 export interface TurnAction {

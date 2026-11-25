@@ -183,5 +183,9 @@ describe('Replay storage', () => {
     expect(imported.saved).toBe(true);
     expect(lib.listReplays()[0].name).toBe('Close one');
     expect(() => lib.importReplayJson('{"format":"other"}')).toThrow();
+    // recorded before one Ability per Unit: Attack / Magic Commands can't be watched
+    const old = { ...r, actions: [{ unitId: 1, to: { q: 0, r: 0 }, facing: 0, command: { type: 'attack', target: { q: 1, r: 0 } } }] };
+    expect(() => lib.importReplayJson(JSON.stringify({ format: 'magica-replay', version: 1, replay: old }))).toThrow(/one Ability/);
+    expect(lib.replayProblem(old as never)).toMatch(/one Ability/);
   });
 });

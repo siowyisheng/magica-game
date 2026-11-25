@@ -15,7 +15,8 @@ import {
   hexKey,
   hexesInRange,
   kindOf,
-  magicAbility,
+  isPhysical,
+  planAct,
   mapHexAt,
   neighbor,
   pathTo,
@@ -30,7 +31,8 @@ import {
   unitReach,
   facingTowardTarget,
 } from '../rules';
-import { hoverQuick, quickPlans, summonDirToward, useGame } from '../store';
+import { hoverQuick, summonDirToward, useGame } from '../store';
+import { classIconName, iconPixels, type IconName } from '../ui/icons';
 import { FENCE_HEIGHT, cornerPosts, fenceGeometry, regionSegments, ribbonGeometry, type LineStyle } from './outlines';
 import {
   ELEMENT_COLORS,
@@ -263,6 +265,19 @@ export const LINE_COLORS = {
 
 const PALE_SIDE = { 0: '#b8f0bf', 1: '#f5b8b8' } as const;
 
+/** Reach colour: red for a physical Ability, blue for Magic. */
+function reachColor(k: ReturnType<typeof kindOf>): string {
+  return isPhysical(k.ability) ? LINE_COLORS.attack : LINE_COLORS.magic;
+}
+
+/** How a target is marked for the active Unit's Ability. */
+function markFor(k: ReturnType<typeof kindOf>): TargetMark {
+  const a = k.ability;
+  if (a.kind === 'heal') return 'heal';
+  if (a.kind === 'empower') return 'empower';
+  return isPhysical(a) ? 'attack' : 'magic';
+}
+
 interface OutlineLayer {
   key: string;
   region: Map<string, Hex>;
@@ -288,33 +303,31 @@ function useOutlines(): OutlineLayer[] {
     if (!u || phase.kind === 'idle') return layers;
     const kind = kindOf(u.kind);
 
-    // Toggled units: move (pale Side colour), Attack Reach (red dashed), Magic Reach (blue dashed).
+    // Toggled units: move (pale Side colour), Reach (dashed: red for a physical Ability, blue for Magic).
     for (const id of inspected) {
       const o = match.units.find((x) => x.id === id);
       if (!o) continue;
       const r = unitReach(match, o);
       layers.push({ key: `i${id}m`, region: r.move, style: { color: PALE_SIDE[o.side], width: 0.05, opacity: 0.9 } });
-      if (r.attack.size) layers.push({ key: `i${id}a`, region: r.attack, style: dashed(LINE_COLORS.attack, 0) });
-      if (r.magic.size) layers.push({ key: `i${id}g`, region: r.magic, style: dashed(LINE_COLORS.magic, 0.5) });
+      if (r.act.size) layers.push({ key: `i${id}a`, region: r.act, style: dashed(reachColor(kindOf(o.kind)), 0) });
     }
 
     if (phase.kind === 'move' && phase.selected) {
       layers.push({ key: 'move', region: unitReach(match, u).move, style: { color: LINE_COLORS.move, width: 0.08 } });
       const q = hoverQuick({ match, phase, hoverHex, hoverUnitId });
       if (q) {
-        const src = [...(q.plans.attack?.sources ?? []), ...(q.plans.magic?.sources ?? [])];
+        const src = q.plan.sources;
         layers.push({ key: 'src', region: toMap(src), style: { color: LINE_COLORS.source, width: 0.06 } });
       }
     } else if (phase.kind === 'target') {
-      const isAttack = phase.command === 'attack';
-      const ab = isAttack ? null : magicAbility(kind, (phase.command as { magic: string }).magic);
-      if (isAttack || (ab && ab.kind !== 'water')) {
-        // a Burst shows the area it will hit around the caster
-        const burst = !!ab && ab.kind === 'damage' && !!ab.burst;
-        const range = isAttack ? kind.attack.range : burst ? (ab as { radius: number }).radius : (ab as { range: number }).range;
-        const min = isAttack ? 1 : burst ? 1 : minAimDistance(ab as Parameters<typeof minAimDistance>[0]);
+      const ab = kind.ability;
+      if (ab.kind !== 'water') {
+        // a Burst shows the area it will hit around the user
+        const burst = ab.kind === 'damage' && !!ab.burst;
+        const range = burst ? ab.radius : ab.range;
+        const min = burst ? 1 : minAimDistance(ab);
         const hexes = hexesInRange(phase.to, range).filter((h) => hexDistance(h, phase.to) >= min && mapHexAt(match.map, h));
-        layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(isAttack ? LINE_COLORS.attack : LINE_COLORS.magic, 0) });
+        layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(reachColor(kind), 0) });
       }
     } else if (phase.kind === 'summonDir') {
       const sk = kindOf(phase.summonKind);
@@ -326,8 +339,6 @@ function useOutlines(): OutlineLayer[] {
         if (mh && canStandOn(sk, mh, match.waterLevel) && (!occ || occ.id === u.id)) hexes.push(h);
       }
       layers.push({ key: 'sum', region: toMap(hexes), style: { color: LINE_COLORS.summon, width: 0.08 } });
-    } else if (phase.kind === 'quickChoice') {
-      layers.push({ key: 'src', region: toMap([phase.attack.dest, phase.magic.dest]), style: { color: LINE_COLORS.source, width: 0.06 } });
     }
     return layers;
   }, [match, phase, hoverHex, hoverUnitId, inspected]);
@@ -421,30 +432,21 @@ function useTargetMarks(): Map<number, TargetMark> {
     if (phase.kind === 'move' && phase.selected) {
       for (const t of match.units) {
         if (t.id === u.id) continue;
-        const q = quickPlans(match, u, t);
-        const a = !!q.attack;
-        const m = !!q.magic && q.magic.affordable;
-        if (a && m) out.set(t.id, 'both');
-        else if (a) out.set(t.id, 'attack');
-        else if (m) out.set(t.id, q.magic!.ability.kind === 'heal' ? 'heal' : q.magic!.ability.kind === 'empower' ? 'empower' : 'magic');
+        if (planAct(match, u, t)) out.set(t.id, markFor(kindOf(u.kind)));
       }
     } else if (phase.kind === 'target') {
-      const ab = phase.command === 'attack' ? null : magicAbility(kindOf(u.kind), phase.command.magic);
-      if (ab && ab.kind === 'damage' && ab.burst) {
-        // a Burst hits everything around the caster, allies too
-        const action = { unitId: u.id, to: phase.to, facing: phase.facing, command: { type: 'magic' as const, ability: ab.id, target: phase.to } };
-        for (const e of previewEffects(match, action)) if (!e.obstacle) out.set(e.unitId, 'magic');
+      const k = kindOf(u.kind);
+      const ab = k.ability;
+      if (ab.kind === 'damage' && ab.burst) {
+        // a Burst hits everything around the user, allies too
+        const action = { unitId: u.id, to: phase.to, facing: phase.facing, command: { type: 'act' as const, target: phase.to } };
+        for (const e of previewEffects(match, action)) if (!e.obstacle) out.set(e.unitId, markFor(k));
         return out;
       }
       for (const t of match.units) {
-        const command: Command =
-          phase.command === 'attack' ? { type: 'attack', target: t.pos } : { type: 'magic', ability: phase.command.magic, target: t.pos };
+        const command: Command = { type: 'act', target: t.pos };
         if (validateTurn(match, { unitId: u.id, to: phase.to, facing: phase.facing, command })) continue;
-        if (phase.command === 'attack') out.set(t.id, 'attack');
-        else {
-          const k = magicAbility(kindOf(u.kind), phase.command.magic).kind;
-          out.set(t.id, k === 'heal' ? 'heal' : k === 'empower' ? 'empower' : 'magic');
-        }
+        out.set(t.id, markFor(k));
       }
     }
     return out;
@@ -452,6 +454,38 @@ function useTargetMarks(): Map<number, TargetMark> {
 }
 
 // ---------- units ----------
+
+const badgeCache = new Map<string, THREE.Texture>();
+/** A Class icon on a small badge in the Side's colour (11×11 pixels, drawn crisp). */
+function classBadgeTexture(name: IconName, side: SideId): THREE.Texture {
+  const key = `${name}|${side}`;
+  let t = badgeCache.get(key);
+  if (t) return t;
+  const n = 11;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const ctx = cv.getContext('2d')!;
+  ctx.fillStyle = '#10121a';
+  ctx.fillRect(1, 0, n - 2, n);
+  ctx.fillRect(0, 1, n, n - 2);
+  ctx.fillStyle = SIDE_COLORS[side];
+  ctx.fillRect(1, 1, n - 2, n - 2);
+  const { grid, palette } = iconPixels(name);
+  grid.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const c = palette[row[x]];
+      if (!c) continue;
+      ctx.fillStyle = c;
+      ctx.fillRect(x + 1, y + 1, 1, 1);
+    }
+  });
+  t = new THREE.CanvasTexture(cv);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  badgeCache.set(key, t);
+  return t;
+}
 
 function dirAngle(d: number): number {
   // world angle (radians, around Y) of a hex direction vector
@@ -820,6 +854,12 @@ function UnitView({
       >
         <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={ghost ? 0.2 : 0.5} color={baseColor} opacity={ghost ? 0.45 : 1} depthWrite={!ghost} />
       </sprite>
+      {!ghost && !kindOf(unit.kind).isMaster && (
+        // the Familiar's Class, always shown by its feet
+        <sprite scale={[0.3, 0.3, 1]} position={[0.36, 0.2, 0.2]} renderOrder={11} raycast={() => null}>
+          <spriteMaterial map={classBadgeTexture(classIconName(kindOf(unit.kind)), unit.side)} transparent depthTest={false} />
+        </sprite>
+      )}
     </group>
   );
 }
@@ -839,19 +879,16 @@ function Units() {
   // Quick-action destinations: shown as instant ghosts; the acting unit stays put.
   const ghosts = useMemo(() => {
     if (!active || !quick) return [];
-    const out: { key: string; at: Hex; label: 'A' | 'M' }[] = [];
-    if (quick.plans.attack) out.push({ key: 'A', at: quick.plans.attack.dest, label: 'A' });
-    if (quick.plans.magic) out.push({ key: 'M', at: quick.plans.magic.dest, label: 'M' });
-    return out;
+    return [{ key: 'A', at: quick.plan.dest, label: 'A' as const }];
   }, [active, quick]);
   useEffect(() => {
-    for (const k of ['ghost:A', 'ghost:M']) anchorSources.delete(k);
+    anchorSources.delete('ghost:A');
     for (const g of ghosts) {
       const v = worldAt(match, g.at).add(new THREE.Vector3(0, 0.25, 0));
       anchorSources.set(`ghost:${g.label}`, () => v);
     }
     return () => {
-      for (const k of ['ghost:A', 'ghost:M']) anchorSources.delete(k);
+      anchorSources.delete('ghost:A');
     };
   }, [ghosts, match]);
   const shownAt = active && 'to' in phase ? { to: phase.to, facing: phase.facing } : null;

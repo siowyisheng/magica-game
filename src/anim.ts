@@ -21,6 +21,7 @@ import {
   reachable,
   targetAt,
   trajectoryOf,
+  isPhysical,
 } from './rules';
 
 export type AnimStep =
@@ -148,7 +149,9 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
 
   const cmd = action.command;
   let impactT: number | null = null; // when the Command's hits or heals land
-  if (cmd.type === 'attack') {
+  const ab = kind.ability;
+  // a single-target physical hit swings or shoots; everything else is drawn as Magic
+  if (cmd.type === 'act' && isPhysical(ab) && ab.kind === 'damage' && ab.radius === 0) {
     const target = targetAt(before, cmd.target);
     const d = hexDistance(action.to, cmd.target);
     if (d <= 1) {
@@ -159,7 +162,7 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       t += MELEE_MS;
     } else {
       const fly = 180 + 90 * d;
-      const high = trajectoryOf(kind.attack) === 'high';
+      const high = trajectoryOf(ab) === 'high';
       const flyMs = high ? fly + 140 : fly;
       steps.push({ kind: 'projectile', from: action.to, to: cmd.target, style: 'arrow', element: kind.element, heal: false, high, t0: t, t1: t + flyMs });
       t += flyMs - fly;
@@ -168,9 +171,8 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
       if (target) steps.push({ kind: 'hit', unitIds: [target.id], t0: t, t1: t + HIT_MS });
       t += HIT_MS;
     }
-  } else if (cmd.type === 'magic') {
-    const ab = kind.magic.find((m) => m.id === cmd.ability);
-    if (ab && ab.kind !== 'water') {
+  } else if (cmd.type === 'act') {
+    if (ab.kind !== 'water') {
       const view = { ...before, units: before.units.map((u) => (u.id === unit.id ? { ...u, pos: action.to } : u)) };
       const hitIds = affectedUnits(view, getUnit(view, unit.id), ab, cmd.target).map((u) => u.id);
       const d = hexDistance(action.to, cmd.target);

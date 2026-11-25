@@ -44,7 +44,7 @@ describe('AI', () => {
     st.obstacles[0].hp = 3;
     st.activeUnitId = 50;
     const a = chooseAction(st);
-    expect(a.command).toEqual({ type: 'attack', target: hex(4, 1) });
+    expect(a.command).toEqual({ type: 'act', target: hex(4, 1) });
   });
 
   it('builds valid Auto Loadouts and only summons from its Loadout', () => {
@@ -96,20 +96,20 @@ describe('healers', () => {
     s.sides[1].mana = 60;
     const a = chooseAction(s);
     expect(validateTurn(s, a)).toBeNull();
-    expect(a.command.type).toBe('attack');
-    expect(a.command.type === 'attack' && a.command.target).toEqual(mender.pos);
+    expect(a.command.type).toBe('act');
+    expect(a.command.type === 'act' && a.command.target).toEqual(mender.pos);
   });
 });
 
 describe('Stones and pointless hits', () => {
-  it('never Attacks or casts damage that deals 0', () => {
+  it('never deals damage that deals 0', () => {
     let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 11 });
     for (let turns = 0; st.winner === null && turns < 200; turns++) {
       const me = st.units.find((u) => u.id === st.activeUnitId)!;
       const a = chooseAction(st);
       const r = applyTurn(st, a);
       const c = a.command;
-      const damaging = c.type === 'attack' || (c.type === 'magic' && kindOf(me.kind).magic.find((m) => m.id === c.ability)?.kind === 'damage');
+      const damaging = c.type === 'act' && kindOf(me.kind).ability.kind === 'damage';
       if (damaging) {
         const hurt = r.events.some((e) => e.type === 'damage' && e.amount > 0 && (st.units.find((u) => u.id === e.unitId)?.side ?? -1) !== me.side);
         expect(hurt, `${me.kind} ${JSON.stringify(c)}`).toBe(true);
@@ -190,15 +190,14 @@ describe('a hurt Master in a replayed match (Duelist vs Warlock)', () => {
   it('hits the Comet its Cinder can finish before it acts, instead of running', async () => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
-    const r = JSON.parse(readFileSync(new URL('./fixtures/comet-vs-warlock.replay.json', import.meta.url), 'utf8')).replay;
+    const r = JSON.parse(readFileSync(new URL('./fixtures/comet-vs-warlock.positions.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
     try {
-      let st = r.initial;
-      // to Red's 4th turn: its Warlock at 6 HP, the Comet next to it, its Cinder acting before the Comet
-      for (const a of r.actions.slice(0, 4)) st = applyTurn(st, a).state;
+            // to Red's 4th turn: its Warlock at 6 HP, the Comet next to it, its Cinder acting before the Comet
+      const st = r.states[4];
       const a = chooseAction(st);
       expect(a.unitId).toBe(2);
-      expect(a.command).toEqual({ type: 'attack', target: { q: 6, r: 2 } });
+      expect(a.command).toEqual({ type: 'act', target: { q: 6, r: 2 } });
     } finally {
       endTemporaryBalance();
     }
@@ -209,12 +208,11 @@ describe('a Master judging hits by when they land (Gorgon vs Herald)', () => {
   it("doesn't step next to a Wyrm whose Meteor the next hour's Income pays for", async () => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
-    const r = JSON.parse(readFileSync(new URL('./fixtures/gorgon-vs-herald.replay.json', import.meta.url), 'utf8')).replay;
+    const r = JSON.parse(readFileSync(new URL('./fixtures/gorgon-vs-herald.positions.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
     try {
-      let st = r.initial;
-      // 9:48: the Herald's side has 0 Mana, but its Income lands at 10:00, before its Wyrm and Sling act
-      for (const a of r.actions.slice(0, 28)) st = applyTurn(st, a).state;
+            // 9:48: the Herald's side has 0 Mana, but its Income lands at 10:00, before its Wyrm and Sling act
+      const st = r.states[28];
       expect(st.sides[1].mana).toBe(0);
       const a = chooseAction(st);
       expect(a.unitId).toBe(1);
@@ -230,13 +228,11 @@ describe('a safe Master stages forward (Lamia vs Oracle)', () => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance, endTemporaryBalance, hexDistance } = await import('../rules');
     const { makePlan } = await import('./plan');
-    // the position after 150 turns, saved: the replay was recorded before Wade Entries and
-    // can no longer be played forward
-    const r = JSON.parse(readFileSync(new URL('./fixtures/lamia-vs-oracle.at150.json', import.meta.url), 'utf8'));
+    const r = JSON.parse(readFileSync(new URL('./fixtures/lamia-vs-oracle.positions.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
     try {
       // 19:51: the Lamia at full HP in its back corner, well ahead, every enemy far off
-      const st = r.state;
+      const st = r.states[150];
       const me = st.units.find((u: { id: number }) => u.id === st.activeUnitId)!;
       expect(me.id).toBe(1);
       const plan = makePlan(st, 0);
@@ -253,12 +249,11 @@ describe('a Familiar counting enemy turns that tie with its own (Lancer vs Oracl
   it("doesn't end where a Hydra acting twice first kills it", async () => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
-    const r = JSON.parse(readFileSync(new URL('./fixtures/lancer-vs-oracle.replay.json', import.meta.url), 'utf8')).replay;
+    const r = JSON.parse(readFileSync(new URL('./fixtures/lancer-vs-oracle.positions.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
     try {
-      let st = r.initial;
-      // 10:25: the Taurus's next turn (11:07) ties with the Hydra's second, which the Hydra wins on Speed
-      for (const a of r.actions.slice(0, 32)) st = applyTurn(st, a).state;
+            // 10:25: the Taurus's next turn (11:07) ties with the Hydra's second, which the Hydra wins on Speed
+      const st = r.states[32];
       const a = chooseAction(st);
       expect(a.unitId).toBe(18);
       expect(a.to).not.toEqual({ q: 12, r: 6 }); // there, the Hydra's hit (10) kills it
@@ -272,12 +267,12 @@ describe("a Master counting a hit it can't outrun twice (Savage vs Ronin)", () =
   it("doesn't step into the reach of a Savage that would hit it again before it can escape", async () => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
-    const r = JSON.parse(readFileSync(new URL('./fixtures/savage-vs-ronin.replay.json', import.meta.url), 'utf8')).replay;
+    const r = JSON.parse(readFileSync(new URL('./fixtures/savage-vs-ronin.positions.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
     try {
       // 6:21, the first turn: the Savage (Move 5, Direct range 5) hits for 6 at (6,3), then again
       // before the Ronin (Move 3) can get out of its reach
-      const a = chooseAction(r.initial);
+      const a = chooseAction(r.states[0]);
       expect(a.unitId).toBe(2);
       expect(a.to).not.toEqual({ q: 6, r: 3 });
     } finally {
@@ -288,12 +283,11 @@ describe("a Master counting a hit it can't outrun twice (Savage vs Ronin)", () =
   it('summons a Familiar into the line of a Direct shot that would kill it', async () => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
-    const r = JSON.parse(readFileSync(new URL('./fixtures/savage-vs-ronin.replay.json', import.meta.url), 'utf8')).replay;
+    const r = JSON.parse(readFileSync(new URL('./fixtures/savage-vs-ronin.positions.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
     try {
       // 7:03, the replay's own line: the Ronin at 5 HP, every hex it can reach in the Savage's reach
-      let st = r.initial;
-      for (const a of r.actions.slice(0, 2)) st = applyTurn(st, a).state;
+      const st = r.states[2];
       const a = chooseAction(st);
       expect(a.command.type).toBe('summon');
       // the Savage's next turn: it can no longer shoot the Ronin
@@ -303,7 +297,7 @@ describe("a Master counting a hit it can't outrun twice (Savage vs Ronin)", () =
       expect(ronin).toBeDefined();
       const shot = chooseAction(after);
       expect(shot.unitId).toBe(savage.id);
-      if (shot.command.type === 'attack') expect(shot.command.target).not.toEqual(ronin.pos);
+      if (shot.command.type === 'act') expect(shot.command.target).not.toEqual(ronin.pos);
     } finally {
       endTemporaryBalance();
     }
@@ -314,10 +308,9 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
   const at = async (n: number) => {
     const { readFileSync } = await import('node:fs');
     const { applyTemporaryBalance } = await import('../rules');
-    const r = JSON.parse(readFileSync(new URL('./fixtures/hermit-vs-lich.replay.json', import.meta.url), 'utf8')).replay;
+    const r = JSON.parse(readFileSync(new URL('./fixtures/hermit-vs-lich.positions.json', import.meta.url), 'utf8'));
     applyTemporaryBalance(r.balance);
-    let st = r.initial;
-    for (const a of r.actions.slice(0, n)) st = applyTurn(st, a).state;
+    const st = r.states[n];
     return st;
   };
   /** Without the Djinn: since Wade Entries, the wading enemies' Zone of Control no longer covers
@@ -342,7 +335,7 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
       const st = noDjinn(await at(55));
       const a = chooseAction(st);
       expect(a.unitId).toBe(27);
-      expect(a.command).toEqual({ type: 'attack', target: { q: 4, r: 6 } });
+      expect(a.command).toEqual({ type: 'act', target: { q: 4, r: 6 } });
     } finally {
       await done();
     }
@@ -353,7 +346,7 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
       const st = noDjinn(await at(48));
       const a = chooseAction(st);
       expect(a.unitId).toBe(27);
-      expect(a.command).toEqual({ type: 'attack', target: { q: 4, r: 6 } });
+      expect(a.command).toEqual({ type: 'act', target: { q: 4, r: 6 } });
     } finally {
       await done();
     }

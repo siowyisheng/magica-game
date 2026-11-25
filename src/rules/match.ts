@@ -10,9 +10,10 @@ import {
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { DEFAULT_MASTER, kindOf } from './kinds';
-import { affectedUnits, attackTargets, computeDamage, computeEmpower, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
-import { canPlace, canSummonAt, isStranded, mapHexAt, reachable, surfaceOf, targetAt } from './terrain';
-import { isObstacle, type GameEvent, type MagicAbility, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
+import { affectedUnits, computeDamage, computeEmpower, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
+import { isPhysical, powerOf } from './ability';
+import { canPlace, canSummonAt, isStranded, mapHexAt, reachable, surfaceOf } from './terrain';
+import { isObstacle, type GameEvent, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
 
 // ---------- delays ----------
 
@@ -84,12 +85,6 @@ export function manaAfter(state: MatchState, side: SideId, minutes: number): num
   const income = manaIncome(state, side);
   for (let h = Math.floor(state.clock / 60) + 1; h * 60 <= state.clock + minutes; h++) mana = Math.max(0, Math.min(MANA_MAX, mana + income));
   return mana;
-}
-
-export function magicAbility(kind: UnitKind, id: string): MagicAbility {
-  const a = kind.magic.find((m) => m.id === id);
-  if (!a) throw new Error(`${kind.id} has no ability ${id}`);
-  return a;
 }
 
 export function canCastWater(state: MatchState, delta: 1 | -1): boolean {
@@ -187,22 +182,13 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
   switch (cmd.type) {
     case 'wait':
       return null;
-    case 'attack': {
-      const t = targetAt(view, cmd.target);
-      if (!t) return 'no target';
-      const movedUnit = getUnit(view, unit.id);
-      if (!attackTargets(view, movedUnit, action.to).some((x) => x.id === t.id)) return 'target out of range';
-      return null;
-    }
-    case 'magic': {
-      const ab = kind.magic.find((m) => m.id === cmd.ability);
-      if (!ab) return 'unknown ability';
-      if (state.sides[unit.side].mana < ab.manaCost) return 'not enough mana';
+    case 'act': {
+      const ab = kind.ability;
       if (ab.kind === 'water') return canCastWater(state, ab.delta) ? null : 'water level cannot change further';
       const d = hexDistance(action.to, cmd.target);
       if (d < minAimDistance(ab) || d > ab.range) return 'target out of range';
       if (!mapHexAt(state.map, cmd.target)) return 'target off map';
-      if (!shotAllowed(view, unit.id, trajectoryOf(ab), action.to, cmd.target)) return 'no clear angle';
+      if (!shotAllowed(view, unit.id, trajectoryOf(ab), action.to, cmd.target)) return trajectoryOf(ab) === null ? 'too high or low to reach' : 'no clear angle';
       if (affectedUnits(view, getUnit(view, unit.id), ab, cmd.target).length === 0) return 'no valid target';
       return null;
     }
@@ -234,16 +220,12 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
   const view = withUnitAt(state, unit.id, action.to);
   const caster = getUnit(view, unit.id);
   const cmd = action.command;
-  if (cmd.type === 'attack') {
-    const t = targetAt(view, cmd.target);
-    if (!t) return [];
-    return [computeDamage(view, caster, action.to, t, 'physical')];
-  }
-  if (cmd.type === 'magic') {
-    const ab = kind.magic.find((m) => m.id === cmd.ability);
-    if (!ab || ab.kind === 'water') return [];
+  if (cmd.type === 'act') {
+    const ab = kind.ability;
+    if (ab.kind === 'water') return [];
+    const hit = powerOf(ab) === 'atk' ? 'physical' : 'magic';
     return affectedUnits(view, caster, ab, cmd.target).map((t) =>
-      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : ab.kind === 'empower' && !isObstacle(t) ? computeEmpower(ab, t) : computeDamage(view, caster, magicHitOrigin(ab, action.to, cmd.target, t), t, 'magic'),
+      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : ab.kind === 'empower' && !isObstacle(t) ? computeEmpower(ab, t) : computeDamage(view, caster, magicHitOrigin(ab, action.to, cmd.target, t), t, hit),
     );
   }
   return [];
@@ -262,11 +244,9 @@ export function resultingFacing(state: MatchState, action: TurnAction): Dir {
       return action.facing;
     case 'summon':
       return cmd.dir;
-    case 'attack':
-      return facingTowardTarget(action.to, cmd.target, action.facing);
-    case 'magic': {
-      const ab = kindOf(getUnit(state, action.unitId).kind).magic.find((m) => m.id === cmd.ability);
-      if (!ab || ab.kind === 'water') return action.facing;
+    case 'act': {
+      const ab = kindOf(getUnit(state, action.unitId).kind).ability;
+      if (ab.kind === 'water' || hexEq(action.to, cmd.target)) return action.facing;
       return facingTowardTarget(action.to, cmd.target, action.facing);
     }
   }
@@ -306,14 +286,12 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
   unit.facing = resultingFacing(prev, action);
 
   const cmd = action.command;
-  if (cmd.type === 'attack' || cmd.type === 'magic') {
-    if (cmd.type === 'magic') {
-      const ab = magicAbility(kind, cmd.ability);
-      state.sides[unit.side].mana -= ab.manaCost;
-      if (ab.kind === 'water') {
-        state.waterLevel += ab.delta;
-        events.push({ type: 'water', level: state.waterLevel });
-      }
+  if (cmd.type === 'act') {
+    // Abilities are free: no Mana
+    const ab = kind.ability;
+    if (ab.kind === 'water') {
+      state.waterLevel += ab.delta;
+      events.push({ type: 'water', level: state.waterLevel });
     }
     for (const e of effects) {
       if (e.obstacle) {
@@ -334,8 +312,8 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
         events.push({ type: 'heal', unitId: t.id, amount: e.amount, source: unit.id });
       }
     }
-    // an Attack uses up Empower (its damage above already counted it)
-    if (cmd.type === 'attack') delete unit.empowered;
+    // a physical hit uses up Empower (its damage above already counted it)
+    if (isPhysical(ab)) delete unit.empowered;
   } else if (cmd.type === 'summon') {
     const sk = kindOf(cmd.kind);
     state.sides[unit.side].mana -= sk.cost;

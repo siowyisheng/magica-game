@@ -10,23 +10,21 @@ import {
   type Unit,
   activeUnit,
   applyTurn,
-  attackTargets,
+  abilityTargetHexes,
   createMatch,
   delayForAction,
   getUnit,
   hexEq,
   hexKey,
   kindOf,
-  planAttack,
-  planMagic,
+  planAct,
   reachable,
   SCAFFOLD_MAP,
   validateTurn,
   formatClock,
   unitAt,
   neighbor,
-  type TargetPlan,
-  type MagicPlan,
+  type ActPlan,
   type Target,
   MASTERS,
   randomLoadout,
@@ -108,11 +106,10 @@ export type Phase =
   | { kind: 'idle' }
   /** Choosing what to do. `selected` = the acting unit's ranges are shown. */
   | { kind: 'move'; selected: boolean }
-  | { kind: 'menu'; to: Hex; facing: Dir; sub?: 'magic' | 'summon' }
-  | { kind: 'target'; to: Hex; facing: Dir; command: 'attack' | { magic: string } }
-  | { kind: 'summonDir'; to: Hex; facing: Dir; summonKind: string }
-  /** Quick action on a unit where both Attack and Magic are possible. */
-  | { kind: 'quickChoice'; targetId: number; attack: TargetPlan; magic: MagicPlan };
+  | { kind: 'menu'; to: Hex; facing: Dir; sub?: 'summon' }
+  /** Aiming the Unit's Ability (the Act Command). */
+  | { kind: 'target'; to: Hex; facing: Dir }
+  | { kind: 'summonDir'; to: Hex; facing: Dir; summonKind: string };
 
 /** Watching a Replay. The live match is set aside until the Replay is left. */
 export interface ReplayView {
@@ -147,7 +144,7 @@ export function onGameSignal(fn: (s: GameSignal) => void): () => void {
 }
 const signal = (s: GameSignal) => signalListeners.forEach((fn) => fn(s));
 
-export type CommandHover = 'wait' | 'attack' | 'magic' | 'summon' | null;
+export type CommandHover = 'wait' | 'act' | 'summon' | null;
 
 /** Maximum number of other units whose ranges can be shown at once. */
 export const MAX_INSPECTED = 3;
@@ -200,7 +197,7 @@ interface Store {
   setHoverSummon: (k: string | null) => void;
   clickHex: (h: Hex) => void;
   rightClick: () => void;
-  choose: (c: 'wait' | 'attack' | 'magic' | { magic: string } | { summon: string } | { sub: 'magic' | 'summon' }) => void;
+  choose: (c: 'wait' | 'act' | { summon: string } | { sub: 'summon' }) => void;
   setHpBars: (mode: HpBarsMode) => void;
   setShowPlans: (on: boolean) => void;
   setAi: (side: 0 | 1, ai: boolean) => void;
@@ -404,17 +401,9 @@ export const useGame = create<Store>((set, get) => {
           if (!phase.selected) return set({ phase: { kind: 'move', selected: true } });
           const target = targetAt(match, h);
           if (target && target.id !== u.id) {
-            const q = quickPlans(match, u, target);
-            const canAttack = !!q.attack;
-            const canMagic = !!q.magic && q.magic.affordable;
-            if (canAttack && canMagic) {
-              return set({ phase: { kind: 'quickChoice', targetId: target.id, attack: q.attack!, magic: q.magic! } });
-            }
-            if (canAttack) return commit({ unitId: u.id, to: q.attack!.dest, facing: u.facing, command: { type: 'attack', target: target.pos }  }, false); // quick action: slide from the unit's hex
-            if (canMagic) {
-              return commit({ unitId: u.id, to: q.magic!.dest, facing: u.facing, command: { type: 'magic', ability: q.magic!.ability.id, target: target.pos }  }, false); // quick action: slide from the unit's hex
-            }
-            if (q.magic || blockedShot(match, u, target)) return signal({ type: 'deny' }); // unaffordable, or no clear shot
+            const plan = planAct(match, u, target);
+            if (plan) return commit({ unitId: u.id, to: plan.dest, facing: u.facing, command: { type: 'act', target: plan.aim } }, false); // quick action: slide from the unit's hex
+            if (blockedShot(match, u, target)) return signal({ type: 'deny' }); // no clear shot, or too high or low
             return set({ phase: { kind: 'move', selected: false } });
           }
           if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
@@ -429,10 +418,7 @@ export const useGame = create<Store>((set, get) => {
           return;
         }
         case 'target': {
-          const command: Command =
-            phase.command === 'attack'
-              ? { type: 'attack', target: h }
-              : { type: 'magic', ability: phase.command.magic, target: h };
+          const command: Command = { type: 'act', target: h };
           const action = { unitId: u.id, to: phase.to, facing: phase.facing, command };
           if (validateTurn(match, action)) return signal({ type: 'deny' });
           commit(action);
@@ -475,8 +461,6 @@ export const useGame = create<Store>((set, get) => {
           return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing } });
         case 'summonDir':
           return set({ phase: { kind: 'menu', to: phase.to, facing: phase.facing, sub: 'summon' } });
-        case 'quickChoice':
-          return set({ phase: { kind: 'move', selected: true } });
       }
     },
 
@@ -485,25 +469,16 @@ export const useGame = create<Store>((set, get) => {
       const { phase, match } = get();
       const u = activeUnit(match);
       if (!u) return;
-      if (phase.kind === 'quickChoice') {
-        const target = getUnit(match, phase.targetId);
-        if (c === 'attack') return commit({ unitId: u.id, to: phase.attack.dest, facing: u.facing, command: { type: 'attack', target: target.pos }  }, false); // quick action: slide from the unit's hex
-        if (c === 'magic') {
-          return commit({ unitId: u.id, to: phase.magic.dest, facing: u.facing, command: { type: 'magic', ability: phase.magic.ability.id, target: target.pos }  }, false); // quick action: slide from the unit's hex
-        }
-        return;
-      }
       if (phase.kind !== 'menu') return;
       const { to, facing } = phase;
       if (c === 'wait') return commit({ unitId: u.id, to, facing, command: { type: 'wait' } });
-      if (c === 'attack') return set({ phase: { kind: 'target', to, facing, command: 'attack' } });
-      if (c === 'magic') return;
+      if (c === 'act') {
+        // Rise / Ebb need no aim; everything else is aimed at a hex
+        if (kindOf(u.kind).ability.kind === 'water') return commit({ unitId: u.id, to, facing, command: { type: 'act', target: to } });
+        return set({ phase: { kind: 'target', to, facing } });
+      }
       if ('sub' in c) return set({ phase: { kind: 'menu', to, facing, sub: c.sub } });
       if ('summon' in c) return set({ phase: { kind: 'summonDir', to, facing, summonKind: c.summon } });
-      const ab = kindOf(u.kind).magic.find((m) => m.id === c.magic);
-      if (!ab) return;
-      if (ab.kind === 'water') return commit({ unitId: u.id, to, facing, command: { type: 'magic', ability: ab.id, target: to } });
-      set({ phase: { kind: 'target', to, facing, command: { magic: ab.id } } });
     },
 
     setMapId: (mapId) => set({ mapId }),
@@ -668,32 +643,19 @@ export const useGame = create<Store>((set, get) => {
 
 // ---------- derived helpers used by the UI ----------
 
-export interface QuickPlans {
-  attack: TargetPlan | null;
-  magic: MagicPlan | null;
-}
-
-export function quickPlans(match: MatchState, actor: Unit, target: Target): QuickPlans {
-  return { attack: planAttack(match, actor, target), magic: planMagic(match, actor, target) };
-}
-
 /** The quick-action preview for the unit under the cursor, when the acting unit is Selected. */
 export function hoverQuick(
   s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverUnitId'>,
-): { target: Target; plans: QuickPlans } | null {
+): { target: Target; plan: ActPlan } | null {
   const u = activeUnit(s.match);
   if (!u) return null;
-  if (s.phase.kind === 'quickChoice') {
-    const target = targetById(s.match, (s.phase as { targetId: number }).targetId);
-    return target ? { target, plans: { attack: s.phase.attack, magic: s.phase.magic } } : null;
-  }
   if (s.phase.kind !== 'move' || !s.phase.selected) return null;
   const target =
     (s.hoverUnitId !== null ? targetById(s.match, s.hoverUnitId) : undefined) ??
     (s.hoverHex ? targetAt(s.match, s.hoverHex) : undefined);
   if (!target || target.id === u.id) return null;
-  const plans = quickPlans(s.match, u, target);
-  return plans.attack || plans.magic ? { target, plans } : null;
+  const plan = planAct(s.match, u, target);
+  return plan ? { target, plan } : null;
 }
 
 /** Directions around `to` where `kind` could be summoned (hex on map, free, standable, at most 1 Height up or down). */
@@ -703,12 +665,12 @@ export function validSummonDirs(match: MatchState, masterId: number, to: Hex, ki
 }
 
 /**
- * True when `actor` could hit `target` from its Move Range but for a Clear
- * Angle (a Direct shot blocked by Units or Obstacles).
+ * True when `actor` could reach `target` from its Move Range but for a Clear
+ * Angle (a Direct shot blocked) or Height (a range-1 Ability).
  */
 export function blockedShot(match: MatchState, actor: Unit, target: Target): boolean {
-  if (planAttack(match, actor, target) || planMagic(match, actor, target)) return false;
-  return !!(planAttack(match, actor, target, true) || planMagic(match, actor, target, true));
+  if (planAct(match, actor, target)) return false;
+  return !!planAct(match, actor, target, true);
 }
 
 /**
@@ -765,23 +727,18 @@ export function previewDelay(
   const u = activeUnit(s.match);
   if (!u) return undefined;
   const d = (to: Hex, acted: boolean) =>
-    delayForAction(s.match, { unitId: u.id, to, command: acted ? { type: 'attack', target: to } : { type: 'wait' } });
+    delayForAction(s.match, { unitId: u.id, to, command: acted ? { type: 'act', target: to } : { type: 'wait' } });
   const p = s.phase;
   switch (p.kind) {
     case 'move': {
       const q = hoverQuick(s);
-      if (q) {
-        const plan = q.plans.attack ?? q.plans.magic!;
-        return d(plan.dest, true);
-      }
+      if (q) return d(q.plan.dest, true);
       if (p.selected && s.hoverHex && !hexEq(s.hoverHex, u.pos)) {
         const n = reachable(s.match, u).get(hexKey(s.hoverHex));
         if (n?.canEnd) return d(s.hoverHex, false);
       }
       return undefined;
     }
-    case 'quickChoice':
-      return d(p.attack.dest, true);
     case 'menu':
       if (s.hoverCommand) return d(p.to, s.hoverCommand !== 'wait');
       return undefined;
@@ -793,7 +750,8 @@ export function previewDelay(
   }
 }
 
-export function canAttackFrom(match: MatchState, unitId: number, to: Hex): boolean {
+/** Whether the Unit's Ability could be used on someone from `to`. */
+export function canActFrom(match: MatchState, unitId: number, to: Hex): boolean {
   const u = getUnit(match, unitId);
-  return attackTargets(match, { ...u, pos: to }, to).length > 0;
+  return abilityTargetHexes(match, u, to).length > 0;
 }

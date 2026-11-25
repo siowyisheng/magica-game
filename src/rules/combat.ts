@@ -3,7 +3,7 @@ import { COVER, ELEMENT_BONUS, FACING_BONUS, MAX_HP } from './data/tuning';
 import { kindOf } from './kinds';
 import { mapHexAt, surfaceHeight, surfaceOf, targetAt } from './terrain';
 import { alignmentBonus } from './time';
-import { isObstacle, type Element, type UnitKind, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
+import { isObstacle, type Element, type UnitKind, type Ability, type MatchState, type Target, type Trajectory, type Unit } from './types';
 import type { Dir } from './hex';
 
 // ---------- Element ----------
@@ -94,7 +94,7 @@ export type HitKind = 'physical' | 'magic';
 
 /**
  * Damage = ATK − DEF + Element Bonus + Facing Bonus − terrain cover, MP and
- * MDF for Magic; never below 0, at most the defender's HP. Alignment adds or subtracts ALIGN_STAT to the stats first.
+ * MDF for a magical hit; never below 0, at most the defender's HP. Alignment adds or subtracts ALIGN_STAT to the stats first.
  */
 export function computeDamage(
   state: MatchState,
@@ -105,7 +105,7 @@ export function computeDamage(
 ): Effect {
   const ak = kindOf(attacker.kind);
   const aAlign = alignmentBonus(ak.alignment, state.clock);
-  // Empower adds to ATK (Attacks only) until the Attack is made
+  // Empower adds to ATK (physical hits only) until the next physical hit
   const aStat = (hit === 'physical' ? ak.stats.atk + (attacker.empowered ?? 0) : ak.stats.mp) + aAlign;
   let dStat: number;
   let dAlign = 0;
@@ -147,7 +147,7 @@ export function computeDamage(
   };
 }
 
-/** Empower: the target's next Attack gets +`amount` ATK. It doesn't stack: a second one only refreshes it. */
+/** Empower: the target's next physical hit gets +`amount` ATK. It doesn't stack: a second one only refreshes it. */
 export function computeEmpower(ability: { amount?: number }, target: Unit): Effect {
   return { unitId: target.id, kind: 'empower', amount: ability.amount ?? EMPOWER_DEFAULT, hpBefore: target.hp, lethal: false };
 }
@@ -267,10 +267,10 @@ export function trajectoryOf(a: { range: number; trajectory?: Trajectory }): Tra
   return a.range > 1 ? (a.trajectory ?? 'high') : null;
 }
 
-/** Most a range-1 Attack or Magic's target hex may be above or below the user's. */
+/** Most a range-1 Ability's target hex may be above or below the user's. */
 export const MELEE_MAX_STEP = 1;
 
-/** Whether a range-1 Attack or Magic from `from` reaches the neighbouring hex `target`: at most 1 Height up or down (water at the Water Level). */
+/** Whether a range-1 Ability used from `from` reaches the neighbouring hex `target`: at most 1 Height up or down (water at the Water Level). */
 export function meleeReach(state: MatchState, from: Hex, target: Hex): boolean {
   const a = mapHexAt(state.map, from);
   const b = mapHexAt(state.map, target);
@@ -279,7 +279,7 @@ export function meleeReach(state: MatchState, from: Hex, target: Hex): boolean {
 
 /**
  * Whether a shot along `trajectory` from `from` can reach `target` (range already checked).
- * `null` is a range-1 Attack or Magic: it reaches a neighbour only at most 1 Height up or down.
+ * `null` is a range-1 Ability: it reaches a neighbour only at most 1 Height up or down.
  * Ranged abilities used on a neighbour ignore Height.
  */
 export function shotAllowed(state: MatchState, shooterId: number, trajectory: Trajectory | null, from: Hex, target: Hex): boolean {
@@ -289,21 +289,7 @@ export function shotAllowed(state: MatchState, shooterId: number, trajectory: Tr
 
 // ---------- Targeting ----------
 
-/** Enemy Units and Obstacles the Unit could Attack from `from` (in range, with a Clear Angle if Direct). */
-export function attackTargets(state: MatchState, unit: Unit, from: Hex): Target[] {
-  const a = kindOf(unit.kind).attack;
-  const traj = trajectoryOf(a);
-  const out: Target[] = [];
-  const consider = (t: Target) => {
-    const d = hexDistance(from, t.pos);
-    if (d >= 1 && d <= a.range && shotAllowed(state, unit.id, traj, from, t.pos)) out.push(t);
-  };
-  for (const u of state.units) if (u.hp > 0 && u.side !== unit.side) consider(u);
-  for (const o of state.obstacles) if (o.hp > 0) consider(o);
-  return out;
-}
-
-type AreaAbility = Exclude<MagicAbility, { kind: 'water' }>;
+export type AreaAbility = Exclude<Ability, { kind: 'water' }>;
 
 /** Damage hits enemies and Obstacles; heals hit allies (the caster included). */
 function matchesTargets(ability: AreaAbility, caster: Unit, t: Target): boolean {
@@ -312,13 +298,13 @@ function matchesTargets(ability: AreaAbility, caster: Unit, t: Target): boolean 
   return ability.kind === 'damage' ? t.side !== caster.side : t.side === caster.side;
 }
 
-/** Closest hex a Magic Ability may be aimed at: damage never at the caster's own hex. */
+/** Closest hex an Ability may be aimed at: damage never at the user's own hex. */
 export function minAimDistance(ability: AreaAbility): number {
   return ability.kind === 'damage' && !ability.burst ? 1 : 0;
 }
 
 /**
- * Where a Magic hit on `t` comes from, for Facing: the caster's hex, except
+ * Where a hit on `t` comes from, for Facing: the caster's hex, except
  * that a High area spell's splash comes from the hex it landed on.
  */
 export function magicHitOrigin(ability: AreaAbility, casterPos: Hex, aim: Hex, t: Target): Hex {
@@ -337,8 +323,9 @@ export function affectedUnits(state: MatchState, caster: Unit, ability: AreaAbil
   return [...state.units.filter(inArea), ...state.obstacles.filter(inArea)];
 }
 
-/** Valid target hexes for a targeted Magic Ability cast from `from`. */
-export function magicTargetHexes(state: MatchState, caster: Unit, ability: AreaAbility, from: Hex): Hex[] {
+/** Hexes a Unit's Ability could be aimed at from `from` (each affecting someone); a water Ability is aimed at the user's own hex. */
+export function abilityTargetHexes(state: MatchState, caster: Unit, from: Hex, ability: Ability = kindOf(caster.kind).ability): Hex[] {
+  if (ability.kind === 'water') return [from];
   // The caster will be standing at `from` when casting.
   const moved: Unit = { ...caster, pos: from };
   const view: MatchState = { ...state, units: state.units.map((u) => (u.id === caster.id ? moved : u)) };

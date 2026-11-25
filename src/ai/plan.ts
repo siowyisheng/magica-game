@@ -23,6 +23,7 @@ import {
   neighbor,
   reachable,
   turnDelay,
+  powerOf,
   MANA_MAX,
 } from '../rules';
 
@@ -87,11 +88,10 @@ export function unitValue(u: Unit): number {
 
 const flies = (k: UnitKind) => k.moveTypes.includes('fly');
 
-/** Longest distance at which a kind can damage: Attack, or a damaging spell's range + area. */
+/** Longest distance at which a kind can damage: its damaging Ability's range + area (0 if it can't damage). */
 export function hitReach(k: UnitKind): number {
-  let r = k.attack.range;
-  for (const m of k.magic) if (m.kind === 'damage') r = Math.max(r, m.range + m.radius);
-  return r;
+  const m = k.ability;
+  return m.kind === 'damage' ? m.range + m.radius : 0;
 }
 
 /** A Unit of `kind` standing at `pos`, for what-if damage. */
@@ -99,13 +99,11 @@ function virtual(kind: UnitKind, side: SideId, pos: Hex, facing = 0): Unit {
   return { id: -1000 - side, kind: kind.id, side, pos, facing: facing as Unit['facing'], hp: MAX_HP, av: 0, stranded: false };
 }
 
-/** Best damage `attacker` could deal `target` with one hit from `from` (Attack or a damaging spell, if affordable). */
+/** Damage `attacker` could deal `target` with one hit from `from` (0 if its Ability doesn't damage). */
 function bestHit(state: MatchState, attacker: Unit, from: Hex, target: Unit): number {
-  const k = kindOf(attacker.kind);
-  let d = computeDamage(state, attacker, from, target, 'physical').amount;
-  const mana = state.sides[attacker.side]?.mana ?? 0;
-  if (k.magic.some((m) => m.kind === 'damage' && m.manaCost <= mana)) d = Math.max(d, computeDamage(state, attacker, from, target, 'magic').amount);
-  return d;
+  const a = kindOf(attacker.kind).ability;
+  if (a.kind !== 'damage') return 0;
+  return computeDamage(state, attacker, from, target, powerOf(a) === 'atk' ? 'physical' : 'magic').amount;
 }
 
 /**
@@ -151,7 +149,7 @@ function answerFitOf(state: MatchState, side: SideId, kind: UnitKind, enemy: Uni
   const dealt = bestHit(state, me, from, enemy);
   let taken = bestHit(state, enemy, enemy.pos, me);
   // a ranged answer can strike a melee enemy without standing next to it
-  if (kind.attack.range > 1 && hitReach(ek) <= 1) taken *= 0.4;
+  if (hitReach(kind) > 1 && hitReach(ek) <= 1) taken *= 0.4;
   const s = Math.min(1, dealt / Math.max(1, enemy.hp));
   const t = Math.min(1, taken / MAX_HP);
   return clamp(1.6 * s - 0.6 * t + 0.2, 0, 1.5);
@@ -305,7 +303,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
       .sort((a, b) => unitValue(b) - unitValue(a) || a.id - b.id)[0];
     if (strong) needs.push({ tag: 'answer', weight: 0.4 * (unitValue(strong) / 3), target: strong });
   }
-  const ownHealerNear = master && myFamiliars.some((u) => kindOf(u.kind).magic.some((m) => m.kind === 'heal') && hexDistance(u.pos, master.pos) <= 6);
+  const ownHealerNear = master && myFamiliars.some((u) => kindOf(u.kind).ability.kind === 'heal' && hexDistance(u.pos, master.pos) <= 6);
   if (master && (posture.defend > 0 || master.hp < MAX_HP)) needs.push({ tag: 'heal', weight: 0.8 * Math.max(posture.defend, (MAX_HP - master.hp) / MAX_HP) * (ownHealerNear ? 0.3 : 1) });
   if (posture.squeeze > 0) needs.push({ tag: 'hold', weight: 0.8 * posture.squeeze });
   if (posture.kill > 0) needs.push({ tag: 'assassin', weight: 1.2 * posture.kill });
@@ -328,7 +326,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
           f = n.target ? answerFit(k, n.target) : 0;
           break;
         case 'heal':
-          f = k.magic.some((m) => m.kind === 'heal') ? 1 : k.magic.some((m) => m.kind === 'empower') ? 0.3 : 0;
+          f = k.ability.kind === 'heal' ? 1 : k.ability.kind === 'empower' ? 0.3 : 0;
           break;
         case 'hold':
           f = clamp((st.def + st.mdf - 6) / 8);
@@ -383,7 +381,8 @@ function buildPlan(state: MatchState, side: SideId): Plan {
       const t = threats.find((x) => x.unit.id === e.id);
       const isM = kindOf(e.kind).isMaster;
       // a healer keeping the enemy Master up is hunted first (peel, then kill)
-      const medic = !isM && enemyMaster && kindOf(e.kind).magic.some((m) => m.kind === 'heal' && hexDistance(e.pos, enemyMaster.pos) <= kindOf(e.kind).stats.mov + m.range + m.radius);
+      const ek = kindOf(e.kind).ability;
+      const medic = !isM && enemyMaster && ek.kind === 'heal' && hexDistance(e.pos, enemyMaster.pos) <= kindOf(e.kind).stats.mov + ek.range + ek.radius;
       const value = isM ? 0.8 + 3 * posture.kill : unitValue(e) * (t && t.urgency > 0 ? 0.6 + 1.5 * t.urgency : medic ? 1 : 0.4);
       objs.push({ hex: e.pos, value, cap: isM ? 4 : 2, label: `hunt ${kindOf(e.kind).name}` });
     }

@@ -1,7 +1,7 @@
 // The live roster: built-in kinds with balance overrides applied.
 //
-// Magic Abilities are shared records: a kind lists the ids of its abilities,
-// so several kinds can use the same one and editing it changes all of them.
+// Abilities are shared records: a kind names the id of its one Ability, so
+// several kinds can use the same one and editing it changes all of them.
 //
 // Two layers of overrides sit on the built-in data: the repo's
 // `data/overrides.json` (baked-in balance changes, written by the dev tool
@@ -9,41 +9,46 @@
 // FAMILIARS and MASTERS are live arrays, updated in place, so every importer
 // sees the current values. Overrides apply to new matches.
 
-import { BASE_MASTERS, DEFAULT_MASTER, UNATTACHED_ABILITIES } from './data/masters';
+import { BASE_MASTERS, DEFAULT_MASTER } from './data/masters';
 import { BASE_FAMILIARS } from './data/familiars';
+import { BASE_ABILITY_LIST } from './data/abilities';
 import repoOverridesJson from './data/overrides.json';
-import type { MagicAbility, UnitKind } from './types';
+import type { Ability, UnitKind } from './types';
 
-/** The editable parts of a kind; its Magic Abilities by id. */
-export type KindPatch = Partial<Pick<UnitKind, 'name' | 'cost' | 'alignment' | 'element' | 'stats' | 'moveTypes' | 'attack'>> & { magicIds?: string[] };
+/** The editable parts of a kind; its Ability by id. */
+export type KindPatch = Partial<Pick<UnitKind, 'name' | 'cost' | 'alignment' | 'element' | 'stats' | 'moveTypes' | 'abilityName'>> & { abilityId?: string };
 
-/** Balance overrides: per-kind patches and edited or new Magic Abilities. */
+/** Balance overrides: per-kind patches and edited or new Abilities. */
 export interface Balance {
   kinds: Record<string, KindPatch>;
-  abilities: Record<string, MagicAbility>;
+  abilities: Record<string, Ability>;
+}
+
+/**
+ * The balance format's version. 4: one Ability per kind (by `abilityId`), no
+ * Mana costs, and Speed shifted down by 6. Older balances can't be converted
+ * faithfully (a kind's Attack and Magic Abilities don't map onto one Ability).
+ */
+export const BALANCE_VERSION = 4;
+
+/** True for a balance saved before version 4 (it names Magic Ability lists, Attacks or Mana costs). */
+export function isOldBalance(raw: unknown): boolean {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const kinds = (r.kinds ?? (r.abilities ? {} : r)) as Record<string, Record<string, unknown>>;
+  const abilities = (r.abilities ?? {}) as Record<string, Record<string, unknown>>;
+  return Object.values(kinds).some((p) => p && ('magicIds' in p || 'attack' in p || 'magic' in p)) || Object.values(abilities).some((a) => a && 'manaCost' in a);
 }
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
-/** Accept the current shape, or the older flat shape (kind id → patch with full `magic` arrays). */
+/** A balance in the current shape (missing parts empty). Use `isOldBalance` first: older shapes aren't converted. */
 export function normalizeBalance(raw: unknown): Balance {
-  const r = (raw ?? {}) as Partial<Balance> & Record<string, unknown>;
-  if (r.kinds || r.abilities) return { kinds: clone(r.kinds ?? {}), abilities: clone(r.abilities ?? {}) };
-  const out: Balance = { kinds: {}, abilities: {} };
-  for (const [id, p] of Object.entries(r)) {
-    const { magic, ...rest } = (p ?? {}) as KindPatch & { magic?: MagicAbility[] };
-    const patch: KindPatch = clone(rest);
-    if (Array.isArray(magic)) {
-      for (const m of magic) out.abilities[m.id] = clone(m);
-      patch.magicIds = magic.map((m) => m.id);
-    }
-    out.kinds[id] = patch;
-  }
-  return out;
+  const r = (raw ?? {}) as Partial<Balance>;
+  return { kinds: clone(r.kinds ?? {}), abilities: clone(r.abilities ?? {}) };
 }
 
-const BASE_ABILITIES = new Map<string, MagicAbility>();
-for (const m of [...UNATTACHED_ABILITIES, ...[...BASE_MASTERS, ...BASE_FAMILIARS].flatMap((k) => k.magic)]) if (!BASE_ABILITIES.has(m.id)) BASE_ABILITIES.set(m.id, clone(m));
+const BASE_ABILITIES = new Map<string, Ability>();
+for (const m of BASE_ABILITY_LIST) BASE_ABILITIES.set(m.id, clone(m));
 
 let repo: Balance = normalizeBalance(repoOverridesJson);
 let local: Balance = { kinds: {}, abilities: {} };
@@ -52,19 +57,19 @@ export const FAMILIARS: UnitKind[] = [];
 export const MASTERS: UnitKind[] = [];
 const KINDS = new Map<string, UnitKind>();
 
-/** A Magic Ability as the game currently uses it (local edit, else repo, else built-in). */
-export function abilityOf(id: string): MagicAbility | undefined {
+/** An Ability as the game currently uses it (local edit, else repo, else built-in). */
+export function abilityOf(id: string): Ability | undefined {
   const a = local.abilities[id] ?? repo.abilities[id] ?? BASE_ABILITIES.get(id);
   return a ? { ...clone(a), id } : undefined;
 }
 
-/** A Magic Ability as shipped (repo, else built-in). */
-export function shippedAbility(id: string): MagicAbility | undefined {
+/** An Ability as shipped (repo, else built-in). */
+export function shippedAbility(id: string): Ability | undefined {
   const a = repo.abilities[id] ?? BASE_ABILITIES.get(id);
   return a ? { ...clone(a), id } : undefined;
 }
 
-/** Every known Magic Ability id: built-in, then repo-added, then locally added. */
+/** Every known Ability id: built-in, then repo-added, then locally added. */
 export function abilityIds(): string[] {
   return [...new Set([...BASE_ABILITIES.keys(), ...Object.keys(repo.abilities), ...Object.keys(local.abilities)])];
 }
@@ -73,15 +78,16 @@ export function isBuiltInAbility(id: string): boolean {
   return BASE_ABILITIES.has(id);
 }
 
-function compose(base: UnitKind, layers: Balance[], resolve: (id: string) => MagicAbility | undefined): UnitKind {
+function compose(base: UnitKind, layers: Balance[], resolve: (id: string) => Ability | undefined): UnitKind {
   let k: UnitKind = clone(base);
-  let ids = base.magic.map((m) => m.id);
+  let id = base.ability.id;
   for (const l of layers) {
-    const { magicIds, ...rest } = l.kinds[base.id] ?? {};
+    const { abilityId, ...rest } = l.kinds[base.id] ?? {};
     k = { ...k, ...clone(rest) };
-    if (magicIds) ids = [...magicIds];
+    if (abilityId) id = abilityId;
   }
-  return { ...k, id: base.id, isMaster: base.isMaster, role: base.role, magic: ids.map(resolve).filter((m): m is MagicAbility => !!m) };
+  if (!k.abilityName) delete k.abilityName;
+  return { ...k, id: base.id, isMaster: base.isMaster, ability: resolve(id) ?? clone(base.ability) };
 }
 
 function rebuild() {
@@ -111,9 +117,9 @@ export function shippedKind(id: string): UnitKind {
   return compose(baseKind(id), [repo], shippedAbility);
 }
 
-/** Kinds that currently use a Magic Ability. */
+/** Kinds that currently use an Ability. */
 export function abilityUsers(id: string): UnitKind[] {
-  return [...MASTERS, ...FAMILIARS].filter((k) => k.magic.some((m) => m.id === id));
+  return [...MASTERS, ...FAMILIARS].filter((k) => k.ability.id === id);
 }
 
 export function getRepoBalance(): Balance {
@@ -133,11 +139,6 @@ export function setLocalBalance(b: Balance) {
 export function setRepoBalance(b: Balance) {
   repo = clone(b);
   rebuild();
-}
-
-/** @deprecated kept for older callers: kind patches only. */
-export function setLocalOverrides(kinds: Record<string, KindPatch>) {
-  setLocalBalance({ ...local, kinds: clone(kinds) });
 }
 
 export { BASE_MASTERS, BASE_FAMILIARS, DEFAULT_MASTER };

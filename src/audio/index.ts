@@ -114,8 +114,6 @@ function phaseDepth(p: Phase): number {
       return 0;
     case 'menu':
       return p.sub ? 2 : 1;
-    case 'quickChoice':
-      return 1;
     case 'target':
     case 'summonDir':
       return 3;

@@ -1,14 +1,15 @@
 // Tunable rules constants. Integer-only.
 
 /**
- * Base Delay (AV after a Wait-only turn) indexed by Speed (1..30).
- * Seeded from the designer anchors 7→36, 10→30, 13→25, 20→16; hand-tune freely.
+ * Base Delay (AV after a Wait-only turn) indexed by Speed (0..24).
+ * Seeded from the designer anchors 1→36, 4→30, 7→25, 14→16 (Speed was shifted down by 6
+ * from an older scale, keeping every delay); hand-tune freely.
  */
 export const BASE_DELAY_BY_SPEED: readonly number[] = [
-  /* 0 */ 50,
-  48, 46, 44, 42, 40, 38, 36, 34, 32, 30, // 1-10
-  28, 27, 25, 24, 22, 21, 20, 19, 17, 16, // 11-20
-  15, 14, 13, 12, 11, 10, 9, 8, 8, 8, //     21-30
+  /* 0 */ 38,
+  36, 34, 32, 30, 28, 27, 25, 24, 22, 21, // 1-10
+  20, 19, 17, 16, 15, 14, 13, 12, 11, 10, // 11-20
+  9, 8, 8, 8, //                             21-24
 ];
 
 export const MAX_HP = 10;

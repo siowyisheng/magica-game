@@ -1,17 +1,16 @@
-// Move Range, Attack Reach, Magic Reach and targeting plans (pure).
+// Move Range, Reach (where a Unit's Ability could hit) and targeting plans (pure).
 
 import { type Hex, hexDistance, hexEq, hexKey, hexesInRange } from './hex';
 import { affectedUnits, facingBonus, minAimDistance, shotAllowed, trajectoryOf } from './combat';
 import { kindOf } from './kinds';
 import { mapHexAt, reachable } from './terrain';
-import { isObstacle, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
+import { isObstacle, type MatchState, type Target, type Trajectory, type Unit } from './types';
+import type { AreaAbility } from './combat';
 
-type TargetedMagic = Exclude<MagicAbility, { kind: 'water' }>;
-
-/** The targeted Magic Ability used for Magic Reach and quick actions (the first one). */
-export function primaryMagic(unit: Unit): TargetedMagic | null {
-  for (const m of kindOf(unit.kind).magic) if (m.kind !== 'water') return m;
-  return null;
+/** The Unit's Ability when it is aimed at hexes (every one but Rise and Ebb). */
+export function targetedAbility(unit: Unit): AreaAbility | null {
+  const a = kindOf(unit.kind).ability;
+  return a.kind === 'water' ? null : a;
 }
 
 /** Hexes the Unit can end its move on (including staying put), in deterministic order. */
@@ -21,7 +20,7 @@ export function moveRange(state: MatchState, unit: Unit): Hex[] {
   return out;
 }
 
-/** Hexes the Unit could Attack or cast Magic from: a Stranded unit must move first. */
+/** Hexes the Unit could Act from: a Stranded unit must move first. */
 function actionSources(state: MatchState, unit: Unit): Hex[] {
   const dests = moveRange(state, unit);
   return unit.stranded ? dests.filter((h) => !hexEq(h, unit.pos)) : dests;
@@ -62,19 +61,17 @@ function reachFrom(
 
 export interface Reach {
   move: Map<string, Hex>;
-  attack: Map<string, Hex>;
-  magic: Map<string, Hex>;
+  /** Every hex its Ability could hit from somewhere in its Move Range. */
+  act: Map<string, Hex>;
 }
 
 export function unitReach(state: MatchState, unit: Unit): Reach {
   const dests = moveRange(state, unit);
-  const k = kindOf(unit.kind);
   const move = new Map(dests.map((h) => [hexKey(h), h] as const));
   const sources = actionSources(state, unit);
-  const attack = reachFrom(state, unit, sources, 1, k.attack.range, 0, trajectoryOf(k.attack));
-  const m = primaryMagic(unit);
-  const magic = m ? reachFrom(state, unit, sources, minAimDistance(m), m.range, m.radius, trajectoryOf(m)) : new Map<string, Hex>();
-  return { move, attack, magic };
+  const ab = targetedAbility(unit);
+  const act = ab ? reachFrom(state, unit, sources, minAimDistance(ab), ab.range, ab.radius, trajectoryOf(ab)) : new Map<string, Hex>();
+  return { move, act };
 }
 
 export interface TargetPlan {
@@ -111,42 +108,34 @@ function withUnitAt(state: MatchState, id: number, pos: Hex): MatchState {
   return { ...state, units: state.units.map((u) => (u.id === id ? { ...u, pos } : u)) };
 }
 
-/** `ignoreClearAngle` plans as if nothing blocked shots, Height included (to tell "out of reach" from "no clear shot"). */
-export function planAttack(state: MatchState, unit: Unit, target: Target, ignoreClearAngle = false): TargetPlan | null {
-  if (target.id === unit.id || (!isObstacle(target) && target.side === unit.side)) return null;
-  const a = kindOf(unit.kind).attack;
-  const traj = ignoreClearAngle ? 'high' : trajectoryOf(a);
-  const sources = actionSources(state, unit).filter((h) => {
-    const d = hexDistance(h, target.pos);
-    return d >= 1 && d <= a.range && shotAllowed(withUnitAt(state, unit.id, h), unit.id, traj, h, target.pos);
-  });
-  if (!sources.length) return null;
-  return { dest: bestSource(unit, target, sources, true), sources };
+/** A quick Act on a target: where to stand and where to aim. */
+export interface ActPlan extends TargetPlan {
+  ability: AreaAbility;
+  /** Where to aim from `dest`: the target's hex, or `dest` itself for a Burst. */
+  aim: Hex;
 }
 
-export interface MagicPlan extends TargetPlan {
-  ability: TargetedMagic;
-  affordable: boolean;
-}
-
-/** Plan a quick Magic aimed at the target's hex. */
-export function planMagic(state: MatchState, unit: Unit, target: Target, ignoreClearAngle = false): MagicPlan | null {
-  const ab = primaryMagic(unit);
-  if (!ab || target.id === unit.id) return null;
+/**
+ * Plan a quick Act on `target`: hit it (damage), or help it (heal, Empower).
+ * `ignoreClearAngle` plans as if nothing blocked shots, Height included (to
+ * tell "out of reach" from "no clear shot").
+ */
+export function planAct(state: MatchState, unit: Unit, target: Target, ignoreClearAngle = false): ActPlan | null {
+  const ab = targetedAbility(unit);
+  if (!ab) return null;
   const traj = ignoreClearAngle ? 'high' : trajectoryOf(ab);
+  // a Burst (or a help aimed at itself) is aimed at where the Unit stands
+  const aimFrom = (h: Hex) => (ab.burst || target.id === unit.id ? h : target.pos);
   const sources = actionSources(state, unit).filter((h) => {
-    const d = hexDistance(h, target.pos);
+    const aim = aimFrom(h);
+    const d = hexDistance(h, aim);
     if (d < minAimDistance(ab) || d > ab.range) return false;
     const view = withUnitAt(state, unit.id, h);
-    if (!shotAllowed(view, unit.id, traj, h, target.pos)) return false;
+    if (!shotAllowed(view, unit.id, traj, h, aim)) return false;
     const caster = view.units.find((u) => u.id === unit.id)!;
-    return affectedUnits(view, caster, ab, target.pos).some((u) => u.id === target.id);
+    return affectedUnits(view, caster, ab, aim).some((u) => u.id === target.id);
   });
   if (!sources.length) return null;
-  return {
-    dest: bestSource(unit, target, sources, ab.kind === 'damage'),
-    sources,
-    ability: ab,
-    affordable: state.sides[unit.side].mana >= ab.manaCost,
-  };
+  const dest = bestSource(unit, target, sources, ab.kind === 'damage');
+  return { dest, sources, ability: ab, aim: aimFrom(dest) };
 }

@@ -1,6 +1,7 @@
 import { compareTurnOrder, formatClock, kindOf, timeOfDay, turnDelay, type SideId } from '../rules';
 import { previewDelay, useGame } from '../store';
 import { unitIconUrl } from '../render/sprites';
+import { ClassIcon } from './icons';
 
 const SLOT = 62;
 
@@ -109,6 +110,11 @@ export function Timeline() {
             title={`${kindOf(s.kind).name}${s.ghost ? ' (would be summoned)' : ''} — ${formatClock(s.clock)}`}
           >
             <img src={unitIconUrl(s.kind, s.side)} alt="" />
+            {!kindOf(s.kind).isMaster && (
+              <span className="cls">
+                <ClassIcon kind={kindOf(s.kind)} size={10} />
+              </span>
+            )}
             <span className={`t ${tod}`}>{s.now ? 'NOW' : formatClock(s.clock)}</span>
           </div>
         );

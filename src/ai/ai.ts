@@ -20,7 +20,7 @@ import {
   hexEq,
   hexKey,
   kindOf,
-  magicTargetHexes,
+  abilityTargetHexes,
   manaIncome,
   manaAfter,
   compareTurnOrder,
@@ -30,14 +30,15 @@ import {
   reachable,
   FAMILIARS,
   validateTurn,
-  attackTargets,
   activeUnit,
   alignmentBonus,
   ALIGN_STAT,
   resultingFacing,
   canSummonAt,
   inRoster,
-  planAttack,
+  planAct,
+  isPhysical,
+  powerOf,
   shotAllowed,
   trajectoryOf,
   turnDelay,
@@ -59,10 +60,10 @@ export const AI_WEIGHTS = {
   damage: 10.5,
   /** Killing a Familiar, on top of the damage itself (× its value): it removes its future turns. */
   kill: 75.4,
-  /** What one HP of my own side is worth: lost to enemies (as danger), to my own area Magic, or healed. */
+  /** What one HP of my own side is worth: lost to enemies (as danger), to my own area hits, or healed. */
   ownHp: 6.77,
   killMaster: 100000,
-  /** Value of an Empower (× its ATK × damage): the extra damage it should add to the target's next Attack. */
+  /** Value of an Empower (× its ATK × damage): the extra damage it should add to the target's next physical hit. */
   empower: 1.21,
   /** Share of that value when no enemy is within the target's reach next turn. */
   empowerIdle: 0.3,
@@ -123,7 +124,7 @@ export const AI_WEIGHTS = {
   screen: 0.558,
   /** How many of the best destinations are re-scored for screening. */
   screenTop: 8,
-  /** Per enemy that breaking an Obstacle would bring into this Unit's Attack Reach. */
+  /** Per enemy that breaking an Obstacle would bring into this Unit's Reach. */
   obstacleOpening: 25,
 };
 
@@ -172,33 +173,27 @@ function enemyReaches(state: MatchState, me: Unit): EnemyReach[] {
 function maxDamageFrom(state: MatchState, e: EnemyReach, me: Unit, h: Hex, f: Dir): number {
   const ek = kindOf(e.unit.kind);
   const target: Unit = { ...me, pos: h, facing: f };
-  // judged when it acts: the Mana it will have (Income may land first) and the
-  // time of day then (Alignment may turn at an hour mark)
-  const mana = manaAfter(state, e.unit.side, e.unit.av);
+  // judged when it acts: the time of day then (Alignment may turn at an hour mark).
+  // Abilities are free, so Mana doesn't matter.
   const then: MatchState = { ...state, clock: state.clock + e.unit.av };
+  const ab = ek.ability;
+  if (ab.kind !== 'damage') return 0;
+  const hit = powerOf(ab) === 'atk' ? 'physical' : 'magic';
+  const traj = trajectoryOf(ab);
   let best = 0;
-  const spells = ek.magic.filter((m) => m.kind === 'damage' && m.manaCost <= mana);
   const view: MatchState = { ...state, units: state.units.map((u) => (u.id === me.id ? target : u)) };
-  const atkTraj = trajectoryOf(ek.attack);
   for (const p of e.positions) {
     if (hexEq(p, h)) continue;
     const d = hexDistance(p, h);
-    if (d >= 1 && d <= ek.attack.range && shotAllowed(view, e.unit.id, atkTraj, p, h)) {
-      best = Math.max(best, computeDamage(then, e.unit, p, target, 'physical').amount);
-    }
-    for (const m of spells) {
-      if (m.kind !== 'damage') continue;
-      if (d <= m.range + m.radius && (m.radius > 0 || shotAllowed(view, e.unit.id, trajectoryOf(m), p, h))) {
-        best = Math.max(best, computeDamage(then, e.unit, p, target, 'magic').amount);
-      }
-    }
+    const reaches = ab.radius > 0 ? d <= ab.range + ab.radius : d >= 1 && d <= ab.range && shotAllowed(view, e.unit.id, traj, p, h);
+    if (reaches) best = Math.max(best, computeDamage(then, e.unit, p, target, hit).amount);
   }
   return best;
 }
 
 /**
  * Value of hitting an Obstacle: how many enemies breaking it would bring
- * into this Unit's Attack Reach (from where it ends the turn), scaled by how
+ * into this Unit's Reach (from where it ends the turn), scaled by how
  * much of its HP this hit takes.
  */
 function obstacleValue(state: MatchState, me: Unit, dest: Hex, id: number, amount: number, lethal: boolean, w: W): number {
@@ -210,7 +205,7 @@ function obstacleValue(state: MatchState, me: Unit, dest: Hex, id: number, amoun
   let opened = 0;
   for (const e of state.units) {
     if (e.side === me.side || hexDistance(e.pos, o.pos) > 4) continue;
-    if (!planAttack(now, meAfter, e) && planAttack(without, meAfter, e)) opened++;
+    if (!planAct(now, meAfter, e) && planAct(without, meAfter, e)) opened++;
   }
   const share = lethal ? 1 : amount / Math.max(1, o.hp) / 2;
   return opened * w.obstacleOpening * share;
@@ -224,10 +219,8 @@ function approxDamage(state: MatchState, e: Unit, me: Unit, h: Hex, f: Dir): num
   const dir = facingToward(h, e.pos);
   const from = neighbor(h, dir);
   const then: MatchState = { ...state, clock: state.clock + e.av };
-  let best = computeDamage(then, e, from, target, 'physical').amount;
-  const mana = manaAfter(state, e.side, e.av);
-  if (ek.magic.some((m) => m.kind === 'damage' && m.manaCost <= mana)) best = Math.max(best, computeDamage(then, e, from, target, 'magic').amount);
-  return best;
+  if (ek.ability.kind !== 'damage') return 0;
+  return computeDamage(then, e, from, target, powerOf(ek.ability) === 'atk' ? 'physical' : 'magic').amount;
 }
 
 interface Candidate {
@@ -405,11 +398,11 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   const rawHeal = (h: Unit) => computeHeal(state, h, { ...h, hp: 1 }).amount;
   const healers = reaches.filter((e) => {
     const k = kindOf(e.unit.kind);
-    return e.unit.av < healWindow && k.magic.some((m) => m.kind === 'heal' && m.manaCost <= manaAfter(state, e.unit.side, e.unit.av));
+    return e.unit.av < healWindow && k.ability.kind === 'heal';
   });
   const healReach = (e: EnemyReach, at: Hex) => {
-    const m = kindOf(e.unit.kind).magic.find((x) => x.kind === 'heal')!;
-    if (m.kind === 'water') return false;
+    const m = kindOf(e.unit.kind).ability;
+    if (m.kind !== 'heal') return false;
     return e.positions.some((p) => hexDistance(p, at) <= m.range + m.radius) || hexDistance(e.unit.pos, at) <= m.range + m.radius;
   };
   const incomingHealFrom = (hs: EnemyReach[], t: Unit) => hs.reduce((a, h) => a + (healReach(h, t.pos) ? rawHeal(h.unit) : 0), 0);
@@ -486,10 +479,9 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   /** HP a Master at `h` gets back before the next round's hits: a Stone, a friendly healer in reach (M4). Cover is in the damage. */
   const recovery = (h: Hex): number => {
     let r = stoneAt(h) ? 1 : 0;
-    const mana = state.sides[me.side].mana;
     for (const a of allies) {
-      const m = kindOf(a.kind).magic.find((x) => x.kind === 'heal');
-      if (!m || m.kind !== 'heal' || m.manaCost > mana) continue;
+      const m = kindOf(a.kind).ability;
+      if (m.kind !== 'heal') continue;
       if (hexDistance(a.pos, h) <= kindOf(a.kind).stats.mov + m.range + m.radius) r += computeHeal(state, a, { ...me, hp: 1 }).amount;
     }
     return r;
@@ -636,16 +628,10 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
     const commands: Command[] = [{ type: 'wait' }];
     if (!me.stranded || !hexEq(dest, me.pos)) {
       const view: MatchState = { ...state, units: state.units.map((u) => (u.id === me.id ? { ...u, pos: dest } : u)) };
-      const moved = { ...me, pos: dest };
-      for (const t of attackTargets(view, moved, dest)) commands.push({ type: 'attack', target: t.pos });
-      for (const ab of kind.magic) {
-        if (ab.manaCost > myMana) continue;
-        if (ab.kind === 'water') {
-          if (canCastWater(state, ab.delta)) commands.push({ type: 'magic', ability: ab.id, target: dest });
-          continue;
-        }
-        for (const h of magicTargetHexes(state, me, ab, dest)) commands.push({ type: 'magic', ability: ab.id, target: h });
-      }
+      const ab = kind.ability;
+      if (ab.kind === 'water') {
+        if (canCastWater(state, ab.delta)) commands.push({ type: 'act', target: dest });
+      } else for (const h of abilityTargetHexes(state, me, dest)) commands.push({ type: 'act', target: h });
       for (const sk of summonKinds) {
         for (const d of DIRS) {
           const h = neighbor(dest, d);
@@ -663,11 +649,10 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
       /** Enemies hurt so that allies finish them before they act (fix 1): no threat to the Master. */
       const finished = new Set<number>();
 
-      if (command.type === 'attack' || command.type === 'magic') {
-        const ab = command.type === 'magic' ? kind.magic.find((m) => m.id === command.ability)! : null;
-        // Mana that would overflow the cap is free to spend.
-        if (ab) score -= spendCost(ab.manaCost);
-        if (ab && ab.kind === 'water') {
+      if (command.type === 'act') {
+        // Abilities are free: no Mana to weigh
+        const ab = kind.ability;
+        if (ab.kind === 'water') {
           const level = state.waterLevel + ab.delta;
           for (const u of state.units) {
             const mh = mapHexAt(state.map, u.id === me.id ? dest : u.pos);
@@ -680,8 +665,8 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
         } else {
           const effects = previewEffects(state, draft);
           if (effects.length === 0) continue;
-          // never Attack or cast damage for nothing: it must hurt an enemy or an Obstacle
-          const isDamage = !ab || ab.kind === 'damage';
+          // never deal damage for nothing: it must hurt an enemy or an Obstacle
+          const isDamage = ab.kind === 'damage';
           if (isDamage && !effects.some((e) => e.kind === 'damage' && e.amount > 0 && (e.obstacle || state.units.find((u) => u.id === e.unitId)?.side !== me.side))) continue;
           for (const e of effects) {
             if (e.obstacle) {
@@ -712,11 +697,11 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
                 }
               }
             } else if (e.kind === 'empower') {
-              // worth the extra damage on its next Attack; nothing if it already has it
-              if (t.side === me.side && (t.empowered ?? 0) < e.amount) {
-                const tk = kindOf(t.kind);
+              // worth the extra damage on its next physical hit; nothing if it already has it, or hits with MP
+              const tk = kindOf(t.kind);
+              if (t.side === me.side && (t.empowered ?? 0) < e.amount && isPhysical(tk.ability)) {
                 const pos = t.id === me.id ? dest : t.pos;
-                const reach = tk.stats.mov + tk.attack.range + 1;
+                const reach = tk.stats.mov + (tk.ability.kind === 'water' ? 0 : tk.ability.range) + 1;
                 const soon = state.units.some((u) => u.side !== me.side && hexDistance(u.pos, pos) <= reach);
                 score += w.empower * e.amount * w.damage * (soon ? 1 : w.empowerIdle);
               }
@@ -754,7 +739,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
       } else {
         ({ facing, threat } = bestFacing(dest, delay, gone));
         if (command.type !== 'wait') {
-          // Attack / Magic force Facing toward the target.
+          // Acting forces Facing toward the target.
           const forced = resultingFacing(state, { ...draft, facing });
           if (forced !== facing) {
             facing = forced;

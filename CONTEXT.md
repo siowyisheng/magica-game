@@ -9,7 +9,7 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Master**:
-The single leader Unit of each Side. It has no Magic Abilities and is the only Unit that can Summon; its MP sets its Side's Mana Income. There is no limit on how many Familiars a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Masters before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Master's stats fit the Stat Budget. Both Sides may pick the same one.
+The single leader Unit of each Side. Its Ability is a physical one (a Strike, or a Shot or Lob for the few that attack at range), and it is the only Unit that can Summon; its MP sets its Side's Mana Income. There is no limit on how many Familiars a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Masters before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Master's stats fit the Stat Budget. Both Sides may pick the same one.
 _Avoid_: Summoner, hero, commander
 
 **Loadout**:
@@ -30,11 +30,11 @@ A recorded match that can be watched back turn by turn, played forward, stepped 
 _Avoid_: Recording, demo, VOD
 
 **Familiar**:
-A Unit that a Master brings onto a hex next to it, at most 1 Height above or below the Master (water counts at the Water Level). The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8, each with a role (a Stone grabber, a workhorse, a sniper, a healer, a stallbreaker and so on); 19 of them have a Magic Ability.
+A Unit that a Master brings onto a hex next to it, at most 1 Height above or below the Master (water counts at the Water Level). The new Familiar faces the way it was summoned, and so does the Master. There are 40 kinds, ten per Element, one at each Cost from 16 to 88 in steps of 8. Each has exactly one Ability, which sets its Class, and uses ATK or MP, never both.
 _Avoid_: Summon (as a noun; "Summon" is the Command), monster, minion, creature
 
 **Class**:
-What a Familiar does with its one acting Command, shown by an icon wherever it appears (the word only in detailed views): **Fighter** (a physical Attack, ATK against DEF), **Caster** (damaging Magic, MP against MDF), **Healer** (Magic that restores HP) or **Support** (other helpful Magic, such as Empower). A Familiar uses ATK or MP, never both.
+What a Familiar does when it Acts, worked out from its Ability and shown by an icon wherever it appears (the word only in detailed views): **Fighter** (an Ability labelled Attack that hits with ATK against DEF), **Caster** (labelled Attack, hitting with MP against MDF), **Healer** (labelled Heal) or **Support** (labelled Buff, such as Empower, or Debuff). A Familiar uses ATK or MP, never both; the stat it doesn't use is 0 and isn't shown.
 _Avoid_: Role, archetype, type (Move Type is something else)
 
 **Side**:
@@ -43,11 +43,11 @@ _Avoid_: Team, faction, player (when meaning the group of Units)
 
 ## Stats
 
-**Attack (ATK)**: Contributes to the damage dealt by the Attack Command. ATK, DEF, MP and MDF are small numbers (about 0–10) on the same scale as HP: a point of ATK is a point of damage.
-**Defense (DEF)**: Reduces damage taken from the Attack Command.
-**Magic Power (MP)**: Contributes to the damage or healing of the Magic Command (a heal restores as much HP as the healer's MP). A Familiar with no Magic Ability has MP 0, since MP does nothing without one. For a Master it is also the key factor in Mana generation.
-**Magic Defense (MDF)**: Reduces damage taken from the Magic Command.
-**Speed (SPD)**: Decides how soon a Unit acts again (see Action Value). The average is about 10, and most Units fall between 8 and 15.
+**Attack (ATK)**: Contributes to the damage of a physical Ability. ATK, DEF, MP and MDF are small numbers (about 0–10) on the same scale as HP: a point of ATK is a point of damage. A Caster, Healer or Support has ATK 0.
+**Defense (DEF)**: Reduces damage taken from physical hits.
+**Magic Power (MP)**: Contributes to the damage or healing of a magical Ability (a heal restores as much HP as the healer's MP). A Fighter has MP 0, since MP does nothing for it. For a Master it is also the key factor in Mana generation.
+**Magic Defense (MDF)**: Reduces damage taken from magical hits.
+**Speed (SPD)**: Decides how soon a Unit acts again (see Action Value). Familiars run from about 1 to 7 and Masters from about 4 to 11; 0 is the slowest there is. (Speed was once 6 higher for the same delays.)
 **Move (MOV)**: The Move Points a Unit can spend in one turn.
 
 **Stat Budget**:
@@ -61,8 +61,8 @@ _Avoid_: Movement class
 **Move Range**:
 The hexes a Unit can end its move on this turn.
 
-**Attack Reach** / **Magic Reach**:
-Every hex a Unit could hit with its Attack Ability (or targeted Magic Ability) from some hex in its Move Range. Magic Reach is shown whether or not the Mana is available.
+**Reach**:
+Every hex a Unit's Ability could reach from some hex in its Move Range: drawn in red for a physical Ability, in blue for a magical one.
 _Avoid_: Threat range, attack range (when meaning after moving)
 
 ## Elements
@@ -90,7 +90,7 @@ _Avoid_: Initiative, ticks, ATB
 The AV a Unit gets after a turn in which it only Waits. It depends only on Speed.
 
 **Turn Delay**:
-The AV a Unit gets after its turn: the Base Delay, plus half the Base Delay for each of Move, Attack, Magic and Summon that it used, rounded at the end. A new Familiar enters with the Turn Delay of a Move followed by an Attack.
+The AV a Unit gets after its turn: the Base Delay, plus half the Base Delay for each of Move, Act and Summon that it used, rounded at the end. A new Familiar enters with the Turn Delay of a Move followed by an Attack.
 
 **Action Timeline**:
 The UI list of upcoming turns in the order the AV system gives. While a Command is hovered but not yet confirmed, the acting Unit's icon is shown where that Command's Turn Delay would place it.
@@ -108,19 +108,19 @@ Whether a Familiar is tied to Day, to Night, or to neither. At its aligned Time 
 ## Turn structure
 
 **Command**:
-What a Unit does after it Moves, or after it chooses not to: Wait, Attack, Magic or Summon. The player chooses Facing only for Wait. Attack and Magic turn the Unit to face its target (the Unit attacked, or the hex the Magic was aimed at), and Summon turns the Master toward the summoned hex.
-_Avoid_: Action (when meaning a menu choice)
+What a Unit does after it Moves, or after it chooses not to: Wait, **Act** (use its Ability; the button shows the Ability's label: Attack, Heal, Buff or Debuff) or Summon. The player chooses Facing only for Wait. Acting turns the Unit to face where it aimed (except a Burst, aimed at its own hex), and Summon turns the Master toward the summoned hex.
+_Avoid_: Action (when meaning a menu choice), Attack and Magic (as Commands: since one Ability per Unit there is only Act)
 
-**Attack Ability** / **Magic Ability**:
-The rules for a Unit's Attack or Magic Command: a range (a maximum only, with no minimum), an area and an effect. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals and Empower hit allies and may include the caster. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area spell's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP. 19 of the 40 Familiars have one Magic Ability and the rest have none (units that already attack at range usually don't need one); Masters have none.
-_Avoid_: Skill, spell (as a code term)
+**Ability**:
+The one thing a Unit does when it Acts; every Unit has exactly one, shared from a library (editing one changes every Unit that uses it). It has a range (a maximum only, with no minimum), an area, an effect, and for damage a **power**: physical (ATK against DEF; Strike, Shot and Lob are the plain ones) or magical (MP against MDF). It also has a **label**, the Act button's name: Attack, Heal, Buff or Debuff. A Unit may give its Ability its own name (Harpoon for a Shot, say). Abilities are free: they cost no Mana. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals and Empower hit allies and may include the user. Areas reach 1 hex around the aimed hex (2 for a Burst). A High area's splash comes from the hex it lands on, so Facing for the Units around it is measured from there. Abilities have no power of their own: their strength comes only from the user's ATK or MP.
+_Avoid_: Skill, spell (as a code term), Magic Ability (every Ability is an Ability, physical ones too)
 
 **Burst**:
-A damaging Magic Ability centred on the caster, with no range: it hits every Unit and Obstacle within 1 or 2 hexes, allies included, but never the caster.
+A damaging Ability centred on its user, with no range: it hits every Unit and Obstacle within 1 or 2 hexes, allies included, but never the caster.
 _Avoid_: Nova, self-AoE
 
 **Trajectory**:
-How a ranged Attack or Magic Ability (range above 1) travels. **High** arcs over everything and always reaches a target in range. **Direct** flies straight and needs a Clear Angle. Abilities with range 1 have no Trajectory; they reach a neighbouring Unit (enemy or ally) only when its hex is at most 1 Height above or below the user's (water counts at the Water Level). A ranged ability used on a neighbour ignores Height.
+How a ranged Ability (range above 1) travels. **High** arcs over everything and always reaches a target in range. **Direct** flies straight and needs a Clear Angle. Abilities with range 1 have no Trajectory; they reach a neighbouring Unit (enemy or ally) only when its hex is at most 1 Height above or below the user's (water counts at the Water Level). A ranged ability used on a neighbour ignores Height.
 _Avoid_: Fire mode, arc type
 
 **Clear Angle**:
@@ -143,10 +143,10 @@ A flat amount added to damage by the angle between a defender's Facing and the d
 _Avoid_: Backstab bonus, flanking
 
 **Damage**:
-Attacker's ATK − defender's DEF + Element Bonus + Facing Bonus − the defender's terrain cover; MP and MDF for Magic. Alignment changes the stats first. A result of 0 or less deals 0: there is no minimum. It is not limited by the defender's remaining HP (the Damage Number shows it all), but HP never drops below 0. For example, ATK 5 against DEF 1 with a Counter from behind deals 5 − 1 + 4 + 2 = 10.
+Attacker's ATK − defender's DEF + Element Bonus + Facing Bonus − the defender's terrain cover; MP and MDF for a magical hit. Alignment changes the stats first. A result of 0 or less deals 0: there is no minimum. It is not limited by the defender's remaining HP (the Damage Number shows it all), but HP never drops below 0. For example, ATK 5 against DEF 1 with a Counter from behind deals 5 − 1 + 4 + 2 = 10.
 
 **Empower**:
-A Magic Ability (Kindle's) that targets one friendly Unit within range 1, the caster included, and gives it +3 ATK until its next Attack. The Unit is then **Empowered**, and shows a golden aura: the bonus counts in that Attack's damage and is then used up. Magic doesn't use it up, and a second Empower doesn't stack.
+A Buff Ability (Kindle's) that targets one friendly Unit within range 1, the user included, and gives it +3 ATK until its next physical hit. The Unit is then **Empowered**, and shows a golden aura: the bonus counts in the damage previews of its hits, and its next physical hit uses it up. A second Empower before then doesn't stack. It helps only Units that hit with ATK.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.
@@ -166,7 +166,7 @@ The map's water surface Height. No unit can change it at present: Rise and Ebb, 
 The default ground. Entering it costs 1 Move Point for Walk or Fly and 2 for Slow. It gives no defense bonus.
 
 **Rough**:
-Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. It takes 1 off every Attack and Magic hit.
+Hard ground. Entering it costs 1 Move Point for Fly, 2 for Walk and 3 for Slow. It takes 1 off every hit.
 
 **Magic Stone**:
 A hex type of its own, never Rough, though it may be under water. A Unit standing on it takes 1 less damage from every hit. The Side that controls it gains more Mana.
@@ -183,7 +183,7 @@ A hex type of its own that no Unit can stand on, drawn as a missing hex. Only Fl
 _Avoid_: Chasm, hole, void (as the rules term)
 
 **Obstacle**:
-A neutral map object placed on dry Plain or Rough at the start of a match. No Unit can stand on its hex, and only Fly can cross it. It blocks Direct shots but not High ones. Both Sides may Attack it or hit it with damaging Magic, area Magic included; it cannot be healed and exerts no ZOC. It has 10 HP like a Unit, no Element and no Facing, and its Defense and Magic Defense are equal: 2, 4 or 6. Destroyed at 0 HP, leaving the hex beneath. It stays, and keeps blocking, if water rises over it.
+A neutral map object placed on dry Plain or Rough at the start of a match. No Unit can stand on its hex, and only Fly can cross it. It blocks Direct shots but not High ones. Both Sides may hit it with any damaging Ability, areas included; it cannot be healed and exerts no ZOC. It has 10 HP like a Unit, no Element and no Facing, and its Defense and Magic Defense are equal: 2, 4 or 6. Destroyed at 0 HP, leaving the hex beneath. It stays, and keeps blocking, if water rises over it.
 _Avoid_: Wall, prop, blocker
 
 **Random Map**:
@@ -199,13 +199,13 @@ The hexes next to a Unit that the Unit itself could move into. An opposing Unit 
 ## Economy
 
 **Mana**:
-A Side's shared resource for summoning and for every Magic Ability its Units cast, Masters' and Familiars' alike. It is gained at the start of every Game Clock hour.
+A Side's resource for summoning. Abilities are free, so Mana only pays for Summons (and Upkeep comes out of Income). It is gained at the start of every Game Clock hour.
 
 **Mana Income**:
 What a Side gains each hour: 2 × (2 + Magic Stones controlled) × Master MP, minus the Upkeep of its Familiars. Mana never drops below 0 or rises above 120.
 
 **Cost**:
-The Mana needed to Summon a Familiar: a multiple of 8, from 16 to 88; each Element has exactly one Familiar at each Cost. It reflects the Familiar's power: its stats (Move most of all), Fly, a ranged Attack and its Magic Ability, priced from a reference set of Familiars treated as balanced.
+The Mana needed to Summon a Familiar: a multiple of 8, from 16 to 88; each Element has exactly one Familiar at each Cost. It reflects the Familiar's power: its stats (Move most of all), Fly and its Ability (a ranged physical one, or a magical one by its shape), priced from a reference set of Familiars treated as balanced.
 
 **Upkeep**:
 A Familiar's hourly drain on its Side's Mana Income. It is always its Cost ÷ 8.

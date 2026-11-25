@@ -1,7 +1,7 @@
 // Pure mapping from a turn (its animation plan and rule events) to timed
 // sound cues, so effects line up with what is drawn.
 
-import { type GameEvent, type MatchState, type TurnAction, type SideId, kindOf, getUnit, mapHexAt, surfaceOf, timeOfDay, hexDistance } from '../rules';
+import { type GameEvent, type MatchState, type TurnAction, type SideId, kindOf, getUnit, mapHexAt, surfaceOf, timeOfDay, hexDistance, isPhysical } from '../rules';
 import { FLY_LAND_MS, FLY_RISE_MS, MS_PER_HEX, SUMMON_PHASES, type TurnAnim } from '../anim';
 import type { Sfx, StepKind } from './sfx';
 
@@ -59,7 +59,7 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
         cues.push({ at: s.t0, sfx: { name: 'cast', element: s.element, heal: false } });
         break;
       case 'hit': {
-        const magic = action.command.type === 'magic';
+        const magic = action.command.type === 'act' && !isPhysical(actorKind.ability);
         const amount = Math.max(...s.unitIds.map((id) => damageTo.get(id) ?? 0));
         cues.push({ at: s.t0, sfx: { name: 'impact', amount, magic } });
         break;
@@ -76,8 +76,8 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
 
   // Effects with no animation step of their own.
   const cmd = action.command;
-  if (cmd.type === 'magic') {
-    const ab = actorKind.magic.find((m) => m.id === cmd.ability);
+  if (cmd.type === 'act') {
+    const ab = actorKind.ability;
     const moveEnd = anim?.steps.find((s) => s.kind === 'move')?.t1 ?? 0;
     if (ab?.kind === 'water') cues.push({ at: moveEnd, sfx: { name: 'water', rise: ab.delta > 0 } });
     if ((ab?.kind === 'heal' || ab?.kind === 'empower') && !anim?.steps.some((s) => s.kind === 'projectile')) {
@@ -86,7 +86,7 @@ export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim 
     }
   }
   if (!anim) {
-    if (cmd.type === 'attack') cues.push({ at: 0, sfx: { name: 'impact', amount: Math.max(0, ...damageTo.values()), magic: false } });
+    if (cmd.type === 'act' && actorKind.ability.kind === 'damage') cues.push({ at: 0, sfx: { name: 'impact', amount: Math.max(0, ...damageTo.values()), magic: !isPhysical(actorKind.ability) } });
     if (cmd.type === 'summon') cues.push({ at: 0, sfx: { name: 'summonAppear', element: kindOf(cmd.kind).element } });
   }
 

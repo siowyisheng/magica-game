@@ -21,7 +21,7 @@
 // look.
 
 import { leastSquares, mulberry32 } from './statgen';
-import type { Alignment, Element, MoveType, Stats, Trajectory } from './types';
+import type { Alignment, Element, MoveType, Stats, Trajectory, UnitKind } from './types';
 
 /** What a Familiar is for, from the designer's notes. */
 export type FamiliarRole =
@@ -70,30 +70,30 @@ const burst = (radius: 1 | 2, manaCost: number): MagicSpec => ({ kind: 'damage',
 const heal = (manaCost: number): MagicSpec => ({ kind: 'heal', range: 1, radius: 0, manaCost });
 
 const REFERENCE_ROWS: Ref[] = [
-  ['Fa-Rancell', 16, 'earth', 'none', [4, 2, 0, 3, 11, 5], ['walk', 'wade'], [1], null, 'grabber'],
-  ['Da-Colm', 64, 'earth', 'none', [9, 7, 0, 7, 9, 6], ['walk', 'wade'], [1], null, 'workhorse'],
-  ['Ae-Ferrion', 32, 'earth', 'none', [6, 3, 0, 2, 8, 5], ['walk'], [6, 'high'], null, 'sniper'],
-  ['Gia-Bro', 40, 'earth', 'none', [5, 4, 6, 7, 6, 5], ['walk', 'wade'], [1], dmg(4, 1, 6, 'high'), 'artillery'],
-  ['D-Alma', 24, 'earth', 'day', [3, 5, 4, 2, 10, 7], ['walk'], [1], heal(4), 'healer'],
-  ['Ba-Mado', 80, 'earth', 'night', [7, 5, 0, 7, 11, 5], ['fly'], [1], null, 'assassin', true],
-  ['Reque', 16, 'water', 'none', [5, 2, 0, 3, 13, 5], ['slow', 'swim'], [1], null, 'grabber'],
-  ['Neptjunoue', 64, 'water', 'none', [8, 6, 7, 7, 13, 6], ['slow', 'swim'], [1], dmg(4, 0, 8, 'direct'), 'caster'],
-  ['Tarbss', 48, 'water', 'none', [8, 5, 0, 5, 10, 5], ['swim'], [7, 'direct'], null, 'sniper'],
-  ['Zamilpen', 40, 'water', 'day', [6, 6, 0, 4, 8, 6], ['slow', 'swim'], [1], null, 'workhorse', true],
-  ['Marme', 32, 'water', 'night', [4, 4, 4, 6, 10, 5], ['slow', 'swim'], [1], heal(4), 'healer'],
-  ['Tentarch', 88, 'water', 'none', [10, 9, 10, 6, 11, 6], ['slow', 'swim'], [1], burst(2, 15), 'stallbreaker'],
-  ['Hepitus', 24, 'fire', 'none', [5, 3, 0, 4, 7, 6], ['walk'], [1], null, 'skirmisher'],
-  ['Oonevievle', 56, 'fire', 'none', [9, 6, 0, 6, 9, 6], ['walk'], [1], null, 'striker'],
-  ['Blexe', 40, 'fire', 'none', [7, 4, 0, 4, 8, 5], ['walk'], [4, 'direct'], null, 'ranged'],
-  ['Dullmdaler', 32, 'fire', 'night', [3, 3, 7, 5, 8, 6], ['walk'], [1], burst(1, 4), 'burster'],
-  ['Zenosblead', 88, 'fire', 'none', [8, 6, 8, 7, 12, 5], ['walk'], [1], dmg(7, 0, 10, 'direct'), 'caster'],
-  ['Greon', 80, 'fire', 'day', [7, 5, 0, 3, 10, 7], ['fly'], [1], null, 'assassin'],
-  ['Pelitt', 16, 'air', 'none', [1, 0, 0, 6, 13, 4], ['fly'], [1], null, 'screener'],
-  ['Currier-Bell', 48, 'air', 'none', [7, 5, 7, 3, 9, 5], ['fly'], [1], dmg(3, 1, 8, 'high'), 'artillery'],
-  ['Amoltamiss', 56, 'air', 'night', [7, 5, 0, 5, 11, 4], ['fly'], [5, 'high'], null, 'ranged'],
-  ['Guene-Foss', 32, 'air', 'day', [3, 2, 4, 4, 10, 6], ['fly'], [1], dmg(4, 0, 4, 'high'), 'harrier'],
-  ['Fifenall', 48, 'air', 'none', [2, 3, 5, 7, 10, 5], ['fly'], [1], heal(4), 'healer'],
-  ['Regna-Croxe', 80, 'air', 'none', [9, 5, 9, 5, 11, 6], ['fly'], [1], burst(2, 12), 'stallbreaker'],
+  ['Fa-Rancell', 16, 'earth', 'none', [4, 2, 0, 3, 5, 5], ['walk', 'wade'], [1], null, 'grabber'],
+  ['Da-Colm', 64, 'earth', 'none', [9, 7, 0, 7, 3, 6], ['walk', 'wade'], [1], null, 'workhorse'],
+  ['Ae-Ferrion', 32, 'earth', 'none', [6, 3, 0, 2, 2, 5], ['walk'], [6, 'high'], null, 'sniper'],
+  ['Gia-Bro', 40, 'earth', 'none', [5, 4, 6, 7, 0, 5], ['walk', 'wade'], [1], dmg(4, 1, 6, 'high'), 'artillery'],
+  ['D-Alma', 24, 'earth', 'day', [3, 5, 4, 2, 4, 7], ['walk'], [1], heal(4), 'healer'],
+  ['Ba-Mado', 80, 'earth', 'night', [7, 5, 0, 7, 5, 5], ['fly'], [1], null, 'assassin', true],
+  ['Reque', 16, 'water', 'none', [5, 2, 0, 3, 7, 5], ['slow', 'swim'], [1], null, 'grabber'],
+  ['Neptjunoue', 64, 'water', 'none', [8, 6, 7, 7, 7, 6], ['slow', 'swim'], [1], dmg(4, 0, 8, 'direct'), 'caster'],
+  ['Tarbss', 48, 'water', 'none', [8, 5, 0, 5, 4, 5], ['swim'], [7, 'direct'], null, 'sniper'],
+  ['Zamilpen', 40, 'water', 'day', [6, 6, 0, 4, 2, 6], ['slow', 'swim'], [1], null, 'workhorse', true],
+  ['Marme', 32, 'water', 'night', [4, 4, 4, 6, 4, 5], ['slow', 'swim'], [1], heal(4), 'healer'],
+  ['Tentarch', 88, 'water', 'none', [10, 9, 10, 6, 5, 6], ['slow', 'swim'], [1], burst(2, 15), 'stallbreaker'],
+  ['Hepitus', 24, 'fire', 'none', [5, 3, 0, 4, 1, 6], ['walk'], [1], null, 'skirmisher'],
+  ['Oonevievle', 56, 'fire', 'none', [9, 6, 0, 6, 3, 6], ['walk'], [1], null, 'striker'],
+  ['Blexe', 40, 'fire', 'none', [7, 4, 0, 4, 2, 5], ['walk'], [4, 'direct'], null, 'ranged'],
+  ['Dullmdaler', 32, 'fire', 'night', [3, 3, 7, 5, 2, 6], ['walk'], [1], burst(1, 4), 'burster'],
+  ['Zenosblead', 88, 'fire', 'none', [8, 6, 8, 7, 6, 5], ['walk'], [1], dmg(7, 0, 10, 'direct'), 'caster'],
+  ['Greon', 80, 'fire', 'day', [7, 5, 0, 3, 4, 7], ['fly'], [1], null, 'assassin'],
+  ['Pelitt', 16, 'air', 'none', [1, 0, 0, 6, 7, 4], ['fly'], [1], null, 'screener'],
+  ['Currier-Bell', 48, 'air', 'none', [7, 5, 7, 3, 3, 5], ['fly'], [1], dmg(3, 1, 8, 'high'), 'artillery'],
+  ['Amoltamiss', 56, 'air', 'night', [7, 5, 0, 5, 5, 4], ['fly'], [5, 'high'], null, 'ranged'],
+  ['Guene-Foss', 32, 'air', 'day', [3, 2, 4, 4, 4, 6], ['fly'], [1], dmg(4, 0, 4, 'high'), 'harrier'],
+  ['Fifenall', 48, 'air', 'none', [2, 3, 5, 7, 4, 5], ['fly'], [1], heal(4), 'healer'],
+  ['Regna-Croxe', 80, 'air', 'none', [9, 5, 9, 5, 5, 6], ['fly'], [1], burst(2, 12), 'stallbreaker'],
 ];
 
 export const REFERENCE_FAMILIARS: readonly ReferenceFamiliar[] = REFERENCE_ROWS.map(([name, cost, element, alignment, s, moveTypes, [range, trajectory], magic, role, excluded]) => ({
@@ -164,6 +164,20 @@ export function predictCost(s: Priced, m: FamiliarCostModel = FAMILIAR_COST): nu
   return m.base + m.atk * f[0] + m.def * f[1] + m.mdf * f[2] + m.spd * f[3] + m.mov * f[4] + m.fly * f[5] + m.ranged * f[6] + m.magic * f[7];
 }
 
+/**
+ * The Cost the model gives a live Familiar with one Ability: a physical one
+ * counts as its Attack (ranged or not), anything else as its Magic Ability
+ * (its MP then priced by the Ability's shape).
+ */
+export function predictKindCost(k: UnitKind, m: FamiliarCostModel = FAMILIAR_COST): number {
+  const a = k.ability;
+  const physical = a.kind === 'damage' && a.power === 'atk';
+  const magic: MagicSpec | null =
+    physical || a.kind === 'water' ? null : { kind: a.kind, range: a.range, radius: a.radius, burst: a.burst, trajectory: a.trajectory, manaCost: 0 };
+  const attack = physical && a.range > 1 ? { range: a.range, trajectory: a.trajectory } : { range: 1 };
+  return predictCost({ stats: k.stats, moveTypes: k.moveTypes, attack, magic }, m);
+}
+
 // ---------- slots ----------
 
 /** A place in the roster: Element, Cost, and the sprite whose look sets the Move Types. */
@@ -201,7 +215,7 @@ export const FAMILIAR_BOUNDS: Record<keyof Stats, [number, number]> = {
   def: [0, 9],
   mp: [0, 10], // 0 for a Familiar with no Magic Ability: MP does nothing without one
   mdf: [2, 8],
-  spd: [6, 14],
+  spd: [0, 8],
   mov: [3, 7],
 };
 
