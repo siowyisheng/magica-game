@@ -5,15 +5,25 @@
 //      REPLIES (candidate Hard: enemy replies tried, default 1), OPP_LEVEL / OPP_REPLIES (OPP=normal: the current
 //      AI at that level and replies, e.g. Hard with 3 replies against Hard with 1).
 //      LIGHT=1: the candidate Hard plays its look-ahead with the light scorer.
+//      BALANCE=path: a replay (or balance) .json whose stats to play with. W (candidate only; OPP=normal always
+//      plays the default weights): W='{"capture":116}' or W=@file.json.
 
 import { it } from 'vitest';
 import { SCAFFOLD_MAP, MASTERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
 import { AI_WEIGHTS, autoLoadout, chooseAction as chooseRaw } from '../src/ai/ai';
+import { readFileSync } from 'node:fs';
+import { applyTemporaryBalance, normalizeBalance } from '../src/rules';
+// BALANCE=path: play with the stats saved in a replay (or balance) file, e.g. the player's local edits
+if (process.env.BALANCE) {
+  const raw = JSON.parse(readFileSync(process.env.BALANCE, 'utf8'));
+  applyTemporaryBalance(normalizeBalance(raw?.replay?.balance ?? raw?.balance ?? raw));
+}
 
-const W = { ...AI_WEIGHTS, ...JSON.parse(process.env.W ?? '{}') };
+const wRaw = process.env.W ?? '{}';
+const W = { ...AI_WEIGHTS, ...JSON.parse(wRaw.startsWith('@') ? readFileSync(wRaw.slice(1), 'utf8') : wRaw) };
 const levelOf = (v: string | undefined) => (v === 'hard' ? 'hard' : 'normal') as 'normal' | 'hard';
 const candidatePolicy = (s: MatchState) => chooseRaw(s, W, levelOf(process.env.LEVEL), { replies: Number(process.env.REPLIES ?? 1), lightPlayouts: process.env.LIGHT === '1' });
-const currentOpp = (s: MatchState) => chooseRaw(s, W, levelOf(process.env.OPP_LEVEL), { replies: Number(process.env.OPP_REPLIES ?? 1) });
+const currentOpp = (s: MatchState) => chooseRaw(s, AI_WEIGHTS, levelOf(process.env.OPP_LEVEL), { replies: Number(process.env.OPP_REPLIES ?? 1) });
 import { chooseAction as baselineChoose } from './baseline/ai';
 
 function rng(seed: number) {
