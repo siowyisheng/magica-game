@@ -120,7 +120,7 @@ How a ranged Attack or Magic Ability (range above 1) travels. **High** arcs over
 _Avoid_: Fire mode, arc type
 
 **Clear Angle**:
-Whether a Direct shot can reach its target. Seen from above, every Unit and Obstacle is a body at its hex centre, and the shot is a small projectile. For blocking, a Unit's body is wide (most of its hex), so Units screen what stands behind them; an Obstacle's is smaller. The angle is clear when some straight line from the shooter to any point across the target's body passes every other body, allies included. Height, Pits, water and Magic Stones never block.
+Whether a Direct shot can reach its target. Seen from above, every Unit and Obstacle is a body at its hex centre, and the shot is a small projectile. For blocking, a Unit's body is wide (most of its hex), so Units screen what stands behind them; an Obstacle's is smaller. The angle is clear when some straight line from the shooter to any point across the target's body passes every other body, allies included. Terrain blocks too: any hex in the way whose top is 2 or more Heights above the shooter's hex (water counts at the Water Level) is a wall filling that hex. Pits, and hexes less than 2 above the shooter, never block.
 
 **Wade Entry**:
 The edge between a land hex and a Shallow Water hex exactly 1 Height below it, like a beach. A Unit that wades (and cannot swim) steps into and out of Shallow Water only across a Wade Entry; anywhere else the bank is too high. On a Random Map at least half of every body of water's shore is Wade Entries.

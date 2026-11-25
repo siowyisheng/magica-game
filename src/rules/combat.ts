@@ -1,7 +1,7 @@
 import { type Hex, hexDistance, hexesInRange, hexSub, ringPosition, hexEq } from './hex';
 import { COVER, ELEMENT_BONUS, FACING_BONUS, MAX_HP } from './data/tuning';
 import { kindOf } from './kinds';
-import { mapHexAt, surfaceOf, targetAt } from './terrain';
+import { mapHexAt, surfaceHeight, surfaceOf, targetAt } from './terrain';
 import { alignmentBonus } from './time';
 import { isObstacle, type Element, type UnitKind, type MagicAbility, type MatchState, type Target, type Trajectory, type Unit } from './types';
 import type { Dir } from './hex';
@@ -175,8 +175,31 @@ export const BODY_RADIUS = 0.3 * SQRT3;
 export const UNIT_BLOCK_RADIUS = 0.42 * SQRT3;
 /** Radius of a standard projectile. */
 export const SHOT_RADIUS = 0.08 * SQRT3;
+/** Hexes at least this much higher than the shooter's block a Direct shot. */
+export const TERRAIN_BLOCK_STEP = 2;
+/** Radius a high hex blocks Direct shots with: its whole width (the inner radius of the hex). */
+const HEX_BLOCK_RADIUS = SQRT3 / 2;
 /** Aim points sampled across the target's body. */
 const AIM_SAMPLES = 8;
+
+/** Every non-Pit hex with its shown top (water at the Water Level), highest first; cached per map and Water Level. */
+const topsCache = new WeakMap<object, Map<number, { hex: Hex; top: number; x: number; z: number }[]>>();
+function terrainTops(state: MatchState) {
+  let byLevel = topsCache.get(state.map);
+  if (!byLevel) topsCache.set(state.map, (byLevel = new Map()));
+  let tops = byLevel.get(state.waterLevel);
+  if (!tops) {
+    tops = state.map.hexes
+      .filter((mh) => mh.terrain !== 'pit')
+      .map((mh) => {
+        const [x, z] = centre(mh.hex);
+        return { hex: mh.hex, top: surfaceHeight(mh, state.waterLevel), x, z };
+      })
+      .sort((a, b) => b.top - a.top);
+    byLevel.set(state.waterLevel, tops);
+  }
+  return tops;
+}
 
 function centre(h: Hex): [number, number] {
   return [SQRT3 * (h.q + h.r / 2), 1.5 * h.r];
@@ -198,8 +221,9 @@ function segmentDistance2(px: number, pz: number, ax: number, az: number, bx: nu
  * `target`. Seen from above, every other Unit is a circle of UNIT_BLOCK_RADIUS
  * and every Obstacle one of BODY_RADIUS at its hex centre; the shot is clear when some straight line
  * from the shooter's centre to a point across the target's body passes every
- * other body with room for a SHOT_RADIUS projectile. Height, Pits and water
- * never block. Uses only + − × ÷ and √ (deterministic).
+ * other body with room for a SHOT_RADIUS projectile. Terrain blocks too: every
+ * hex 2+ Heights above the shooter's (water counts at the Water Level) is a
+ * circle filling the hex. Pits never block. Uses only + − × ÷ and √ (deterministic).
  */
 export function clearShot(state: MatchState, shooterId: number, from: Hex, target: Hex): boolean {
   if (hexEq(from, target)) return true;
@@ -215,6 +239,18 @@ export function clearShot(state: MatchState, shooterId: number, from: Hex, targe
   const obstacleRoom = (BODY_RADIUS + SHOT_RADIUS) ** 2;
   for (const u of state.units) if (u.hp > 0 && u.id !== shooterId && !hexEq(u.pos, target) && !hexEq(u.pos, from)) blockers.push([...centre(u.pos), unitRoom]);
   for (const o of state.obstacles) if (o.hp > 0 && !hexEq(o.pos, target)) blockers.push([...centre(o.pos), obstacleRoom]);
+  // terrain: hexes 2+ Heights above the shooter's (water at the Water Level; Pits are empty)
+  const fromHex = mapHexAt(state.map, from);
+  if (fromHex) {
+    const wall = surfaceHeight(fromHex, state.waterLevel) + TERRAIN_BLOCK_STEP;
+    const hexRoom = (HEX_BLOCK_RADIUS + SHOT_RADIUS) ** 2;
+    const reach = Math.sqrt(dx * dx + dz * dz) + 2;
+    for (const t of terrainTops(state)) {
+      if (t.top < wall) break; // highest first
+      if (Math.abs(t.x - sx) > reach || Math.abs(t.z - sz) > reach || hexEq(t.hex, target) || hexEq(t.hex, from)) continue;
+      blockers.push([t.x, t.z, hexRoom]);
+    }
+  }
   for (let k = 0; k <= 2 * AIM_SAMPLES; k++) {
     // centre first, then outward alternately
     const i = k === 0 ? 0 : (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2);
