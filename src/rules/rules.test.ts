@@ -1,4 +1,4 @@
-import { withSpells } from '../testing/spells';
+import { withAbility } from '../testing/spells';
 import { onTestFinished, describe, expect, it } from 'vitest';
 import {
   applyTurn,
@@ -24,11 +24,19 @@ import {
   type HexTerrain,
   isStranded,
   hexDistance,
+  hexEq,
+  abilityTargetHexes,
+  classOf,
+  isPhysical,
+  powerStat,
 } from './index';
 import { ELEMENTS } from './data/familiars';
 import { MANA_START } from './data/tuning';
 
 // ---------- helpers ----------
+
+/** Whether `u` could use its Ability on `t` from where it stands. */
+const canHit = (s: MatchState, u: Unit, t: { pos: { q: number; r: number } }) => abilityTargetHexes(s, u, u.pos).some((h) => hexEq(h, t.pos));
 
 /** Build a small rectangular axial map. `cells(q, r)` may override hexes. */
 function testMap(w: number, h: number, cells: (q: number, r: number) => Partial<MapHex> = () => ({}), waterLevel = 0): MapDef {
@@ -81,14 +89,14 @@ describe('facing bonus', () => {
 describe('turn delay', () => {
   const k = (spd: number) => ({ ...kindOf('regent'), stats: { ...kindOf('regent').stats, spd } });
   it('matches the designer anchors', () => {
-    expect(turnDelay(k(13), false, false)).toBe(25);
-    expect(turnDelay(k(13), false, true)).toBe(37);
-    expect(turnDelay(k(13), true, true)).toBe(50);
-    expect(turnDelay(k(20), false, false)).toBe(16);
-    expect(turnDelay(k(20), true, true)).toBe(32);
-    expect(turnDelay(k(10), true, true)).toBe(60);
-    expect(turnDelay(k(7), false, false)).toBe(36);
-    expect(turnDelay(k(7), true, true)).toBe(72);
+    expect(turnDelay(k(7), false, false)).toBe(25);
+    expect(turnDelay(k(7), false, true)).toBe(37);
+    expect(turnDelay(k(7), true, true)).toBe(50);
+    expect(turnDelay(k(14), false, false)).toBe(16);
+    expect(turnDelay(k(14), true, true)).toBe(32);
+    expect(turnDelay(k(4), true, true)).toBe(60);
+    expect(turnDelay(k(1), false, false)).toBe(36);
+    expect(turnDelay(k(1), true, true)).toBe(72);
   });
 });
 
@@ -115,24 +123,37 @@ describe('roster', () => {
     }
   });
 
-  it('gives a Magic Ability to at least 4 familiars of each Element, none to ranged attackers, and MP 0 to the rest', () => {
-    for (const e of ELEMENTS) expect(FAMILIARS.filter((k) => k.element === e && k.magic.length === 1).length, e).toBeGreaterThanOrEqual(4);
-    for (const k of FAMILIARS) if (k.attack.range > 1) expect(k.magic, k.id).toEqual([]);
-    for (const k of FAMILIARS) if (!k.magic.length) expect(k.stats.mp, k.id).toBe(0);
+  it('gives every Familiar one Ability and only the stat it uses (ATK or MP), and every Element several non-Fighters', () => {
+    for (const k of FAMILIARS) {
+      expect(k.ability, k.id).toBeDefined();
+      const unused = powerStat(k) === 'atk' ? 'mp' : 'atk';
+      expect(k.stats[unused], k.id).toBe(0);
+    }
+    for (const e of ELEMENTS) expect(FAMILIARS.filter((k) => k.element === e && classOf(k) !== 'fighter').length, e).toBeGreaterThanOrEqual(4);
   });
 
-  it('uses short names, max-only ranges, and Familiar Magic costs of 4–16', () => {
+  it('works out each Familiar\'s Class and button from its Ability, and warns about an unused ATK or MP', async () => {
+    const { abilityLabel, kindWarnings, FAMILIARS: roster } = await import('./index');
+    const cls = (id: string) => classOf(kindOf(id));
+    expect(cls('minotaur')).toBe('fighter'); // Strike
+    expect(cls('kraken')).toBe('fighter'); // kept its Attack (ATK 13 > MP 12)
+    expect(cls('pyromancer')).toBe('caster'); // Fireball
+    expect(cls('angel')).toBe('healer');
+    expect(cls('wisp')).toBe('support'); // Empower
+    expect(abilityLabel(kindOf('angel').ability)).toBe('heal');
+    expect(abilityLabel({ ...kindOf('wisp').ability, label: 'debuff' })).toBe('debuff');
+    expect(classOf({ ...kindOf('pyromancer'), ability: { ...kindOf('pyromancer').ability, label: 'debuff' } })).toBe('support');
+    const both = { ...kindOf('minotaur'), stats: { ...kindOf('minotaur').stats, mp: 4 } };
+    expect(kindWarnings(both, roster).join()).toMatch(/MP 4 does nothing/);
+  });
+
+  it('uses short names, max-only ranges, and Abilities that cost no Mana', () => {
     for (const k of FAMILIARS) {
       expect(k.name.length).toBeLessThanOrEqual(6);
-      expect(k.attack).toEqual(k.attack.range > 1 ? { range: k.attack.range, trajectory: k.attack.trajectory } : { range: k.attack.range });
-      if (k.attack.range > 1) expect(['high', 'direct']).toContain(k.attack.trajectory);
-      expect(k.magic.length).toBeLessThanOrEqual(1);
-      const m = k.magic[0];
-      if (!m) continue;
-      expect(m.manaCost).toBeGreaterThanOrEqual(4);
-      expect(m.manaCost).toBeLessThanOrEqual(16);
-      expect(m).not.toHaveProperty('minRange');
-      expect(m).not.toHaveProperty('power');
+      const a = k.ability;
+      expect(a).not.toHaveProperty('manaCost');
+      expect(a).not.toHaveProperty('minRange');
+      if (a.kind !== 'water' && a.range > 1) expect(['high', 'direct']).toContain(a.trajectory);
     }
   });
 
@@ -216,8 +237,9 @@ describe('damage', () => {
     const drake = place(state, 'drake', 0, 1, 1); // fire
     const sylph = place(state, 'sylph', 1, 2, 1, 3); // Air Master, faces W (Fire counters Air)
     sylph.hp = 3;
-    const e = computeDamage(state, drake, drake.pos, sylph, 'physical');
-    const full = dmg(st('drake').atk, st('sylph').def, 4);
+    // Pyrex is a Caster: MP against MDF
+    const e = computeDamage(state, drake, drake.pos, sylph, 'magic');
+    const full = dmg(st('drake').mp, st('sylph').mdf, 4);
     expect(full).toBeGreaterThan(3);
     expect(e.amount).toBe(full); // not capped at the 3 HP left
     expect(e.lethal).toBe(true);
@@ -385,18 +407,18 @@ describe('match flow', () => {
   });
 
   it('strands units after Rise, dealing 1 damage and forcing Wait', () => {
-    onTestFinished(withSpells());
+    onTestFinished(withAbility(['regent'], 'rise'));
     // water level 2 over height-1 ground: everything is Shallow (Masters wade);
     // Rise makes it Deep, which strands them.
     const s = createMatch(testMap(6, 6, () => ({ height: 1 }), 2));
     const me = getUnit(s, s.activeUnitId!);
-    const r = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'magic', ability: 'rise', target: me.pos } });
+    const r = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: me.pos } });
     expect(r.state.waterLevel).toBe(3);
     const st = r.state;
     const active = getUnit(st, st.activeUnitId!);
     expect(active.stranded).toBe(true);
     expect(active.hp).toBe(9);
-    expect(validateTurn(st, { unitId: active.id, to: active.pos, facing: 0, command: { type: 'magic', ability: 'bolt', target: me.pos } })).toMatch(/stranded/);
+    expect(validateTurn(st, { unitId: active.id, to: active.pos, facing: 0, command: { type: 'act', target: me.pos } })).toMatch(/stranded/);
     // no further Rise beyond +1
     expect(st.maxWaterLevel).toBe(3);
   });
@@ -418,7 +440,7 @@ describe('match flow', () => {
     const foe = s.units.find((u) => u.side === 1)!;
     foe.pos = hex(1, 3);
     foe.hp = 1;
-    const r = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'attack', target: foe.pos } });
+    const r = applyTurn(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: foe.pos } });
     expect(r.state.winner).toBe(0);
   });
 
@@ -445,8 +467,7 @@ describe('match flow', () => {
 
 describe('facing toward target and reach', () => {
   it('turns attackers toward their target; ties go to the preferred facing', async () => {
-    onTestFinished(withSpells());
-    const { facingTowardTarget, planAttack, planMagic, unitReach } = await import('./index');
+    const { facingTowardTarget, planAct, unitReach } = await import('./index');
     expect(facingTowardTarget(hex(0, 0), hex(3, 0), 4)).toBe(0);
     // (1,-2) is exactly between NE (1) and NW (2)
     expect(facingTowardTarget(hex(0, 0), hex(1, -2), 2)).toBe(2);
@@ -457,21 +478,29 @@ describe('facing toward target and reach', () => {
     const foe = s.units.find((u) => u.side === 1)!;
     foe.pos = hex(2, 6);
     foe.facing = 0; // faces E: hitting from W (behind) is best
-    const r = applyTurn(s, { unitId: me.id, to: hex(1, 6), facing: 3, command: { type: 'attack', target: foe.pos } });
+    const r = applyTurn(s, { unitId: me.id, to: hex(1, 6), facing: 3, command: { type: 'act', target: foe.pos } });
     expect(getUnit(r.state, me.id).facing).toBe(0);
 
-    const plan = planAttack(s, me, foe)!;
-    expect(facingBonus(foe.pos, foe.facing, plan.dest)).toBe(2); // behind the foe (the Back band, 120° or more)
+    // the Regent's Strike: from behind the foe
+    const plan = planAct(s, me, foe)!;
+    expect(facingBonus(foe.pos, foe.facing, plan.dest)).toBe(2); // behind the foe (the Back band)
     expect(plan.sources.length).toBeGreaterThan(1);
-    const mplan = planMagic(s, me, foe)!; // Bolt 1–3
-    const fm = (h: { q: number; r: number }) => facingBonus(foe.pos, foe.facing, h);
-    const bestF = Math.max(...mplan.sources.map(fm));
-    expect(fm(mplan.dest)).toBe(bestF);
-    const farthest = Math.max(...mplan.sources.filter((h) => fm(h) === bestF).map((h) => hexDistance(h, foe.pos)));
-    expect(hexDistance(mplan.dest, foe.pos)).toBe(farthest);
-    const reach = unitReach(s, me);
-    expect(reach.move.has(hexKey(hex(1, 6)))).toBe(true);
-    expect(reach.magic.size).toBeGreaterThan(reach.attack.size);
+    const strikeReach = unitReach(s, me).act.size;
+    // with Bolt (range 3): best Facing, then the farthest
+    const restore = withAbility(['regent'], 'bolt');
+    try {
+      const mplan = planAct(s, me, foe)!;
+      const fm = (h: { q: number; r: number }) => facingBonus(foe.pos, foe.facing, h);
+      const bestF = Math.max(...mplan.sources.map(fm));
+      expect(fm(mplan.dest)).toBe(bestF);
+      const farthest = Math.max(...mplan.sources.filter((h) => fm(h) === bestF).map((h) => hexDistance(h, foe.pos)));
+      expect(hexDistance(mplan.dest, foe.pos)).toBe(farthest);
+      const reach = unitReach(s, me);
+      expect(reach.move.has(hexKey(hex(1, 6)))).toBe(true);
+      expect(reach.act.size).toBeGreaterThan(strikeReach);
+    } finally {
+      restore();
+    }
   });
 
   it('never uses Slow without Swim; walkers have Move ≥ 4', () => {
@@ -485,29 +514,21 @@ describe('facing toward target and reach', () => {
 
 describe('targeting without minimum range', () => {
   it('lets ranged attackers hit adjacent enemies; damage never aims at own hex; heals may include self', async () => {
-    const { attackTargets, magicTargetHexes } = await import('./index');
     const s = createMatch(testMap(6, 6));
     const archer = place(s, 'archer', 0, 2, 2);
-    place(s, 'imp', 1, 3, 2);
-    expect(attackTargets(s, archer, archer.pos).map((u) => ('kind' in u ? u.kind : 'obstacle'))).toContain('imp');
+    const adjacent = place(s, 'imp', 1, 3, 2);
+    expect(canHit(s, archer, adjacent)).toBe(true);
     // Dryad's Boulder is radius 1: even with an enemy adjacent, it may not be aimed at the caster's hex
     const dryad = place(s, 'dryad', 0, 2, 4);
     place(s, 'imp', 1, 3, 4);
-    const ab = kindOf('dryad').magic[0];
-    if (ab.kind === 'water') throw new Error('unexpected');
-    expect(magicTargetHexes(s, dryad, ab, dryad.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
-    // a Burst is aimed at the caster's own hex, and only there
-    // (Pyrex has a Burst)
-    const newt = place(s, 'drake', 0, 4, 4);
+    expect(abilityTargetHexes(s, dryad, dryad.pos).some((h) => h.q === 2 && h.r === 4)).toBe(false);
+    // a Burst is aimed at the caster's own hex, and only there (Pyrex has a Burst)
+    const drake = place(s, 'drake', 0, 4, 4);
     place(s, 'imp', 1, 5, 4);
-    const burst = kindOf('drake').magic[0];
-    if (burst.kind === 'water') throw new Error('unexpected');
-    expect(magicTargetHexes(s, newt, burst, newt.pos)).toEqual([newt.pos]);
+    expect(abilityTargetHexes(s, drake, drake.pos)).toEqual([drake.pos]);
     const undine = place(s, 'undine', 0, 0, 2);
     undine.hp = 6;
-    const heal = kindOf('undine').magic[0];
-    if (heal.kind === 'water') throw new Error('unexpected');
-    expect(magicTargetHexes(s, undine, heal, undine.pos).some((h) => h.q === 0 && h.r === 2)).toBe(true);
+    expect(abilityTargetHexes(s, undine, undine.pos).some((h) => h.q === 0 && h.r === 2)).toBe(true);
   });
 });
 
@@ -552,7 +573,6 @@ describe('terrain blocks Direct shots', () => {
 
 describe('range-1 reach and Height', () => {
   it('a range-1 Attack reaches a neighbour at most 1 Height up or down; a ranged one ignores Height', async () => {
-    const { attackTargets } = await import('./index');
     // q = 0..3 at heights 3, 4, 6, 4
     const hs = [3, 4, 6, 4];
     const s = createMatch(testMap(4, 1, (q) => ({ height: hs[q] }), 0));
@@ -561,10 +581,10 @@ describe('range-1 reach and Height', () => {
     const imp = place(s, 'imp', 0, 1, 0); // range 1, height 4
     const low = place(s, 'imp', 1, 0, 0); // height 3: 1 below
     const high = place(s, 'imp', 1, 2, 0); // height 6: 2 above
-    const ids = (u: Unit) => attackTargets(s, u, u.pos).map((t) => t.id);
-    expect(ids(imp)).toEqual([low.id]);
-    const archer = place(s, 'archer', 0, 3, 0); // range 4, height 4, next to the high imp
-    expect(ids(archer)).toContain(high.id);
+    expect(canHit(s, imp, low)).toBe(true);
+    expect(canHit(s, imp, high)).toBe(false);
+    const archer = place(s, 'archer', 0, 3, 0); // Shot, range 4, height 4, next to the high imp
+    expect(canHit(s, archer, high)).toBe(true);
   });
 });
 
@@ -614,8 +634,8 @@ describe('stranded movement', () => {
     void foe;
     const nodes = reachable(s, shark);
     expect(nodes.get(hexKey(hex(3, 2)))?.canEnd).toBe(true);
-    expect(validateTurn(s, { unitId: shark.id, to: shark.pos, facing: 0, command: { type: 'attack', target: hex(3, 2) } })).toMatch(/only Wait/);
-    expect(validateTurn(s, { unitId: shark.id, to: hex(4, 2), facing: 0, command: { type: 'attack', target: hex(5, 2) } })).toBeNull();
+    expect(validateTurn(s, { unitId: shark.id, to: shark.pos, facing: 0, command: { type: 'act', target: hex(3, 2) } })).toMatch(/only Wait/);
+    expect(validateTurn(s, { unitId: shark.id, to: hex(4, 2), facing: 0, command: { type: 'act', target: hex(5, 2) } })).toBeNull();
     expect(validateTurn(s, { unitId: shark.id, to: shark.pos, facing: 0, command: { type: 'wait' } })).toBeNull();
   });
 
@@ -702,7 +722,7 @@ describe('obstacles', () => {
     const golem = place(s, 'golem', 0, 2, 1, 0, 0);
     s.obstacles[0].hp = 2;
     activate(s, golem);
-    const { state } = applyTurn(s, { unitId: golem.id, to: golem.pos, facing: 0, command: { type: 'attack', target: hex(3, 1) } });
+    const { state } = applyTurn(s, { unitId: golem.id, to: golem.pos, facing: 0, command: { type: 'act', target: hex(3, 1) } });
     expect(state.obstacles).toHaveLength(0);
     const g2 = getUnit(state, golem.id);
     expect(reachable(state, g2).has(hexKey(hex(3, 1)))).toBe(true);
@@ -711,23 +731,26 @@ describe('obstacles', () => {
 
 describe('trajectory and clear angle', () => {
   it('Direct shots are blocked by a unit or obstacle in between; High shots are not', async () => {
-    const { attackTargets, clearShot } = await import('./index');
+    const { clearShot } = await import('./index');
+    onTestFinished(withAbility(['sling'], 'shot-4'));
+    onTestFinished(withAbility(['archer'], 'lob-5'));
     const s = withLine();
-    const sling = place(s, 'sling', 0, 0, 1); // Direct, range 3
-    const archer = place(s, 'archer', 0, 0, 0); // High, range 3
+    const sling = place(s, 'sling', 0, 0, 1); // Shot: Direct, range 4
+    const archer = place(s, 'archer', 0, 0, 0); // Lob: High, range 5
     const foe = place(s, 'imp', 1, 3, 1);
     // nothing in between
     expect(clearShot(s, sling.id, sling.pos, foe.pos)).toBe(true);
+    expect(canHit(s, sling, foe)).toBe(true);
     // an Obstacle straight in the line of fire
     s.obstacles.push({ id: 900, pos: hex(1, 1), def: 4, hp: 10 });
-    expect(attackTargets(s, sling, sling.pos).some((t) => t.id === foe.id)).toBe(false);
-    // High arcs over it (archer at (0,0) to (3,0)... aim at foe through the obstacle row)
+    expect(canHit(s, sling, foe)).toBe(false);
+    // High arcs over it
     const foe2 = place(s, 'imp', 1, 2, 1);
-    expect(attackTargets(s, archer, archer.pos).some((t) => t.id === foe2.id)).toBe(true);
+    expect(canHit(s, archer, foe2)).toBe(true);
     // allies block Direct shots too
     s.obstacles = [];
     place(s, 'clod', 0, 1, 1);
-    expect(attackTargets(s, sling, sling.pos).some((t) => t.id === foe.id)).toBe(false);
+    expect(canHit(s, sling, foe)).toBe(false);
   });
 
   it('a body beside the line does not block when there is room to shoot past it', async () => {
@@ -751,16 +774,14 @@ describe('trajectory and clear angle', () => {
   });
 
   it('Direct Magic also needs a Clear Angle', async () => {
-    const { magicTargetHexes } = await import('./index');
     const s = withLine();
     const siren = place(s, 'siren', 0, 0, 1); // Water Jet: Direct, range 4
-    place(s, 'imp', 1, 3, 1);
-    const ab = kindOf('siren').magic[0];
-    if (ab.kind === 'water') throw new Error('unexpected');
-    expect(ab.trajectory).toBe('direct');
-    expect(magicTargetHexes(s, siren, ab, siren.pos).some((h) => h.q === 3 && h.r === 1)).toBe(true);
+    const foe = place(s, 'imp', 1, 3, 1);
+    const ab = kindOf('siren').ability;
+    expect(ab.kind !== 'water' && ab.trajectory).toBe('direct');
+    expect(canHit(s, siren, foe)).toBe(true);
     place(s, 'clod', 1, 2, 1);
-    expect(magicTargetHexes(s, siren, ab, siren.pos).some((h) => h.q === 3 && h.r === 1)).toBe(false);
+    expect(canHit(s, siren, foe)).toBe(false);
   });
 });
 
@@ -773,17 +794,18 @@ function withLine(): MatchState {
 // ---------- Masters and balance overrides ----------
 
 describe('masters', () => {
-  it('has thirty Masters with short names, all walk + wade with no Magic Abilities, each on the Stat Budget', async () => {
+  it('has thirty Masters with short names, all walk + wade with a physical Ability, each on the Stat Budget', async () => {
     const { MASTERS, kindWarnings, budgetError } = await import('./index');
+    const range = (k: (typeof MASTERS)[number]) => (k.ability.kind === 'water' ? 0 : k.ability.range);
     expect(MASTERS).toHaveLength(30);
     expect(new Set(MASTERS.map((k) => k.id)).size).toBe(30);
     for (const k of MASTERS) {
       expect(k.name.length).toBeLessThanOrEqual(7);
       expect(k.moveTypes).toEqual(['walk', 'wade']);
-      expect(k.magic).toEqual([]);
+      expect(isPhysical(k.ability), k.id).toBe(true);
       expect(kindWarnings(k, MASTERS)).toEqual([]);
       // within 0.6 MP of the Stat Budget (the designer's hand-tuned spreads reach 0.55: Savage)
-      expect(Math.abs(budgetError(k.stats, k.attack.range)), k.id).toBeLessThanOrEqual(0.6);
+      expect(Math.abs(budgetError(k.stats, range(k))), k.id).toBeLessThanOrEqual(0.6);
     }
     expect(new Set(MASTERS.map((k) => k.element).filter(Boolean)).size).toBe(4);
     expect(MASTERS.filter((k) => k.element).length).toBe(4);
@@ -792,10 +814,10 @@ describe('masters', () => {
     // MDF floor: none below 2, at most one below 3
     expect(Math.min(...MASTERS.map((k) => k.stats.mdf))).toBeGreaterThanOrEqual(2);
     expect(MASTERS.filter((k) => k.stats.mdf < 3).length).toBeLessThanOrEqual(1);
-    const ranged = MASTERS.filter((k) => k.attack.range > 1);
-    expect(ranged.map((k) => k.attack.range).sort()).toEqual([3, 4, 4, 5, 6]);
+    const ranged = MASTERS.filter((k) => range(k) > 1);
+    expect(ranged.map(range).sort()).toEqual([3, 4, 4, 5, 6]);
     // range 4 or less is always Direct; longer may be either (the Savage shoots Direct at 5)
-    for (const k of ranged.filter((k) => k.attack.range <= 4)) expect(k.attack.trajectory, k.id).toBe('direct');
+    for (const k of ranged.filter((k) => range(k) <= 4)) expect(k.ability.kind !== 'water' && k.ability.trajectory, k.id).toBe('direct');
   });
 
   it('lets each Side start with its chosen Master', () => {
@@ -804,12 +826,12 @@ describe('masters', () => {
   });
 
   it('applies local overrides to the live roster and can reset them', async () => {
-    const { setLocalOverrides, kindOf: k, FAMILIARS: roster, shippedKind } = await import('./index');
+    const { setLocalBalance, kindOf: k, FAMILIARS: roster, shippedKind } = await import('./index');
     const shipped = shippedKind('imp').stats.atk;
-    setLocalOverrides({ imp: { stats: { ...k('imp').stats, atk: 20 } } });
+    setLocalBalance({ kinds: { imp: { stats: { ...k('imp').stats, atk: 20 } } }, abilities: {} });
     expect(k('imp').stats.atk).toBe(20);
     expect(roster.find((x) => x.id === 'imp')!.stats.atk).toBe(20);
-    setLocalOverrides({});
+    setLocalBalance({ kinds: {}, abilities: {} });
     expect(k('imp').stats.atk).toBe(shipped);
   });
 
@@ -879,8 +901,8 @@ describe('Burst and area Magic', () => {
     const before = getLocalBalance();
     try {
       setLocalBalance({
-        kinds: { golem: { magicIds: ['test-burst'], stats: { ...kindOf('golem').stats, mp: 20 } } },
-        abilities: { 'test-burst': { id: 'test-burst', name: 'Test Burst', kind: 'damage', range: 0, radius: 2, manaCost: 4, burst: true } },
+        kinds: { golem: { abilityId: 'test-burst', stats: { ...kindOf('golem').stats, mp: 20 } } },
+        abilities: { 'test-burst': { id: 'test-burst', name: 'Test Burst', kind: 'damage', power: 'mp', range: 0, radius: 2, burst: true } },
       });
       const state = createMatch(testMap(8, 8));
       state.units = state.units.filter((u) => kindOf(u.kind).isMaster);
@@ -891,7 +913,7 @@ describe('Burst and area Magic', () => {
       const far = place(state, 'imp', 1, 6, 3); // 3 away
       state.sides[0].mana = 50;
       activate(state, caster);
-      const action = { unitId: caster.id, to: caster.pos, facing: 0 as const, command: { type: 'magic' as const, ability: 'test-burst', target: caster.pos } };
+      const action = { unitId: caster.id, to: caster.pos, facing: 0 as const, command: { type: 'act' as const, target: caster.pos } };
       expect(validateTurn(state, action)).toBeNull();
       const { state: after } = applyTurn(state, action);
       const hp = (id: number) => after.units.find((u) => u.id === id)?.hp ?? 0;
@@ -906,7 +928,7 @@ describe('Burst and area Magic', () => {
 
   it('a High area spell splashes with Facing measured from the hex it landed on', async () => {
     const { magicHitOrigin } = await import('./index');
-    const lob = { id: 'lob', name: 'Lob', kind: 'damage', range: 4, radius: 1, manaCost: 6, trajectory: 'high' } as const;
+    const lob = { id: 'lob', name: 'Lob', kind: 'damage', range: 4, radius: 1, trajectory: 'high' } as const;
     const direct = { ...lob, trajectory: 'direct' } as const;
     const caster = hex(0, 0);
     const aim = hex(3, 0);
@@ -940,7 +962,7 @@ describe('random Loadouts', () => {
 });
 
 describe('Empower', () => {
-  it("adds +3 ATK to a friendly unit (or the caster) until its next Attack, which uses it up", () => {
+  it("adds +3 ATK to a friendly unit (or the caster) until its next physical hit, which uses it up; free", () => {
     const state = createMatch(testMap(8, 8));
     state.clock = 18 * 60;
     state.units = state.units.filter((u) => kindOf(u.kind).isMaster);
@@ -948,29 +970,29 @@ describe('Empower', () => {
     const kindle = place(state, 'wisp', 0, 3, 3);
     const ally = place(state, 'hound', 0, 4, 3);
     const foe = place(state, 'clod', 1, 5, 3, 3);
-    expect(kindOf('wisp').magic.map((m) => m.id)).toEqual(['empower']);
+    expect(kindOf('wisp').ability.id).toBe('empower');
     state.sides[0].mana = 50;
     activate(state, kindle);
     // an enemy can't be Empowered
-    expect(validateTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'magic', ability: 'empower', target: hex(5, 3) } })).not.toBeNull();
+    expect(validateTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'act', target: hex(5, 3) } })).not.toBeNull();
     const before = computeDamage(state, ally, ally.pos, foe, 'physical').amount;
-    const r = applyTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'magic', ability: 'empower', target: ally.pos } });
+    const r = applyTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'act', target: ally.pos } });
     expect(r.events.some((e) => e.type === 'empower' && e.unitId === ally.id && e.amount === 3)).toBe(true);
-    expect(r.state.sides[0].mana).toBe(46);
+    expect(r.state.sides[0].mana).toBe(50); // free
     const s2 = r.state;
     const a2 = getUnit(s2, ally.id);
     expect(a2.empowered).toBe(3);
     expect(computeDamage(s2, a2, a2.pos, getUnit(s2, foe.id), 'physical').amount).toBe(before + 3);
-    // Magic doesn't use it up; an Attack does
+    // a physical hit uses it up
     activate(s2, a2);
-    const r2 = applyTurn(s2, { unitId: a2.id, to: a2.pos, facing: 0, command: { type: 'attack', target: hex(5, 3) } });
+    const r2 = applyTurn(s2, { unitId: a2.id, to: a2.pos, facing: 0, command: { type: 'act', target: hex(5, 3) } });
     expect(r2.events.find((e) => e.type === 'damage')).toMatchObject({ amount: before + 3 });
     expect(getUnit(r2.state, ally.id).empowered).toBeUndefined();
     // the caster may Empower itself; a second Empower doesn't stack
     const s3 = r2.state;
     activate(s3, getUnit(s3, kindle.id));
     s3.sides[0].mana = 50;
-    const self = { unitId: kindle.id, to: getUnit(s3, kindle.id).pos, facing: 0 as const, command: { type: 'magic' as const, ability: 'empower', target: getUnit(s3, kindle.id).pos } };
+    const self = { unitId: kindle.id, to: getUnit(s3, kindle.id).pos, facing: 0 as const, command: { type: 'act' as const, target: getUnit(s3, kindle.id).pos } };
     expect(validateTurn(s3, self)).toBeNull();
     const r3 = applyTurn(s3, self);
     expect(getUnit(r3.state, kindle.id).empowered).toBe(3);

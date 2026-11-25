@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, isObstacle, hexDistance, kindOf, trajectoryOf, primaryMagic, meleeReach } from '../rules';
+import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, hexDistance, kindOf, trajectoryOf, targetedAbility, meleeReach, abilityDisplayName, isPhysical } from '../rules';
 import { blockedShot, hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
@@ -9,6 +9,7 @@ import { animElapsed, type Impact } from '../anim';
 /** How long a Damage Number stays up after impact (fade in, hold, fade out). */
 const POP_MS = 800;
 import { FamiliarDetail } from './FamiliarCard';
+import { ClassIcon } from './icons';
 
 /** DOM layer over the canvas; children with data-anchor follow 3D anchors. */
 export function Overlay() {
@@ -21,7 +22,6 @@ export function Overlay() {
   const hpShown = (hp: number) => hpBars === 'always' || hp < MAX_HP;
   const rightClick = useGame((s) => s.rightClick);
   const hoverUnitId = useGame((s) => s.hoverUnitId);
-  const choose = useGame((s) => s.choose);
   const hoverSummon = useGame((s) => s.hoverSummon);
   const anim = useGame((s) => s.anim);
   // HP shown from each impact on, until the turn's result replaces the state
@@ -112,32 +112,12 @@ export function Overlay() {
   const tags: Tag[] = [];
   const quick = hoverQuick({ match, phase, hoverHex, hoverUnitId });
   if (u && quick) {
-    const { attack, magic } = quick.plans;
-    if (attack) {
-      const e = previewEffects(match, { unitId: u.id, to: attack.dest, facing: u.facing, command: { type: 'attack', target: quick.target.pos } });
-      for (const ef of e) if (ef.unitId === quick.target.id) tags.push({ unit: quick.target, effect: ef, label: 'Attack' });
-    }
-    if (magic) {
-      const e = previewEffects(match, {
-        unitId: u.id,
-        to: magic.dest,
-        facing: u.facing,
-        command: { type: 'magic', ability: magic.ability.id, target: quick.target.pos },
-      });
-      for (const ef of e)
-        tags.push({
-          unit: targetById(match, ef.unitId)!,
-          effect: ef,
-          label: magic.ability.name,
-          note: magic.affordable ? undefined : `needs ${magic.ability.manaCost}◆`,
-        });
-    }
+    const { plan } = quick;
+    const e = previewEffects(match, { unitId: u.id, to: plan.dest, facing: u.facing, command: { type: 'act', target: plan.aim } });
+    for (const ef of e) tags.push({ unit: targetById(match, ef.unitId)!, effect: ef, label: abilityDisplayName(kindOf(u.kind)) });
   }
   if (u && phase.kind === 'target' && hoverHex) {
-    const command: Command =
-      phase.command === 'attack'
-        ? { type: 'attack', target: hoverHex }
-        : { type: 'magic', ability: phase.command.magic, target: hoverHex };
+    const command: Command = { type: 'act', target: hoverHex };
     const effects = previewEffects(match, { unitId: u.id, to: phase.to, facing: phase.facing, command });
     for (const e of effects) {
       const t = targetById(match, e.unitId);
@@ -147,7 +127,7 @@ export function Overlay() {
     const t = targetAt(match, hoverHex);
     if (!effects.length && t && t.id !== u.id) {
       const k = kindOf(u.kind);
-      const ab = phase.command === 'attack' ? k.attack : k.magic.find((m) => m.id === (phase.command as { magic: string }).magic);
+      const ab = k.ability;
       if (ab && 'range' in ab && trajectoryOf(ab) === 'direct' && hexDistance(phase.to, hoverHex) <= ab.range) {
         tags.push({ unit: t, note: 'No clear shot' });
       } else if (ab && 'range' in ab && trajectoryOf(ab) === null && hexDistance(phase.to, hoverHex) === 1 && !meleeReach(match, phase.to, hoverHex)) {
@@ -158,9 +138,9 @@ export function Overlay() {
   // quick-action hover on a target that only a blocked Direct shot could reach
   if (u && !quick && phase.kind === 'move' && phase.selected) {
     const t = (hoverUnitId !== null ? targetById(match, hoverUnitId) : undefined) ?? (hoverHex ? targetAt(match, hoverHex) : undefined);
-    if (t && t.id !== u.id && (isObstacle(t) || t.side !== u.side || primaryMagic(u)?.kind === 'heal' || primaryMagic(u)?.kind === 'empower') && blockedShot(match, u, t)) {
+    if (t && t.id !== u.id && blockedShot(match, u, t)) {
       // a range-1 user is stopped by Height, a ranged one by a blocked Direct shot
-      const melee = isObstacle(t) || t.side !== u.side ? kindOf(u.kind).attack.range <= 1 : (primaryMagic(u)?.range ?? 2) <= 1;
+      const melee = (targetedAbility(u)?.range ?? 2) <= 1;
       tags.push({ unit: t, note: melee ? 'Too high or low' : 'No clear shot' });
     }
   }
@@ -212,38 +192,16 @@ export function Overlay() {
           </div>
         </div>
       ))}
-      {quick?.plans.attack && (
+      {quick && u && (
         <div className="anchor" data-anchor="ghost:A">
-          <div className="ghost-badge a">A</div>
-        </div>
-      )}
-      {quick?.plans.magic && (
-        <div className="anchor" data-anchor="ghost:M">
-          <div className="ghost-badge m">M</div>
+          <div className={`ghost-badge ${isPhysical(kindOf(u.kind).ability) ? 'a' : 'm'}`}>
+            <ClassIcon kind={kindOf(u.kind)} size={12} />
+          </div>
         </div>
       )}
       {phase.kind === 'menu' && phase.sub === 'summon' && hoverSummon && u && (
         <div className="summon-card-float">
           <FamiliarDetail kindId={hoverSummon} side={u.side} />
-        </div>
-      )}
-      {phase.kind === 'quickChoice' && (
-        <div
-          className="anchor top interactive"
-          data-anchor={`unit:${phase.targetId}`}
-          data-clamp=""
-          onContextMenu={(e) => {
-            e.preventDefault();
-            rightClick();
-          }}
-        >
-          <div className="window command-menu quick-menu" onPointerDown={(e) => e.stopPropagation()}>
-            <button onClick={() => choose('attack')}>Attack</button>
-            <button onClick={() => choose('magic')}>
-              {phase.magic.ability.name} <span className="cost">{phase.magic.ability.manaCost}◆</span>
-            </button>
-            <div className="hint">Right-click: back</div>
-          </div>
         </div>
       )}
       {phase.kind === 'menu' && (

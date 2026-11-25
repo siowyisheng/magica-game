@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import {
+  abilityDisplayName,
   activeUnit,
+  classOf,
+  CLASS_NAME,
   alignmentBonus,
   coverAt,
   dayOf,
@@ -20,8 +23,8 @@ import {
 import { type HpBarsMode, useGame } from '../store';
 import { makePlan } from '../ai/plan';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
-import { AlignmentIcon, ElementIcon, Icon } from './icons';
-import { StatGrid, magicText } from './Stats';
+import { AlignmentIcon, ClassIcon, ElementIcon, Icon } from './icons';
+import { StatGrid, abilityText, hiddenStat } from './Stats';
 import { useAudio } from '../audio';
 import { listMaps } from '../maps/library';
 import { fromMapDef, useEditor } from '../editor/editorStore';
@@ -186,14 +189,16 @@ function UnitCard({ unitId }: { unitId: number }) {
           <div className="muted">Move Type: {k.moveTypes.join(' + ')}</div>
         </div>
       </div>
-      <StatGrid stats={k.stats} align={align} atkBonus={u.empowered ?? 0} />
-      {!!u.empowered && <div className="good small">Empowered: +{u.empowered} ATK until its next Attack</div>}
-      <div className="muted small">Attack: range {k.attack.range}</div>
-      {k.magic.map((m) => (
-        <div key={m.id} className="muted small">
-          {m.name} ({m.manaCost}◆): {magicText(m)}
-        </div>
-      ))}
+      <StatGrid stats={k.stats} align={align} atkBonus={u.empowered ?? 0} hide={hiddenStat(k)} />
+      {!!u.empowered && <div className="good small">Empowered: +{u.empowered} ATK until its next physical hit</div>}
+      <div className="muted small">
+        {!k.isMaster && (
+          <>
+            <ClassIcon kind={k} size={12} /> {CLASS_NAME[classOf(k)]} ·{' '}
+          </>
+        )}
+        {abilityDisplayName(k)}: {abilityText(k.ability)}
+      </div>
       {!k.isMaster && <div className="muted small">Cost {k.cost}◆ · Upkeep {k.cost / 8}</div>}
     </div>
   );

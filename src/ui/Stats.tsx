@@ -1,4 +1,4 @@
-import type { Stats } from '../rules';
+import { powerStat, type Ability, type Stats, type UnitKind } from '../rules';
 import { Icon } from './icons';
 
 const ORDER: { key: keyof Stats; icon: 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'mov'; aligned: boolean }[] = [
@@ -10,11 +10,14 @@ const ORDER: { key: keyof Stats; icon: 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'm
   { key: 'mov', icon: 'mov', aligned: false },
 ];
 
-/** The six basic stats with their icons; ATK/DEF/MP/MDF show the current Alignment adjustment. */
-export function StatGrid({ stats, align = 0, size = 14, atkBonus = 0 }: { stats: Stats; align?: number; size?: number; atkBonus?: number }) {
+/**
+ * The basic stats with their icons; ATK/DEF/MP/MDF show the current Alignment
+ * adjustment. `hide` leaves one out (a Familiar's unused ATK or MP).
+ */
+export function StatGrid({ stats, align = 0, size = 14, atkBonus = 0, hide }: { stats: Stats; align?: number; size?: number; atkBonus?: number; hide?: keyof Stats }) {
   return (
     <div className="stat-grid">
-      {ORDER.map(({ key, icon, aligned }) => {
+      {ORDER.filter(({ key }) => key !== hide).map(({ key, icon, aligned }) => {
         const v = stats[key];
         const bonus = key === 'atk' ? atkBonus : 0;
         const shown = (aligned ? v + align : v) + bonus;
@@ -31,12 +34,19 @@ export function StatGrid({ stats, align = 0, size = 14, atkBonus = 0 }: { stats:
   );
 }
 
-import type { MagicAbility } from '../rules';
 
-/** Short rules text for a Magic Ability (no minimum range, no power). */
-export function magicText(m: MagicAbility): string {
+/** The stat a Familiar's grid leaves out: the one its Ability doesn't use (Masters show both: MP sets Mana Income). */
+export function hiddenStat(k: UnitKind): keyof Stats | undefined {
+  if (k.isMaster) return undefined;
+  return powerStat(k) === 'atk' ? 'mp' : 'atk';
+}
+
+/** Short rules text for an Ability (no power: that comes from the user's ATK or MP). */
+export function abilityText(m: Ability): string {
   if (m.kind === 'water') return `${m.delta > 0 ? 'raise' : 'lower'} the Water Level`;
-  if (m.kind === 'damage' && m.burst) return `Burst: hits everything within ${m.radius} (allies too)`;
-  if (m.kind === 'empower') return `+${m.amount ?? 3} ATK to an ally or itself until its next Attack, range ${m.range}`;
-  return `${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}`;
+  if (m.kind === 'damage' && m.burst) return `${m.power === 'atk' ? 'physical ' : ''}Burst: hits everything within ${m.radius} (allies too)`;
+  const traj = m.range > 1 ? ` · ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : '';
+  if (m.kind === 'empower') return `+${m.amount ?? 3} ATK to an ally or itself until its next physical hit, range ${m.range}`;
+  const what = m.kind === 'heal' ? 'heal' : m.power === 'atk' ? 'physical damage' : 'magic damage';
+  return `${what}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${traj}`;
 }

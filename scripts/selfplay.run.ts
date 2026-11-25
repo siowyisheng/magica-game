@@ -152,16 +152,13 @@ it('self-play', () => {
           S.waits++;
           if (!moved) S.idleWaits++;
           break;
-        case 'attack':
-          S.attacks++;
-          if (isMaster) S.masterActedOffensively++;
-          break;
-        case 'magic': {
-          const ab = kindOf(me.kind).magic.find((m) => m.id === (a.command as { ability: string }).ability)!;
+        case 'act': {
+          const ab = kindOf(me.kind).ability;
+          // physical hits count as attacks, everything else as magic; Abilities cost no Mana
           if (ab.kind === 'water') S.waterSpells++;
+          else if (ab.kind === 'damage' && ab.power === 'atk') S.attacks++;
           else S.magics++;
           if (isMaster && ab.kind === 'damage') S.masterActedOffensively++;
-          S.manaSpentMagic += ab.manaCost;
           break;
         }
         case 'summon': {

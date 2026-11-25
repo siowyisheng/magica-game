@@ -1,4 +1,4 @@
-import { withSpells } from './testing/spells';
+import { withAbility } from './testing/spells';
 import { onTestFinished, describe, expect, it } from 'vitest';
 import { planTurnAnim } from './anim';
 import { createMatch, getUnit, hex, type MapDef, type MapHex } from './rules';
@@ -15,19 +15,19 @@ describe('turn animation plan', () => {
     const me = getUnit(s, s.activeUnitId!); // (0,5)
     const foe = s.units.find((u) => u.side === 1)!;
     foe.pos = hex(3, 5);
-    const a = planTurnAnim(s, { unitId: me.id, to: hex(2, 5), facing: 0, command: { type: 'attack', target: hex(3, 5) } }, 0);
+    const a = planTurnAnim(s, { unitId: me.id, to: hex(2, 5), facing: 0, command: { type: 'act', target: hex(3, 5) } }, 0);
     expect(a.steps.map((x) => x.kind)).toEqual(['move', 'melee', 'hit']);
     const mv = a.steps[0];
     expect(mv.kind === 'move' && mv.path).toEqual([hex(0, 5), hex(1, 5), hex(2, 5)]);
   });
 
-  it('fires a projectile for ranged attacks and magic; skips the move when already previewed', () => {
-    onTestFinished(withSpells());
+  it('fires a projectile for ranged magic; skips the move when already previewed', () => {
+    onTestFinished(withAbility(['regent'], 'bolt'));
     const s = createMatch(flatMap(8, 8));
     const me = getUnit(s, s.activeUnitId!); // (0,7)
     const foe = s.units.find((u) => u.side === 1)!;
     foe.pos = hex(3, 6);
-    const a = planTurnAnim(s, { unitId: me.id, to: hex(1, 7), facing: 0, command: { type: 'magic', ability: 'bolt', target: hex(3, 6) } }, 0, true);
+    const a = planTurnAnim(s, { unitId: me.id, to: hex(1, 7), facing: 0, command: { type: 'act', target: hex(3, 6) } }, 0, true);
     expect(a.steps.map((x) => x.kind)).toEqual(['projectile', 'hit']);
     const p = a.steps[0];
     expect(p.kind === 'projectile' && p.style).toBe('orb');
@@ -92,7 +92,7 @@ describe('impacts', () => {
     const me = getUnit(s, s.activeUnitId!);
     const foe = s.units.find((u) => u.side === 1)!;
     foe.pos = hex(2, 4);
-    const action = { unitId: me.id, to: hex(1, 4), facing: 0 as const, command: { type: 'attack' as const, target: hex(2, 4) } };
+    const action = { unitId: me.id, to: hex(1, 4), facing: 0 as const, command: { type: 'act' as const, target: hex(2, 4) } };
     const a = planTurnAnim(s, action, 0);
     const cap = a.steps.find((x) => x.kind === 'capture')!;
     expect(a.impacts).toHaveLength(1);
@@ -122,7 +122,7 @@ describe('Empower animation', () => {
     const me = getUnit(s, s.activeUnitId!);
     s.units = s.units.map((u) => (u.id === me.id ? { ...u, kind: 'wisp' } : u));
     s.sides[me.side].mana = 50;
-    const a = planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'magic', ability: 'empower', target: me.pos } }, 0, true);
+    const a = planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: me.pos } }, 0, true);
     expect(a.steps.map((x) => x.kind)).toEqual(['empower']);
     expect(a.impacts).toEqual([{ unitId: me.id, t: EMPOWER_MS * EMPOWER_PEAK, kind: 'empower', amount: 3, hpAfter: me.hp, lethal: false }]);
   });

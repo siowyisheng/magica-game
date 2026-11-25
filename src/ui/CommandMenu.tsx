@@ -1,13 +1,14 @@
 import {
+  abilityDisplayName,
+  abilityLabel,
+  abilityTargetHexes,
   activeUnit,
-  attackTargets,
   canCastWater,
   canStandOn,
   DIRS,
   ELEMENTS,
-  getUnit,
   kindOf,
-  magicTargetHexes,
+  LABEL_TEXT,
   mapHexAt,
   neighbor,
   inRoster,
@@ -19,6 +20,7 @@ import {
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
+import { ClassIcon } from './icons';
 
 function canSummonAny(match: MatchState, unitId: number, to: Hex, sk: UnitKind): boolean {
   return DIRS.some((d) => {
@@ -43,9 +45,8 @@ export function CommandMenu() {
   const stuck = u.stranded && phase.to.q === u.pos.q && phase.to.r === u.pos.r;
   const to = phase.to;
   const mana = match.sides[u.side].mana;
-  const moved = { ...u, pos: to };
-  const view = { ...match, units: match.units.map((x) => (x.id === u.id ? moved : x)) };
-  const canAttack = attackTargets(view, getUnit(view, u.id), to).length > 0;
+  const ab = kind.ability;
+  const canAct = !stuck && (ab.kind === 'water' ? canCastWater(match, ab.delta) : abilityTargetHexes(match, u, to).length > 0);
   const hover = (c: Parameters<typeof setHoverCommand>[0]) => ({
     onMouseEnter: () => setHoverCommand(c),
     onMouseLeave: () => setHoverCommand(null),
@@ -53,18 +54,6 @@ export function CommandMenu() {
   const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
 
   const body = (() => {
-    if (phase.sub === 'magic') {
-      return kind.magic.map((ab) => {
-        const usable =
-          mana >= ab.manaCost &&
-          (ab.kind === 'water' ? canCastWater(match, ab.delta) : magicTargetHexes(match, u, ab, to).length > 0);
-        return (
-          <button key={ab.id} disabled={!usable} onClick={() => choose({ magic: ab.id })} {...hover('magic')}>
-            {ab.name} <span className="cost">{ab.manaCost}◆</span>
-          </button>
-        );
-      });
-    }
     if (phase.sub === 'summon') {
       return (
         <div className="summon-panel">
@@ -95,6 +84,7 @@ export function CommandMenu() {
                         }}
                       >
                         <img src={unitIconUrl(s.id, u.side)} alt="" />
+                        <span className="cls"><ClassIcon kind={s} size={12} /></span>
                         <span className="nm">{s.name}</span>
                         <span className="cost">{s.cost}</span>
                       </div>
@@ -109,24 +99,9 @@ export function CommandMenu() {
     return (
       <>
         <button onClick={() => choose('wait')} {...hover('wait')}>Wait</button>
-        <button disabled={stuck || !canAttack} onClick={() => choose('attack')} {...hover('attack')}>Attack</button>
-        {kind.magic.length > 1 ? (
-          <button disabled={stuck} onClick={() => choose({ sub: 'magic' })} {...hover('magic')}>Magic ▸</button>
-        ) : (
-          (() => {
-            const ab = kind.magic[0];
-            if (!ab) return null; // no Magic Ability
-            const usable =
-              !stuck &&
-              mana >= ab.manaCost &&
-              (ab.kind === 'water' ? canCastWater(match, ab.delta) : magicTargetHexes(match, u, ab, to).length > 0);
-            return (
-              <button disabled={!usable} onClick={() => choose({ magic: ab.id })} {...hover('magic')}>
-                {ab.name} <span className="cost">{ab.manaCost}◆</span>
-              </button>
-            );
-          })()
-        )}
+        <button disabled={!canAct} onClick={() => choose('act')} {...hover('act')} title={abilityDisplayName(kind)}>
+          <ClassIcon kind={kind} size={12} /> {LABEL_TEXT[abilityLabel(ab)]}
+        </button>
         {kind.isMaster && (
           <button disabled={stuck} onClick={() => choose({ sub: 'summon' })} {...hover('summon')}>Summon ▸</button>
         )}
@@ -136,7 +111,7 @@ export function CommandMenu() {
 
   return (
     <div className="window command-menu" onPointerDown={stop} onPointerMove={stop} onContextMenu={(e) => e.preventDefault()}>
-      <div className="title">{phase.sub ? (phase.sub === 'magic' ? 'Magic' : 'Summon') : kind.name}</div>
+      <div className="title">{phase.sub ? 'Summon' : kind.name}</div>
       {body}
       <div className="hint">Right-click: back</div>
     </div>

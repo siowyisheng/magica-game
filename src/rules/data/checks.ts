@@ -3,6 +3,7 @@
 
 import type { UnitKind } from '../types';
 import { MDF_FLOOR } from '../statgen';
+import { abilityDisplayName, isPhysical, powerStat } from '../ability';
 
 export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[] {
   const w: string[] = [];
@@ -10,12 +11,12 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
   if (!k.name.trim()) w.push('needs a name');
   else if (k.name.length > maxName) w.push(`name is longer than ${maxName} letters`);
   for (const [stat, v] of Object.entries(k.stats)) {
-    // DEF and MDF may be 0; so may a Familiar's MP (it matters only for Magic, and a Master's MP sets its Mana Income)
-    const min = stat === 'def' || stat === 'mdf' || (stat === 'mp' && !k.isMaster) ? 0 : 1;
+    // DEF, MDF and SPD may be 0; so may a Familiar's ATK or MP (it uses only one; a Master's MP sets its Mana Income)
+    const min = stat === 'def' || stat === 'mdf' || stat === 'spd' || ((stat === 'mp' || stat === 'atk') && !k.isMaster) ? 0 : 1;
     if (!Number.isInteger(v) || v < min) w.push(`${stat.toUpperCase()} should be a whole number of at least ${min}`);
     else if (v > 30) w.push(`${stat.toUpperCase()} above 30 is far outside the usual range`);
   }
-  if (k.stats.spd < 1 || k.stats.spd > 20) w.push('SPD outside 1–20 has no Base Delay of its own');
+  if (k.stats.spd > 24) w.push('SPD above 24 has no Base Delay of its own');
   if (!k.moveTypes.length) w.push('needs at least one Move Type');
   if (k.moveTypes.includes('slow') && !k.moveTypes.includes('swim')) w.push('Slow should always come with Swim');
   if (!k.isMaster && k.moveTypes.includes('walk') && k.stats.mov < 4) w.push('walking Familiars should have MOV 4 or more');
@@ -25,29 +26,25 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
     if (low.length > MDF_FLOOR.atHardFloor) w.push(`only ${MDF_FLOOR.atHardFloor} Master may have MDF below ${MDF_FLOOR.soft} (now: ${low.map((o) => o.name).join(', ')})`);
   }
   if (k.isMaster && (k.moveTypes.length !== 2 || !k.moveTypes.includes('walk') || !k.moveTypes.includes('wade'))) w.push('Masters walk + wade');
-  if (k.attack.range < 1) w.push('Attack range must be at least 1');
-  for (const m of k.magic) {
-    if (m.kind === 'water') continue;
-    if (m.kind === 'damage' && m.burst && m.range !== 0) w.push(`${m.name}: a Burst has range 0 (it is centred on the caster)`);
-    if (m.kind === 'damage' && m.burst && m.radius === 0) w.push(`${m.name}: a Burst needs an area (radius 1 or 2)`);
-    if (m.radius === 2 && !(m.kind === 'damage' && m.burst)) w.push(`${m.name}: only a Burst may have radius 2`);
+  const m = k.ability;
+  const name = abilityDisplayName(k);
+  if (m.kind === 'water') {
+    if (!k.isMaster) w.push(`${name}: Rise / Ebb are not for Familiars`);
+  } else {
+    if (m.kind === 'damage' && m.burst && m.range !== 0) w.push(`${name}: a Burst has range 0 (it is centred on the user)`);
+    if (m.kind === 'damage' && m.burst && m.radius === 0) w.push(`${name}: a Burst needs an area (radius 1 or 2)`);
+    if (m.radius === 2 && !(m.kind === 'damage' && m.burst)) w.push(`${name}: only a Burst may have radius 2`);
+    if (m.range < (m.kind === 'damage' && !m.burst ? 1 : 0)) w.push(`${name}: range too short to aim`);
+    if (m.range > 1 && !m.trajectory) w.push(`${name}: a ranged Ability needs a Trajectory`);
   }
-  if (k.attack.range > 1 && !k.attack.trajectory) w.push('a ranged Attack needs a Trajectory');
+  if (k.isMaster && !isPhysical(m)) w.push('Masters have a physical Ability (ATK against DEF)');
   if (!k.isMaster) {
     if (k.cost % 8 !== 0 || k.cost < 16 || k.cost > 88) w.push('Cost should be a multiple of 8 from 16 to 88');
     const clash = roster.find((o) => o.id !== k.id && !o.isMaster && o.element === k.element && o.cost === k.cost);
     if (clash) w.push(`Cost ${k.cost} is also ${clash.name}'s (costs are unique within an Element)`);
-    if (k.magic.length > 1) w.push('familiars have at most one Magic Ability');
-  }
-  for (const m of k.magic) {
-    if (m.manaCost < 0 || !Number.isInteger(m.manaCost)) w.push(`${m.name}: Mana cost should be a whole number`);
-    if (m.kind === 'water') {
-      if (!k.isMaster) w.push(`${m.name}: Rise / Ebb are Master spells`);
-      continue;
-    }
-    if (!k.isMaster && (m.manaCost < 4 || m.manaCost > 16)) w.push(`${m.name}: Familiar Magic should cost 4–16`);
-    if (m.range < (m.kind === 'damage' && !m.burst ? 1 : 0)) w.push(`${m.name}: range too short to aim`);
-    if (m.range > 1 && !m.trajectory) w.push(`${m.name}: a ranged spell needs a Trajectory`);
+    // one power stat: ATK for a physical Ability, MP for a magical one
+    const unused = powerStat(k) === 'atk' ? 'mp' : 'atk';
+    if (k.stats[unused] > 0) w.push(`${unused.toUpperCase()} ${k.stats[unused]} does nothing: ${name} uses ${powerStat(k).toUpperCase()} (set ${unused.toUpperCase()} to 0)`);
   }
   return w;
 }

@@ -3,13 +3,15 @@
 // data/overrides.json), exportable / importable as JSON, and — when running
 // the dev server — writable into the repo's overrides file.
 //
-// Kinds and Magic Abilities are edited separately: a kind lists ability ids,
-// and editing an ability changes every kind that uses it.
+// Kinds and Abilities are edited separately: a kind names its Ability by id,
+// and editing an Ability changes every kind that uses it.
 
 import {
+  type Ability,
   type Balance,
   type KindPatch,
-  type MagicAbility,
+  BALANCE_VERSION,
+  isOldBalance,
   type UnitKind,
   abilityIds,
   abilityOf,
@@ -24,9 +26,11 @@ import {
   shippedKind,
 } from '../rules';
 
-// v2: stats are on the halved scale (Damage = ATK − DEF), so edits saved under the old key no longer fit
-const KEY = 'magica.balance.v2';
-const FIELDS = ['name', 'cost', 'alignment', 'element', 'stats', 'moveTypes', 'attack'] as const;
+// v3: one Ability per kind and Speed shifted down by 6 (balance version 4). Edits saved
+// under the old key ('magica.balance.v2') don't convert, and are left there untouched.
+const KEY = 'magica.balance.v3';
+const OLD_KEY = 'magica.balance.v2';
+const FIELDS = ['name', 'cost', 'alignment', 'element', 'stats', 'moveTypes', 'abilityName'] as const;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -35,7 +39,7 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 export function loadLocalBalance() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    if (raw && typeof raw === 'object') setLocalBalance(normalizeBalance(raw));
+    if (raw && typeof raw === 'object' && !isOldBalance(raw)) setLocalBalance(normalizeBalance(raw));
   } catch {
     /* ignore broken storage */
   }
@@ -54,13 +58,12 @@ function persist(b: Balance) {
 function kindDiff(edited: UnitKind): KindPatch {
   const shipped = shippedKind(edited.id);
   const out: KindPatch = {};
-  for (const f of FIELDS) if (!same(edited[f], shipped[f])) (out as Record<string, unknown>)[f] = clone(edited[f]);
-  const ids = edited.magic.map((m) => m.id);
-  if (!same(ids, shipped.magic.map((m) => m.id))) out.magicIds = ids;
+  for (const f of FIELDS) if (!same(edited[f] ?? null, shipped[f] ?? null)) (out as Record<string, unknown>)[f] = clone(edited[f] ?? '');
+  if (edited.ability.id !== shipped.ability.id) out.abilityId = edited.ability.id;
   return out;
 }
 
-/** Save an edited kind (its own fields and which abilities it uses; ability contents are saved separately). */
+/** Save an edited kind (its own fields and which Ability it uses; the Ability's contents are saved separately). */
 export function saveKind(edited: UnitKind) {
   const b = getLocalBalance();
   const d = kindDiff(edited);
@@ -69,8 +72,8 @@ export function saveKind(edited: UnitKind) {
   persist(b);
 }
 
-/** Save an edited Magic Ability: every kind using it changes. */
-export function saveAbility(a: MagicAbility) {
+/** Save an edited Ability: every kind using it changes. */
+export function saveAbility(a: Ability) {
   const b = getLocalBalance();
   const shipped = shippedAbility(a.id);
   if (shipped && same(a, shipped)) delete b.abilities[a.id];
@@ -78,13 +81,13 @@ export function saveAbility(a: MagicAbility) {
   persist(b);
 }
 
-/** Create a new Magic Ability (local) and return its id. */
-export function createAbility(name = 'New Spell'): string {
-  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'spell';
+/** Create a new Ability (local) and return its id. */
+export function createAbility(name = 'New Ability'): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ability';
   let id = base;
   for (let k = 2; abilityOf(id); k++) id = `${base}-${k}`;
   const b = getLocalBalance();
-  b.abilities[id] = { id, name, kind: 'damage', range: 2, radius: 0, manaCost: 8, trajectory: 'direct' };
+  b.abilities[id] = { id, name, kind: 'damage', power: 'mp', range: 2, radius: 0, trajectory: 'direct' };
   persist(b);
   return id;
 }
@@ -125,7 +128,7 @@ export function effectiveBalance(): Balance {
 }
 
 export function exportBalanceJson(): string {
-  return JSON.stringify({ format: 'magica-balance', version: 3, overrides: effectiveBalance() }, null, 1);
+  return JSON.stringify({ format: 'magica-balance', version: BALANCE_VERSION, overrides: effectiveBalance() }, null, 1);
 }
 
 /** Import exported balance: it becomes the local edits (on top of what ships). */
@@ -137,9 +140,10 @@ export function importBalanceJson(text: string) {
     throw new Error('not a JSON file');
   }
   const version = (data as { version?: unknown })?.version;
-  if (typeof version === 'number' && version < 3) throw new Error('this balance file uses the old stat scale (ATK, DEF, MP and MDF twice as big): export it again from the current dev tool');
   const raw = (data as { overrides?: unknown })?.overrides ?? data;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('not a Magica balance file');
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !('kinds' in raw || 'abilities' in raw)) throw new Error('not a Magica balance file');
+  if ((typeof version === 'number' && version < BALANCE_VERSION) || isOldBalance(raw))
+    throw new Error('this balance file is from before Familiars had one Ability each (and Speed was shifted down by 6): it can’t be converted; rebuild the edits in the current dev tool');
   const b = normalizeBalance(raw);
   for (const id of Object.keys(b.kinds)) kindOf(id); // throws on unknown kinds
   persist(b);
@@ -148,8 +152,17 @@ export function importBalanceJson(text: string) {
   for (const id of Object.keys(b.abilities)) saveAbility(abilityOf(id)!);
 }
 
+/** True when this browser still holds edits saved before the one-Ability change (left untouched, not loaded). */
+export function hasOldLocalBalance(): boolean {
+  try {
+    return !!localStorage.getItem(OLD_KEY);
+  } catch {
+    return false;
+  }
+}
+
 /** All abilities, for pickers. */
-export function allAbilities(): MagicAbility[] {
+export function allAbilities(): Ability[] {
   return abilityIds().map((id) => abilityOf(id)!).filter(Boolean);
 }
 

@@ -6,7 +6,7 @@ This explains how the computer opponent picks its moves. The weights' defaults c
 
 The AI never plans a whole turn. Each time it is its turn, it:
 
-1. Lists every legal thing the active Unit could do: each hex it can end on, combined with each Command it could give there (wait, attack, cast a Magic ability, or summon).
+1. Lists every legal thing the active Unit could do: each hex it can end on, combined with each Command it could give there (wait, Act with its one Ability at each hex it could aim at, or summon).
 2. Gives every one of those options a score.
 3. Picks the highest score, with a seeded tie-break if several share it.
 
@@ -28,7 +28,7 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 
 **Good things**
 
-- **No pointless hits.** An Attack, or a damaging Magic ability, is never a candidate unless it deals more than 0 damage to at least one enemy or Obstacle.
+- **No pointless hits.** A damaging Ability is never a candidate unless it deals more than 0 damage to at least one enemy or Obstacle.
 - **Damage** to enemies, scaled by the target's value. Units are valued by cost and HP. Masters are worth more. Each point of damage is worth `damage` (10.5) × the target's value.
 - **Healing it will undo.** The AI works out how much each enemy can be healed before its own side's next hits land: every enemy healer that acts first and can reach it, at the healer's real heal amount. Damage only counts in full for what outlasts that healing; the rest is worth `healedDamage` (15%).
   - The "set up a kill" check below counts that healing too.
@@ -37,18 +37,18 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 - **Kills** get a large bonus on top of the damage. Killing an enemy Familiar is worth `kill` (75.4) × its value. Killing an enemy Master is worth `killMaster` (100,000), which is effectively "win the game."
 - **Setting up a kill.** If the hit doesn't kill but leaves the target low enough that allies can finish it before it acts (its healing counted), that counts for part of a kill (`setupKill`, 0.3), and that enemy is no longer a threat to this Unit (see **Finished first** below).
 - **Healing** allies is worth `ownHp` (6.77) × value per HP: the same price as an HP of my own side lost (healing enemies costs the same).
-- **Empower** on an ally (or itself) is worth `empower` (1.21) × its ATK bonus × `damage`, the extra damage it should add to that Unit's next Attack. It's worth only `empowerIdle` (30%) of that when no enemy is within the Unit's Move + Attack range + 1, and nothing when the Unit is already Empowered.
+- **Empower** on an ally (or itself) is worth `empower` (1.21) × its ATK bonus × `damage`, the extra damage it should add to that Unit's next physical hit (nothing for a Unit that hits with MP). It's worth only `empowerIdle` (30%) of that when no enemy is within the Unit's Move + Attack range + 1, and nothing when the Unit is already Empowered.
 - **Breaking Obstacles** is valued by how many enemies would then be able to reach you. Each one that breaking the Obstacle would open up is worth `obstacleOpening` (25), scaled by how much of its HP this hit takes. This is what makes the AI break a wall that blocks its only shot.
 - **Stones.** Standing on a Stone you don't own is worth `capture` (116), ×1.5 if the enemy holds it. Standing on a Stone you already own is worth a little, more for a wounded Unit (Stone Heal).
 - **Guarding Stones.** An own Stone is *threatened* when an enemy can really end its next move on it: its movement says so, not a straight-line distance (the Plan's R1, [ai-plan.md](ai-plan.md)). Standing on a threatened own Stone that no other Unit is already on is worth 1.125 × `capture` (taking a free Stone is 1 ×, an enemy one 1.5 ×: one Stone value, the same ratios as the Plan's Jobs), since the enemy can't capture a Stone that is occupied. Threatened, unguarded own Stones also join the objectives every Familiar is pulled toward, so a nearby Familiar or the Master steps onto them. Stones are valued for their Mana, the same at every hour: **the AI never plays for the Time Limit**, and nothing in its scoring rewards running out the clock.
-- **Water.** When a Magic ability changes the Water Level, the AI counts which Units it would strand. Stranding an enemy is good (`strandEnemy`, 30 × value). Stranding an ally is bad (`strandAlly`, 35).
+- **Water.** When an Ability changes the Water Level, the AI counts which Units it would strand. Stranding an enemy is good (`strandEnemy`, 30 × value). Stranding an ally is bad (`strandAlly`, 35).
 - **Reopening a Stone.** Killing a unit that holds a Stone my Side doesn't own is worth `stoneReopen` (39.5%) of `capture` on top of the kill: that Stone is open to take again.
 - **Summoning** is scored in its own section below.
 
 **Bad things**
 
 - **Friendly fire.** Damage to its own Units costs `ownHp` (6.77) × value per point: the one price of an HP of my own side.
-- **Mana spent.** Casting a Magic ability or Summoning costs `manaSpend` (0.294) per point of Mana, unless the Mana would overflow the cap anyway. Spending free Mana is never penalised. If the AI is **saving up** for a better Summon (see section 2), each point spent out of that reserve costs `reserveSpend` (0.652) more.
+- **Mana spent.** Summoning (the only thing that costs Mana: Abilities are free) costs `manaSpend` (0.294) per point of Mana, unless the Mana would overflow the cap anyway. Spending free Mana is never penalised. If the AI is **saving up** for a better Summon (see section 2), each point spent out of that reserve costs `reserveSpend` (0.652) more.
 - **Time.** Every candidate pays `delay` (0.134) per unit of timeline delay its action causes. Slower actions are a little worse.
 - **Danger: one safety curve for every Unit.** The AI estimates the damage enemies could deal this Unit at its end position (the danger estimate below), capped at its HP. The cost has the same shape for every Unit: each HP it may lose costs a little, losses that leave it near death cost steeply, and death ends the curve, graded by how sure it is (`unsureDeath`).
   - **A Familiar** prices an HP as its own worth: `ownHp` (6.77) × value, divided by the side's push (bolder when ahead), convex over its whole HP (half linear, half quadratic in the share lost). A Rook barely minds a 2-damage poke; a 1-HP Familiar minds everything. Death: `deathRisk` (56.1) × value.
@@ -58,7 +58,7 @@ For each candidate (hex, Command), the AI adds up a score from these parts:
 The threat estimate is smarter than "worst-case damage":
 
 - **One danger estimate.** Everything about how much enemies can hurt a Unit at a hex comes from one function (`danger`), in two parts: the **sure** part (enemies acting first that reach it by their real path this turn) and the **total**, which adds the less sure, each weighted by how surely it lands: a fast enemy closing in over several turns (straight line), for a Master the round after, a hit it can't outrun landing twice, and a Familiar the enemy Master could summon in time. A straight-line guess counts ⅓ at the very edge of the enemy's reach and in full 2 hexes inside it. The hold-out estimate and the Plan's turns-to-kill share the same arrival estimate (`arriveTurns`).
-- Each enemy is considered only if it acts before this Unit's next turn, and its hit is judged **as of when it acts**: with the Mana its Side will have by then (Income paid at the hour marks passed on the way decides whether it can cast) and the time of day then (Alignment may turn at an hour mark). The same goes for enemy healing and for the Familiars the enemy Master could afford to summon. A Master also looks one enemy round further ahead.
+- Each enemy is considered only if it acts before this Unit's next turn, and its hit is judged **as of when it acts**: at the time of day then (Alignment may turn at an hour mark). Abilities are free, so Mana matters only for the Familiars the enemy Master could afford to summon, judged with the Mana its Side will have by then (Income paid at the hour marks passed on the way). A Master also looks one enemy round further ahead.
 - A fast enemy may get several turns in before this Unit acts again. If it can't hit this Unit this turn, the AI still checks whether it could walk over and hit it in time.
 - **Ties go by the turn order.** An enemy turn at exactly the same time as this Unit's next turn is settled as the game settles it: higher Speed first, then Side, then creation order. This also applies to its second and later turns, and to a Familiar the enemy could summon in time.
 - **The hex it leaves is open.** Enemy reach is worked out with the moving Unit lifted off the board, so an enemy can step into the hex it leaves (where it ends, enemies stop next to it anyway).
@@ -94,7 +94,7 @@ After all candidates are scored, the best 8 destinations (`screenTop`) are re-sc
 
 **Facing**
 
-After a Unit moves, the AI picks the Facing that leaves it the least exposed. If two are equally safe, it prefers to face the nearest enemy. An Attack or Magic Command forces the Unit to face its target, so the AI scores that forced Facing instead.
+After a Unit moves, the AI picks the Facing that leaves it the least exposed. If two are equally safe, it prefers to face the nearest enemy. Acting forces the Unit to face its target, so the AI scores that forced Facing instead.
 
 ## 2. Choosing a Familiar to summon (the Master's Summon option)
 
@@ -123,7 +123,7 @@ In practice, the AI summons when a Familiar is worth more than the Mana it costs
 
 ## 3. Choosing what a Familiar does
 
-A Familiar can't summon, so its candidates are only waits, attacks, and Magic abilities (plus where it stands). It is scored exactly as above:
+A Familiar can't summon, so its candidates are only waits and uses of its one Ability (plus where it stands). It is scored exactly as above:
 
 - Damage and kills from the actual preview of the rules engine.
 - Its own threat and death risk at the destination.

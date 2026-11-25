@@ -1,6 +1,7 @@
 export * from './hex';
 export * from './types';
 export * from './kinds';
+export * from './ability';
 export * from './time';
 export * from './terrain';
 export * from './combat';

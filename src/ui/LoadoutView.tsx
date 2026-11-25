@@ -4,6 +4,7 @@
 
 import { ELEMENTS, FAMILIARS, kindOf, type SideId } from '../rules';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
+import { ClassIcon } from './icons';
 import { useGame } from '../store';
 
 export function LoadoutStrip({
@@ -40,6 +41,9 @@ export function LoadoutStrip({
                 onMouseLeave={onHover ? () => onHover(null) : undefined}
               >
                 <img src={unitIconUrl(s.id, side)} alt="" />
+                <span className="cls">
+                  <ClassIcon kind={s} size={big ? 12 : 9} />
+                </span>
                 {big && <span className="nm">{s.name}</span>}
                 {big && <span className="cost">{s.cost}</span>}
               </div>

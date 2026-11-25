@@ -1,7 +1,7 @@
-// Dev tool: hand-edit every Master's and Familiar's stats, Move Types, Attack
-// and Magic. Edits are kept in this browser and apply to new matches; they
-// can be exported / imported as JSON, reset, or (on the dev server) written
-// into the repo's balance file.
+// Dev tool: hand-edit every Master's and Familiar's stats, Move Types and
+// Ability, and the shared Abilities themselves. Edits are kept in this browser
+// and apply to new matches; they can be exported / imported as JSON, reset, or
+// (on the dev server) written into the repo's balance file.
 
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -17,13 +17,20 @@ import {
   shippedAbility,
   type Alignment,
   type Element,
-  type MagicAbility,
+  type Ability,
+  type AbilityLabel,
   type MoveType,
+  abilityLabel,
+  classOf,
+  CLASS_NAME,
+  LABEL_TEXT,
+  powerStat,
   type Stats,
   type Trajectory,
   type UnitKind,
   budgetError,
   generateSpread,
+  predictKindCost,
   mulberry32,
 } from '../rules';
 import { useGame } from '../store';
@@ -65,7 +72,7 @@ export function DevTool() {
   };
 
   const roster = useMemo(() => [...MASTERS, ...FAMILIARS], [rev]); // eslint-disable-line react-hooks/exhaustive-deps
-  // the selection is a unit kind id, or 'ability:<id>' for a Magic Ability
+  // the selection is a unit kind id, or 'ability:<id>' for an Ability
   const abilitySel = selected.startsWith('ability:') ? selected.slice(8) : null;
   const kind = abilitySel ? null : kindOf(selected);
   const warnings = kind ? kindWarnings(kind, roster) : [];
@@ -76,7 +83,7 @@ export function DevTool() {
     saveKind(k);
     bump();
   };
-  const editAbility = (f: (m: MagicAbility) => void) => {
+  const editAbility = (f: (m: Ability) => void) => {
     if (!abilitySel) return;
     const a = clone(abilityOf(abilitySel)!);
     f(a);
@@ -120,7 +127,7 @@ export function DevTool() {
               })}
             </div>
           ))}
-          <div className="title">Magic Abilities</div>
+          <div className="title">Abilities</div>
           <button
             onClick={() => {
               const id = createAbility();
@@ -286,7 +293,7 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
         <div>
           <div className="title">{kind.name}</div>
           <div className="muted small">
-            {kind.isMaster ? 'Master' : `${kind.element} Familiar · ${kind.role}`} · id {kind.id}
+            {kind.isMaster ? 'Master' : `${kind.element} Familiar · ${CLASS_NAME[classOf(kind)]}`} · id {kind.id}
           </div>
         </div>
       </div>
@@ -297,6 +304,11 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
           <input value={kind.name} maxLength={16} onChange={(e) => edit((k) => void (k.name = e.target.value))} />
         </label>
         {summon && <Num label="Cost" value={kind.cost} step={8} min={0} shipped={shipped.cost} onChange={(v) => edit((k) => void (k.cost = v))} />}
+        {summon && (
+          <span className="muted small" title="What the Cost model (fitted to the reference Familiars) says these stats and this Ability are worth">
+            model {Math.round(predictKindCost(kind))}◆
+          </span>
+        )}
         <label className="dev-field">
           <span>Element</span>
           <select value={kind.element ?? 'none'} onChange={(e) => edit((k) => void (k.element = e.target.value === 'none' ? null : (e.target.value as Element)))}>
@@ -321,9 +333,26 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
       <div className="title">Stats</div>
       <div className="dev-section stats">
         {STAT_KEYS.map((s) => (
-          <Num key={s} label={s.toUpperCase()} value={kind.stats[s]} min={0} max={40} shipped={shipped.stats[s]} onChange={(v) => edit((k) => void (k.stats[s] = v))} />
+          <span key={s} className="dev-stat">
+            <Num label={s.toUpperCase()} value={kind.stats[s]} min={0} max={40} shipped={shipped.stats[s]} onChange={(v) => edit((k) => void (k.stats[s] = v))} />
+            {summon && (s === 'atk' || s === 'mp') && (
+              <button className="dev-zero" title={`Set ${s.toUpperCase()} to 0`} disabled={kind.stats[s] === 0} onClick={() => edit((k) => void (k.stats[s] = 0))}>
+                0
+              </button>
+            )}
+          </span>
         ))}
       </div>
+      {summon && kind.stats.atk > 0 && kind.stats.mp > 0 && (
+        <div className="dev-section">
+          <span className="bad small">
+            Uses both ATK and MP, but {kind.ability.name} only uses {powerStat(kind).toUpperCase()}.
+          </span>
+          <button onClick={() => edit((k) => void (k.stats[powerStat(k) === 'atk' ? 'mp' : 'atk'] = 0))}>
+            Zero the unused stat ({powerStat(kind) === 'atk' ? 'MP' : 'ATK'})
+          </button>
+        </div>
+      )}
       {kind.isMaster && <BudgetRow kind={kind} edit={edit} />}
 
       <div className="title">Move Types</div>
@@ -347,82 +376,74 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
         ))}
       </div>
 
-      <div className="title">Attack</div>
-      <div className="dev-section">
-        <Num
-          label="Range"
-          value={kind.attack.range}
-          min={1}
-          max={8}
-          shipped={shipped.attack.range}
-          onChange={(v) =>
-            edit((k) => {
-              k.attack.range = v;
-              if (v > 1) k.attack.trajectory = k.attack.trajectory ?? 'high';
-              else delete k.attack.trajectory;
-            })
-          }
-        />
-        {kind.attack.range > 1 && <TrajectorySelect value={kind.attack.trajectory} onChange={(t) => edit((k) => void (k.attack.trajectory = t))} />}
+      <div className="title">Ability</div>
+      <div className="muted small">Abilities are shared: edit one under Abilities and every unit using it changes. Each unit has exactly one.</div>
+      <div className="dev-section magic">
+        <label className="dev-field">
+          <span>Ability</span>
+          <select
+            value={kind.ability.id}
+            onChange={(e) =>
+              edit((k) => {
+                const a = abilityOf(e.target.value);
+                if (a) k.ability = a;
+              })
+            }
+          >
+            {allAbilities()
+              .filter((a) => kind.isMaster || a.kind !== 'water')
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({abilitySummary(a)})
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="dev-field" title="This unit's own name for its Ability, shown instead of the Ability's name (leave empty to use it)">
+          <span>Shown as</span>
+          <input
+            value={kind.abilityName ?? ''}
+            placeholder={kind.ability.name}
+            maxLength={20}
+            onChange={(e) =>
+              edit((k) => {
+                if (e.target.value) k.abilityName = e.target.value;
+                else delete k.abilityName;
+              })
+            }
+          />
+        </label>
+        <span className="muted small">
+          {LABEL_TEXT[abilityLabel(kind.ability)]} · {abilitySummary(kind.ability)} · used by {abilityUsers(kind.ability.id).length}
+        </span>
+        <button onClick={() => openAbility(kind.ability.id)}>Edit ability…</button>
+        {shipped.ability.id !== kind.ability.id && <span className="muted small">(shipped: {shipped.ability.name})</span>}
       </div>
-
-      <div className="title">Magic</div>
-      <div className="muted small">Magic Abilities are shared: edit one under Magic Abilities and every unit using it changes.</div>
-      {(summon ? [0] : kind.magic.map((_, i) => i)).map((slot) => {
-        const cur = kind.magic[slot];
-        const options = allAbilities().filter((a) => kind.isMaster || a.kind !== 'water');
-        return (
-          <div key={slot} className="dev-section magic">
-            <label className="dev-field">
-              <span>{summon ? 'Ability' : `Slot ${slot + 1}`}</span>
-              <select
-                value={cur?.id ?? ''}
-                onChange={(e) =>
-                  edit((k) => {
-                    const a = e.target.value ? abilityOf(e.target.value) : undefined;
-                    if (summon) k.magic = a ? [a] : [];
-                    else if (a) k.magic[slot] = a;
-                  })
-                }
-              >
-                {summon && <option value="">None</option>}
-                {options.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.kind === 'water' ? `water ${a.delta > 0 ? 'rise' : 'ebb'}` : `${a.kind}, range ${a.range}`}, {a.manaCost}◆)
-                  </option>
-                ))}
-              </select>
-            </label>
-            {cur && <span className="muted small">{magicSummary(cur)} · used by {abilityUsers(cur.id).length}</span>}
-            {cur && <button onClick={() => openAbility(cur.id)}>Edit ability…</button>}
-            {(shipped.magic[slot]?.id ?? '') !== (cur?.id ?? '') && <span className="muted small">(shipped: {shipped.magic[slot]?.name ?? 'none'})</span>}
-          </div>
-        );
-      })}
     </>
   );
 }
 
-function magicSummary(m: MagicAbility): string {
+function abilitySummary(m: Ability): string {
   if (m.kind === 'water') return `${m.delta > 0 ? 'raises' : 'lowers'} the Water Level`;
-  if (m.kind === 'damage' && m.burst) return `Burst, radius ${m.radius} around the caster (hits allies)`;
-  return `${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
+  const power = m.kind === 'damage' ? (m.power === 'atk' ? 'physical ' : 'magic ') : '';
+  if (m.kind === 'damage' && m.burst) return `${power}Burst, radius ${m.radius} around the user (hits allies)`;
+  return `${power}${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
 }
 
-/** A shared Magic Ability, with the units that use it. */
-function AbilityForm({ a, edit, openKind }: { a: MagicAbility; edit: (f: (m: MagicAbility) => void) => void; openKind: (id: string) => void }) {
+/** A shared Ability, with the units that use it. */
+function AbilityForm({ a, edit, openKind }: { a: Ability; edit: (f: (m: Ability) => void) => void; openKind: (id: string) => void }) {
   const users = abilityUsers(a.id);
   return (
     <>
       <div className="title">{a.name}</div>
       <div className="muted small">
-        Magic Ability · id {a.id}
+        Ability · id {a.id}
         {isBuiltInAbility(a.id) ? '' : ' · new'}
       </div>
       <MagicForm m={a} shipped={shippedAbility(a.id)} onChange={edit} />
       <div className="title">Used by ({users.length})</div>
       <div className="btn-row">
-        {users.length === 0 && <span className="muted small">No unit uses this ability yet: pick it from a unit's Magic section.</span>}
+        {users.length === 0 && <span className="muted small">No unit uses this ability yet: pick it in a unit's Ability section.</span>}
         {users.map((k) => (
           <button key={k.id} className="map-item dev-item" onClick={() => openKind(k.id)}>
             <img src={unitIconUrl(k.id, 0)} alt="" />
@@ -434,7 +455,7 @@ function AbilityForm({ a, edit, openKind }: { a: MagicAbility; edit: (f: (m: Mag
   );
 }
 
-function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicAbility; onChange: (f: (m: MagicAbility) => void) => void }) {
+function MagicForm({ m, shipped, onChange }: { m: Ability; shipped?: Ability; onChange: (f: (m: Ability) => void) => void }) {
   const sh = shipped && shipped.kind === m.kind ? shipped : undefined;
   return (
     <div className="dev-section magic">
@@ -451,9 +472,18 @@ function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicA
             <select value={m.kind} onChange={(e) => onChange((x) => void (x.kind === 'water' || (x.kind = e.target.value as 'damage' | 'heal' | 'empower')))}>
               <option value="damage">Damage</option>
               <option value="heal">Heal</option>
-              <option value="empower">Empower (+ATK until the next Attack)</option>
+              <option value="empower">Empower (+ATK until the next physical hit)</option>
             </select>
           </label>
+          {m.kind === 'damage' && (
+            <label className="dev-field" title="Physical hits use ATK against DEF (Empower adds to them); magic ones MP against MDF">
+              <span>Power</span>
+              <select value={m.power ?? 'mp'} onChange={(e) => onChange((x) => void (x.kind === 'damage' && (x.power = e.target.value as 'atk' | 'mp')))}>
+                <option value="atk">Physical (ATK vs DEF)</option>
+                <option value="mp">Magic (MP vs MDF)</option>
+              </select>
+            </label>
+          )}
           {m.kind === 'empower' && (
             <Num label="ATK" value={m.amount ?? 3} min={1} max={9} onChange={(v) => onChange((x) => void (x.kind === 'empower' && (x.amount = v)))} />
           )}
@@ -506,14 +536,34 @@ function MagicForm({ m, shipped, onChange }: { m: MagicAbility; shipped?: MagicA
           {m.range > 1 && <TrajectorySelect value={m.trajectory} onChange={(t) => onChange((x) => void (x.kind !== 'water' && (x.trajectory = t)))} />}
         </>
       )}
-      <Num label="Mana" value={m.manaCost} min={0} max={120} shipped={sh?.manaCost} onChange={(v) => onChange((x) => void (x.manaCost = v))} />
+      <label className="dev-field" title="The name of the Act button; it also sets a Familiar's Class (Attack: Fighter or Caster by Power; Heal: Healer; Buff, Debuff: Support)">
+        <span>Button</span>
+        <select
+          value={abilityLabel(m)}
+          onChange={(e) =>
+            onChange((x) => {
+              const label = e.target.value as AbilityLabel;
+              // the default for the effect needs no label of its own
+              if (label === abilityLabel({ ...x, label: undefined } as Ability)) delete x.label;
+              else x.label = label;
+            })
+          }
+        >
+          {(Object.keys(LABEL_TEXT) as AbilityLabel[]).map((l) => (
+            <option key={l} value={l}>
+              {LABEL_TEXT[l]}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }
 
 /** A Master's distance from the Stat Budget, and a button to roll a new balanced spread. */
 function BudgetRow({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => void) => void }) {
-  const err = budgetError(kind.stats, kind.attack.range);
+  const range = kind.ability.kind === 'water' ? 1 : kind.ability.range;
+  const err = budgetError(kind.stats, range);
   return (
     <div className="dev-section">
       <span className={Math.abs(err) <= 0.5 ? 'muted small' : 'bad small'} title="MP-equivalent of the stats minus the Stat Budget's total; within ±0.5 counts as balanced">
@@ -521,9 +571,9 @@ function BudgetRow({ kind, edit }: { kind: UnitKind; edit: (f: (k: UnitKind) => 
         {err.toFixed(2)} MP {Math.abs(err) <= 0.5 ? '(balanced)' : err > 0 ? '(too strong)' : '(too weak)'}
       </span>
       <button
-        title="Replace the stats with a random spread on the Stat Budget, for this Master's Attack range"
+        title="Replace the stats with a random spread on the Stat Budget, for this Master's Ability range"
         onClick={() => {
-          const s = generateSpread(mulberry32((Date.now() ^ (Math.random() * 1e9)) >>> 0), kind.attack.range);
+          const s = generateSpread(mulberry32((Date.now() ^ (Math.random() * 1e9)) >>> 0), range);
           if (s) edit((k) => void (k.stats = s));
         }}
       >

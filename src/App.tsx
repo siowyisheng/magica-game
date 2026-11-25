@@ -27,7 +27,6 @@ function PhaseHint() {
       phase.kind === 'move' && !phase.selected
         ? `${who} deselected: click anywhere (or right-click) to select it again`
         : `${who}${u.stranded ? ' (Stranded: move to act)' : ''}: click inside the white outline to move, the unit to stay, or a unit in range to act · right-click a unit to show its ranges`,
-    quickChoice: `${who}: choose Attack or Magic (right-click: back)`,
     menu: u.stranded && phase.kind === 'menu' && phase.to.q === u.pos.q && phase.to.r === u.pos.r
       ? `${who} is Stranded: staying put allows only Wait (right-click to move instead)`
       : `${who}: left-click the map to set facing, then choose a command (right-click cancels the move)`,

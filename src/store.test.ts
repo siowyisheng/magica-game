@@ -1,7 +1,7 @@
-import { withSpells } from './testing/spells';
+import { withAbility } from './testing/spells';
 import { onTestFinished, describe, expect, it, beforeEach, vi } from 'vitest';
-import { closestFacing, quickPlans, useGame } from './store';
-import { activeUnit, getUnit, hex } from './rules';
+import { closestFacing, useGame } from './store';
+import { activeUnit, getUnit, hex, planAct } from './rules';
 
 describe('closestFacing', () => {
   it('picks the hex direction with the closest angle', () => {
@@ -34,7 +34,7 @@ describe('facing is set while the command menu is open', () => {
     expect(after.match.activeUnitId).not.toBe(u.id);
   });
 
-  it('attack via the menu turns the attacker toward its target', () => {
+  it('acting via the menu turns the unit toward its target', () => {
     const s = useGame.getState();
     const m = s.match;
     const me = activeUnit(m)!;
@@ -43,7 +43,7 @@ describe('facing is set while the command menu is open', () => {
     useGame.setState({ match: { ...m, units } });
     useGame.getState().clickHex(me.pos);
     useGame.getState().clickHex(hex(me.pos.q - 2, me.pos.r)); // face W, away from foe
-    useGame.getState().choose('attack');
+    useGame.getState().choose('act');
     useGame.getState().clickHex(hex(me.pos.q + 1, me.pos.r - 1));
     const after = useGame.getState();
     expect(getUnit(after.match, me.id).facing).toBe(1); // NE, toward the foe
@@ -66,42 +66,27 @@ describe('selection, quick actions and range toggles', () => {
     return { me, foe: getUnit(useGame.getState().match, foe.id) };
   };
 
-  it('left-clicking a unit in Magic Reach (Bolt) moves to the chosen hex and casts', () => {
-    onTestFinished(withSpells());
-    // find a spot out of melee reach but within Bolt reach
+  it('left-clicking a unit in Reach moves to the chosen hex and Acts on it, for free', () => {
+    // the Regent with Bolt (magic, range 3, Direct) instead of its Strike
+    onTestFinished(withAbility(['regent'], 'bolt'));
     let found: ReturnType<typeof placeFoe> | null = null;
     for (const [dq, dr] of [[0, -6], [1, -6], [2, -6], [0, -5], [3, -6], [-1, -5], [2, -7]]) {
       const c = placeFoe(dq, dr);
-      const p = quickPlans(useGame.getState().match, c.me, c.foe);
-      if (!p.attack && p.magic) {
+      if (planAct(useGame.getState().match, c.me, c.foe)) {
         found = c;
         break;
       }
     }
     expect(found).not.toBeNull();
     const { me, foe } = found!;
-    const plans = quickPlans(useGame.getState().match, me, foe);
-    expect(plans.attack).toBeNull();
-    expect(plans.magic).not.toBeNull();
+    const plan = planAct(useGame.getState().match, me, foe)!;
     const mana = useGame.getState().match.sides[me.side].mana;
     useGame.getState().clickHex(foe.pos);
     const after = useGame.getState().match;
     expect(after.activeUnitId).not.toBe(me.id);
-    expect(getUnit(after, me.id).pos).toEqual(plans.magic!.dest);
-    expect(after.sides[me.side].mana).toBeLessThan(mana);
-  });
-
-  it('offers a choice when both Attack and Magic can hit the target', () => {
-    onTestFinished(withSpells());
-    const { foe } = placeFoe(2, -2);
-    useGame.getState().clickHex(foe.pos);
-    expect(useGame.getState().phase.kind).toBe('quickChoice');
-    useGame.getState().rightClick();
-    expect(useGame.getState().phase).toEqual({ kind: 'move', selected: true });
-    useGame.getState().clickHex(foe.pos);
-    const actorId = useGame.getState().match.activeUnitId;
-    useGame.getState().choose('attack');
-    expect(useGame.getState().match.activeUnitId).not.toBe(actorId);
+    expect(getUnit(after, me.id).pos).toEqual(plan.dest);
+    // Abilities cost no Mana
+    expect(after.sides[me.side].mana).toBe(mana);
   });
 
   it('deselects on an out-of-range click or right-click, and reselects on any click', () => {
@@ -167,14 +152,13 @@ describe('quick action animation', () => {
     const foe = m.units.find((x) => x.side !== me.side)!;
     const units = m.units.map((x) => (x.id === foe.id ? { ...x, pos: hex(me.pos.q + 2, me.pos.r - 3), facing: 1 as const } : x));
     useGame.setState({ match: { ...m, units } });
-    const q = quickPlans(useGame.getState().match, me, getUnit(useGame.getState().match, foe.id));
+    const q = planAct(useGame.getState().match, me, getUnit(useGame.getState().match, foe.id));
     useGame.getState().clickHex(hex(me.pos.q + 2, me.pos.r - 3));
-    if (useGame.getState().phase.kind === 'quickChoice') useGame.getState().choose('attack');
     const anim = useGame.getState().anim;
     expect(anim).not.toBeNull();
     const mv = anim!.steps.find((s) => s.kind === 'move');
     expect(mv && mv.kind === 'move' && mv.path[0]).toEqual(me.pos);
-    expect(q.attack).not.toBeNull();
+    expect(q).not.toBeNull();
     useGame.setState({ animate: false, anim: null });
   });
 });

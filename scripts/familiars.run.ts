@@ -1,6 +1,10 @@
 // Generate the Familiar roster from the slots: prints the roster, and writes
 // the data rows for src/rules/data/familiars.ts to scripts/familiars.out.txt
 // (seed 2 is the shipped roster; set SEED=0 to search the first 20 seeds).
+// It predates one Ability per Familiar: its rows are in the old format (an
+// Attack plus an optional Magic Ability, and a role), and need converting
+// (keep the Ability whose stat is higher, MP on a tie; zero the other stat)
+// before they fit data/familiars.ts.
 //   SEED=2 npx vitest run --config scripts/vitest.config.ts scripts/familiars.run.ts
 import { it } from 'vitest';
 import { generateFamiliarRoster, lastRosterScore, predictCost, FAMILIAR_COST, REFERENCE_FAMILIARS } from '../src/rules/familiargen';

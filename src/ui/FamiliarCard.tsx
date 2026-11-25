@@ -1,16 +1,15 @@
-import { alignmentBonus, kindOf, type SideId } from '../rules';
+import { abilityDisplayName, alignmentBonus, classOf, CLASS_NAME, kindOf, type SideId } from '../rules';
 import { useGame } from '../store';
 import { SIDE_COLORS } from '../render/sprites';
 import { AnimatedSprite } from './AnimatedSprite';
-import { AlignmentIcon, ElementIcon } from './icons';
-import { StatGrid, magicText } from './Stats';
+import { AlignmentIcon, ClassIcon, ElementIcon } from './icons';
+import { StatGrid, abilityText, hiddenStat } from './Stats';
 
 /** Detailed stats for one familiar kind. */
 export function FamiliarDetail({ kindId, side }: { kindId: string; side: SideId }) {
   const match = useGame((s) => s.match);
   const k = kindOf(kindId);
   const align = alignmentBonus(k.alignment, match.clock);
-  const m = k.magic[0];
   return (
     <div className="window summon-card">
       <div className="sc-head">
@@ -24,23 +23,19 @@ export function FamiliarDetail({ kindId, side }: { kindId: string; side: SideId 
             {k.alignment !== 'none' && <AlignmentIcon alignment={k.alignment} size={18} />}
             {align !== 0 && <span className={align > 0 ? 'good' : 'bad'}>{align > 0 ? '+' : '−'}{Math.abs(align)}</span>}
           </div>
-          <div className="muted">{k.role}</div>
+          <div className="sc-class">
+            <ClassIcon kind={k} size={16} /> {CLASS_NAME[classOf(k)]}
+          </div>
           <div>
             Cost <b>{k.cost}</b>◆ · Upkeep <b>{k.cost / 8}</b>
           </div>
         </div>
       </div>
-      <StatGrid stats={k.stats} align={align} size={16} />
+      <StatGrid stats={k.stats} align={align} size={16} hide={hiddenStat(k)} />
       <div className="sc-row">Move Type: {k.moveTypes.join(' + ')}</div>
       <div className="sc-row">
-        Attack: range {k.attack.range}
-        {k.attack.range > 1 ? ` · ${k.attack.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}
+        {abilityDisplayName(k)}: {abilityText(k.ability)}
       </div>
-      {m && (
-        <div className="sc-row">
-          {m.name} ({m.manaCost}◆): {magicText(m)}
-        </div>
-      )}
     </div>
   );
 }
