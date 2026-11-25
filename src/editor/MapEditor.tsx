@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { axialToOffset, createMatch, hexKey, offsetToAxial, validateMap, type MapHex, type MatchState, type ObstacleDefense } from '../rules';
 import { CameraControls, StoneColumn } from '../render/Board';
-import { ObstacleView, PitTile, STEP, ThemedTile, Water, hexToWorld } from '../render/Terrain';
+import { HeightEdges, ObstacleView, PitTile, STEP, ThemedTile, Water, hexToWorld } from '../render/Terrain';
 import { THEMES, themeOf, type Theme } from '../render/themes';
 import { SIDE_COLORS, spriteFeetOffset, spriteWorldSize, unitFrameTexture } from '../render/sprites';
 import { deleteMap, exportMapJson, listMaps, parseMapJson, randomMap, saveMap } from '../maps/library';
@@ -355,6 +355,7 @@ function EditorScene() {
       {match.obstacles.map((o) => (
         <ObstacleView key={o.id} o={o} theme={theme} match={match} interactive={false} />
       ))}
+      <HeightEdges map={match.map} waterLevel={match.waterLevel} />
       <Water match={match} interactive={false} />
       {match.units.map((u) => (
         <SpawnMarker key={u.id} match={match} side={u.side} hex={u.pos} facing={u.facing} />
@@ -398,7 +399,7 @@ function EditorTile({ mh, theme, waterLevel }: { mh: MapHex; theme: Theme; water
       {mh.terrain === 'stone' ? (
         <StoneColumn hex={mh.hex} height={mh.height} owner={null} />
       ) : mh.terrain === 'pit' ? (
-        <PitTile mh={mh} theme={theme} />
+        <PitTile mh={mh} ghost />
       ) : (
         <ThemedTile mh={mh} theme={theme} depth={depth} />
       )}

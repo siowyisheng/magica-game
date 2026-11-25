@@ -171,7 +171,7 @@ Any Unit that starts its turn on a Magic Stone, whoever controls it, heals 1 HP,
 A Unit that ends its turn on a Magic Stone gives control of the Stone to its Side. Being Summoned onto a Stone does not count. Control lasts until an enemy Unit Captures it, including while the Stone is under water.
 
 **Pit**:
-A hex type of its own that no Unit can stand on: a chasm, a lava pool, spikes, whatever the Theme draws. Only Fly can cross it. It never fills with water and does not count for the Water Level rules. It does not block a shot.
+A hex type of its own that no Unit can stand on, drawn as a missing hex. Only Fly can cross it. It never fills with water and does not count for the Water Level rules. It does not block a shot.
 _Avoid_: Chasm, hole, void (as the rules term)
 
 **Obstacle**:
@@ -183,7 +183,7 @@ A map generated from a seed, the same map for the same seed. 16–21 hexes wide 
 _Avoid_: Procedural map, generated level
 
 **Theme**:
-The look of a map: two visual variants each for Plain and Rough, one for Pit, and one Obstacle design for each Defense value (2, 4, 6). Each hex's variant is picked from its position unless the map sets it. Water looks the same in every Theme. A Theme changes only appearance, never rules.
+The look of a map: two visual variants each for Plain and Rough, and one Obstacle design for each Defense value (2, 4, 6). Each hex's variant is picked from its position unless the map sets it. Water looks the same in every Theme. A Theme changes only appearance, never rules.
 
 **Zone of Control (ZOC)**:
 The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn. Fly Units ignore ZOC. A Unit that starts its turn in a ZOC may leave it.

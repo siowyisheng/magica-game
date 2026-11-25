@@ -130,49 +130,77 @@ export function ThemedTile({ mh, theme, depth }: { mh: MapHex; theme: Theme; dep
   );
 }
 
-const rimGeo = new THREE.RingGeometry(0.72, 0.97, 6, 1).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
-const floorGeo = new THREE.CircleGeometry(0.72, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
-const shaftCache = new Map<number, THREE.CylinderGeometry>();
-function shaftGeo(depth: number) {
-  let g = shaftCache.get(depth);
-  if (!g) {
-    g = new THREE.CylinderGeometry(0.72, 0.72, depth, 6, 1, true);
-    g.translate(0, -depth / 2, 0);
-    shaftCache.set(depth, g);
-  }
-  return g;
+const capGeo = new THREE.CircleGeometry(0.97, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 6);
+
+/**
+ * A Pit is drawn as a missing tile: nothing shows, but the hex can still be
+ * hovered and clicked. `ghost` (the map editor) draws a faint outline so empty
+ * hexes can be painted.
+ */
+export function PitTile({ mh, ghost = false }: { mh: MapHex; ghost?: boolean }) {
+  return (
+    <mesh geometry={capGeo} position={[0, mh.height * STEP, 0]}>
+      <meshBasicMaterial color="#ffffff" transparent opacity={ghost ? 0.06 : 0} depthWrite={false} />
+    </mesh>
+  );
 }
 
-/** A Pit: an open hole with a rim, a shaft, and the Theme's floor. */
-export function PitTile({ mh, theme }: { mh: MapHex; theme: Theme }) {
-  const y = mh.height * STEP;
-  const pit = theme.pit;
-  const decos = useMemo(() => pit.deco?.(rng(hexSeed(mh.hex))) ?? [], [pit, mh.hex]);
-  const sideColor = useMemo(() => new THREE.Color(theme.side).multiply(tint(mh.height, 0)), [theme, mh.height]);
-  const rimColor = useMemo(() => new THREE.Color(theme.plain[0].top).multiply(tint(mh.height, 0)).multiplyScalar(0.85), [theme, mh.height]);
-  const floor = useRef<THREE.MeshLambertMaterial>(null);
-  useFrame(({ clock }) => {
-    if (floor.current && pit.glow) floor.current.emissiveIntensity = pit.glow * (0.85 + 0.15 * Math.sin(clock.elapsedTime * 2 + hexSeed(mh.hex)));
-  });
+/** Height a hex shows its top at: water hexes at the Water Level; Pits are not there at all. */
+function shownTop(mh: MapHex | undefined, waterLevel: number): number {
+  if (!mh || mh.terrain === 'pit') return -Infinity;
+  return Math.max(mh.height, waterLevel);
+}
+
+/**
+ * Where neighbouring hexes differ in height, a light line along the higher
+ * hex's top edge and a shadow along the lower hex's edge at the foot of the
+ * step, so a drop doesn't blend into the hexes behind it.
+ */
+export function HeightEdges({ map, waterLevel }: { map: MatchState['map']; waterLevel: number }) {
+  const { light, shade } = useMemo(() => {
+    const lightPos: number[] = [];
+    const shadePos: number[] = [];
+    const ribbon = (out: number[], mh: MapHex, d: (typeof DIRS)[number], y: number, width: number) => {
+      const [cx, cz] = hexToWorld(mh.hex);
+      const [i, j] = EDGE[d];
+      const o = 0.97;
+      const a = [cx + CORNER[i][0] * o, cz + CORNER[i][1] * o];
+      const b = [cx + CORNER[j][0] * o, cz + CORNER[j][1] * o];
+      const a2 = [cx + CORNER[i][0] * (o - width), cz + CORNER[i][1] * (o - width)];
+      const b2 = [cx + CORNER[j][0] * (o - width), cz + CORNER[j][1] * (o - width)];
+      out.push(a[0], y, a[1], b[0], y, b[1], b2[0], y, b2[1], a[0], y, a[1], b2[0], y, b2[1], a2[0], y, a2[1]);
+    };
+    for (const mh of map.hexes) {
+      if (mh.terrain === 'pit' || mh.height < waterLevel) continue; // under water: the water draws the top
+      const top = shownTop(mh, waterLevel);
+      const y = top * STEP + 0.004;
+      for (const d of DIRS) {
+        const other = shownTop(mapHexAt(map, neighbor(mh.hex, d)), waterLevel);
+        if (other < top) ribbon(lightPos, mh, d, y, 0.07);
+        else if (other > top) ribbon(shadePos, mh, d, y, 0.16);
+      }
+    }
+    const geo = (pos: number[]) => {
+      if (!pos.length) return null;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return g;
+    };
+    return { light: geo(lightPos), shade: geo(shadePos) };
+  }, [map, waterLevel]);
+  useEffect(() => () => (light?.dispose(), shade?.dispose()), [light, shade]);
   return (
     <>
-      <mesh geometry={columnGeo(mh.height, true)}>
-        <meshLambertMaterial color={sideColor} flatShading />
-      </mesh>
-      <mesh geometry={rimGeo} position={[0, y + 0.001, 0]}>
-        <meshLambertMaterial color={rimColor} flatShading />
-      </mesh>
-      <mesh geometry={shaftGeo(pit.depth)} position={[0, y, 0]}>
-        <meshLambertMaterial color={pit.wall} side={THREE.BackSide} flatShading />
-      </mesh>
-      <mesh geometry={floorGeo} position={[0, y - pit.depth, 0]}>
-        <meshLambertMaterial ref={floor} color={pit.floor} emissive={pit.glow ? pit.floor : '#000000'} emissiveIntensity={pit.glow ?? 0} />
-      </mesh>
-      <group position={[0, y - pit.depth, 0]}>
-        {decos.map((d, i) => (
-          <DecoMesh key={i} d={d} />
-        ))}
-      </group>
+      {light && (
+        <mesh geometry={light} raycast={() => null}>
+          <meshBasicMaterial color="#fffbe8" transparent opacity={0.45} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {shade && (
+        <mesh geometry={shade} raycast={() => null}>
+          <meshBasicMaterial color="#000000" transparent opacity={0.28} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
     </>
   );
 }

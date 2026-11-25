@@ -1,10 +1,9 @@
-// Map Themes: the look of Plain (2 variants), Rough (2 variants), Pit and the
+// Map Themes: the look of Plain (2 variants), Rough (2 variants) and the
 // three Obstacles (DEF 2 / 4 / 6). Visual only — never rules.
 //
 // Readability conventions shared by every Theme:
 // - Plain is a flat, calm top: colour and flat detail only, nothing raised.
 // - Rough is clearly bumpy: a darker top with raised clumps, rocks or shards.
-// - A Pit is a hole: the top is open with a rim, its inside dark or glowing.
 // - Obstacles grow bigger and heavier with their Defense.
 
 export type DecoShape = 'sphere' | 'box' | 'cone' | 'cyl' | 'rock';
@@ -31,16 +30,6 @@ export interface TileLook {
   deco?: (rnd: () => number) => Deco[];
 }
 
-export interface PitLook {
-  wall: string;
-  floor: string;
-  /** Floor glows (lava). */
-  glow?: number;
-  /** How far down the floor is (world units). */
-  depth: number;
-  deco?: (rnd: () => number) => Deco[];
-}
-
 export interface Theme {
   id: string;
   name: string;
@@ -49,7 +38,6 @@ export interface Theme {
   background: string;
   plain: [TileLook, TileLook];
   rough: [TileLook, TileLook];
-  pit: PitLook;
   obstacles: Record<2 | 4 | 6, (rnd: () => number) => Deco[]>;
 }
 
@@ -173,8 +161,6 @@ const shards = (rnd: () => number, n: number, colors: string[], h = 0.34): Deco[
     return { shape: 'cone', p: [x, hh / 2, z], s: [0.08, hh, 0.08], color: colors[Math.floor(rnd() * colors.length)], rot: [(rnd() - 0.5) * 0.6, rnd() * 3, (rnd() - 0.5) * 0.6] };
   });
 
-const spikes = (rnd: () => number, color: string): Deco[] =>
-  spots(rnd, 9, 0.05, 0.55).map(([x, z]) => ({ shape: 'cone', p: [x, 0.16, z], s: [0.05, 0.32, 0.05], color }));
 
 // ---------- the five Themes ----------
 
@@ -192,7 +178,6 @@ export const THEMES: Theme[] = [
       { top: '#5f7a36', pattern: speckle(['#526c2c', '#6c8a3e'], 0.25), deco: (r) => clumps(r, 4, ['#3f5a22', '#4a6a28']) },
       { top: '#6c7848', pattern: speckle(['#5c6838', '#7c8858'], 0.2), deco: (r) => rocks(r, 5, ['#8a8a80', '#9a988c', '#76766c']) },
     ],
-    pit: { wall: '#3a2a1c', floor: '#06060a', depth: 1.4, deco: (r) => rocks(r, 3, ['#2a2018'], 0.1) },
     obstacles: {
       2: (r) => clumps(r, 1, ['#3c6a28'], 0.3).map((d) => ({ ...d, p: [d.p[0] * 0.2, d.p[1], d.p[2] * 0.2] as [number, number, number] })),
       4: () => [{ shape: 'rock', p: [0, 0.36, 0], s: [0.48, 0.42, 0.44], color: '#8c8a84', rot: [0.3, 0.7, 0.2] }],
@@ -223,7 +208,6 @@ export const THEMES: Theme[] = [
         ],
       },
     ],
-    pit: { wall: '#a07a48', floor: '#2a1a10', depth: 1.1, deco: (r) => rocks(r, 2, ['#8a6a40'], 0.1) },
     obstacles: {
       2: () => [
         { shape: 'cyl', p: [0, 0.32, 0], s: [0.12, 0.64, 0.12], color: '#4a8a3a' },
@@ -270,7 +254,6 @@ export const THEMES: Theme[] = [
         ],
       },
     ],
-    pit: { wall: '#4a4640', floor: '#141214', depth: 0.9, deco: (r) => spikes(r, '#b8bcc8') },
     obstacles: {
       2: () => [
         { shape: 'box', p: [0, 0.24, 0], s: [0.46, 0.46, 0.46], color: '#9a6a3a', rot: [0, 0.4, 0] },
@@ -310,7 +293,6 @@ export const THEMES: Theme[] = [
         ],
       },
     ],
-    pit: { wall: '#2c4a6c', floor: '#040a16', depth: 1.4, deco: (r) => shards(r, 3, ['#6ab0e0'], 0.3) },
     obstacles: {
       2: () => [
         { shape: 'sphere', p: [0, 0.14, 0], s: [0.42, 0.28, 0.38], color: '#f2f6fa' },
@@ -344,13 +326,6 @@ export const THEMES: Theme[] = [
         ],
       },
     ],
-    pit: {
-      wall: '#2a1e1c',
-      floor: '#ff5a14',
-      glow: 1.2,
-      depth: 0.35,
-      deco: (r) => spots(r, 3, 0.05, 0.5).map(([x, z]) => ({ shape: 'sphere', p: [x, 0.02, z], s: [0.1, 0.06, 0.1], color: '#ffc04a', emissive: 1.4 }) as Deco),
-    },
     obstacles: {
       2: () => [
         { shape: 'cyl', p: [0, 0.26, 0], s: [0.2, 0.52, 0.2], color: '#2a2220' },
