@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateRandomMap, RANDOM_MAP_THEMES } from './random';
+import { generateRandomMap, RANDOM_MAP_STONE_GAPS, RANDOM_MAP_THEMES } from './random';
 import { DIRS, neighbor } from '../hex';
 import { validateMap } from './validate';
 import { hexDistance, hexKey, axialToOffset } from '../hex';
@@ -188,9 +188,8 @@ describe('random maps', () => {
     expect(ws.filter((w) => w.thinShare < 0.3).length).toBeGreaterThan(15); // broad lakes
   });
 
-  it('have 7–12 Stones, mostly 4–7 apart (rarely 2–3), at least a third on or near the symmetry line', () => {
-    let inBand = 0;
-    let close = 0;
+  it('have 7–12 Stones, 2–9 from their nearest, spread roughly as aimed for; at least a third on or near the symmetry line', () => {
+    const count: Record<number, number> = {};
     let total = 0;
     for (const { seed, map } of maps) {
       const stones = map.hexes.filter((h) => h.terrain === 'stone').map((h) => h.hex);
@@ -198,18 +197,16 @@ describe('random maps', () => {
       expect(stones.length).toBeLessThanOrEqual(12);
       for (const s of stones) {
         const nearest = Math.min(...stones.filter((t) => t !== s).map((t) => hexDistance(s, t)));
-        expect(nearest).toBeGreaterThanOrEqual(2);
-        if (nearest < 4) close++;
-        if (nearest <= 7) inBand++;
+        expect(nearest, `seed ${seed}`).toBeGreaterThanOrEqual(2);
+        expect(nearest, `seed ${seed}`).toBeLessThanOrEqual(9);
+        count[nearest] = (count[nearest] ?? 0) + 1;
         total++;
       }
       const nearLine = stones.filter((s) => Math.abs(hexDistance(s, map.spawns[0]) - hexDistance(s, map.spawns[1])) <= 1).length;
       expect(nearLine, `seed ${seed}`).toBeGreaterThanOrEqual(Math.ceil(stones.length / 3));
     }
-    expect(inBand / total).toBeGreaterThan(0.75);
-    // closer than 4 now and then, never often
-    expect(close).toBeGreaterThan(0);
-    expect(close / total).toBeLessThan(0.15);
+    // each distance's share within 5 points of the aim (close pairs come four Stones at a time, so it's noisy)
+    for (const [g, share] of Object.entries(RANDOM_MAP_STONE_GAPS)) expect(Math.abs((count[Number(g)] ?? 0) / total - share), `distance ${g}`).toBeLessThan(0.05);
   });
 
   it('have 3–10 Obstacles per Side, mirrored, and are point-symmetric', () => {
