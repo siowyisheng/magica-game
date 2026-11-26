@@ -39,6 +39,11 @@ export function classOf(k: UnitKind): FamiliarClass {
 export const CLASS_NAME: Record<FamiliarClass, string> = { fighter: 'Fighter', caster: 'Caster', healer: 'Healer', support: 'Support' };
 
 /** The stat the Unit's Ability uses (ATK or MP); Empower and water Abilities use neither, shown as MP. */
+/** Whether an Ability is a Burst (it hits around its user, aimed at the user's own hex). */
+export function isBurst(a: Ability): a is Exclude<Ability, { kind: 'water' }> {
+  return a.kind === 'damage' && !!a.burst;
+}
+
 export function powerStat(k: UnitKind): Power {
   return isPhysical(k.ability) ? 'atk' : 'mp';
 }

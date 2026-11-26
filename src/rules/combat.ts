@@ -103,7 +103,7 @@ export function computeDamage(
   defender: Target,
   hit: HitKind,
 ): Effect {
-  const ak = kindOf(attacker.kind);
+  const ak = kindOf(attacker);
   const aAlign = alignmentBonus(ak.alignment, state.clock);
   // Empower adds to ATK (physical hits only) until the next physical hit
   const aStat = (hit === 'physical' ? ak.stats.atk + (attacker.empowered ?? 0) : ak.stats.mp) + aAlign;
@@ -118,7 +118,7 @@ export function computeDamage(
     dStat = defender.def;
     element = elementBonus(ak, null);
   } else {
-    const dk = kindOf(defender.kind);
+    const dk = kindOf(defender);
     dAlign = alignmentBonus(dk.alignment, state.clock);
     dStat = (hit === 'physical' ? dk.stats.def : dk.stats.mdf) + dAlign;
     element = elementBonus(ak, dk);
@@ -156,7 +156,7 @@ export function computeEmpower(ability: { amount?: number }, target: Unit): Effe
 export const EMPOWER_DEFAULT = 3;
 
 export function computeHeal(state: MatchState, caster: Unit, target: Unit): Effect {
-  const ck = kindOf(caster.kind);
+  const ck = kindOf(caster);
   const mp = Math.max(0, ck.stats.mp + alignmentBonus(ck.alignment, state.clock));
   const amount = Math.min(mp, MAX_HP - target.hp);
   return { unitId: target.id, kind: 'heal', amount, hpBefore: target.hp, lethal: false };
@@ -324,7 +324,7 @@ export function affectedUnits(state: MatchState, caster: Unit, ability: AreaAbil
 }
 
 /** Hexes a Unit's Ability could be aimed at from `from` (each affecting someone); a water Ability is aimed at the user's own hex. */
-export function abilityTargetHexes(state: MatchState, caster: Unit, from: Hex, ability: Ability = kindOf(caster.kind).ability): Hex[] {
+export function abilityTargetHexes(state: MatchState, caster: Unit, from: Hex, ability: Ability = kindOf(caster).ability): Hex[] {
   if (ability.kind === 'water') return [from];
   // The caster will be standing at `from` when casting.
   const moved: Unit = { ...caster, pos: from };

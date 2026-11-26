@@ -9,8 +9,9 @@ import {
   TIME_LIMIT_HOURS,
   UPKEEP_DIVISOR,
 } from './data/tuning';
-import { DEFAULT_MASTER, kindOf } from './kinds';
+import { DEFAULT_MASTER, FAMILIARS, kindOf } from './kinds';
 import { affectedUnits, computeDamage, computeEmpower, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
+import { alignmentBonus } from './time';
 import { isPhysical, powerOf } from './ability';
 import { canPlace, canSummonAt, isStranded, mapHexAt, reachable, surfaceOf } from './terrain';
 import { isObstacle, type GameEvent, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
@@ -31,7 +32,7 @@ export function turnDelay(kind: UnitKind, moved: boolean, acted: boolean): numbe
 
 export function delayForAction(state: MatchState, action: Pick<TurnAction, 'unitId' | 'to' | 'command'>): number {
   const u = getUnit(state, action.unitId);
-  return turnDelay(kindOf(u.kind), !hexEq(u.pos, action.to), action.command.type !== 'wait');
+  return turnDelay(kindOf(u), !hexEq(u.pos, action.to), action.command.type !== 'wait');
 }
 
 // ---------- queries ----------
@@ -47,11 +48,11 @@ export function activeUnit(state: MatchState): Unit | null {
 }
 
 export function masterOf(state: MatchState, side: SideId): Unit | undefined {
-  return state.units.find((u) => u.side === side && kindOf(u.kind).isMaster);
+  return state.units.find((u) => u.side === side && kindOf(u).isMaster);
 }
 
 export function familiarCount(state: MatchState, side: SideId): number {
-  return state.units.filter((u) => u.side === side && !kindOf(u.kind).isMaster).length;
+  return state.units.filter((u) => u.side === side && !kindOf(u).isMaster).length;
 }
 
 export function stonesControlled(state: MatchState, side: SideId): number {
@@ -62,17 +63,26 @@ export function upkeep(state: MatchState, side: SideId): number {
   let total = 0;
   for (const u of state.units) {
     if (u.side !== side) continue;
-    const k = kindOf(u.kind);
+    const k = kindOf(u);
     if (!k.isMaster) total += k.cost / UPKEEP_DIVISOR;
   }
   return total;
 }
 
-/** Hourly Mana Income (may be negative). */
-export function manaIncome(state: MatchState, side: SideId): number {
+/** The hour mark the next Mana Income is paid at. */
+export function nextIncomeAt(clock: number): number {
+  return (Math.floor(clock / 60) + 1) * 60;
+}
+
+/**
+ * Hourly Mana Income (may be negative) paid at the hour mark `at` (default:
+ * the next one). The Master's MP counts its Alignment at that hour.
+ */
+export function manaIncome(state: MatchState, side: SideId, at = nextIncomeAt(state.clock)): number {
   const s = masterOf(state, side);
   if (!s) return 0;
-  const mp = kindOf(s.kind).stats.mp;
+  const k = kindOf(s);
+  const mp = Math.max(0, k.stats.mp + alignmentBonus(k.alignment, at));
   return INCOME_MULTIPLIER * (STONE_BASE + stonesControlled(state, side)) * mp - upkeep(state, side);
 }
 
@@ -82,8 +92,7 @@ export function manaIncome(state: MatchState, side: SideId): number {
  */
 export function manaAfter(state: MatchState, side: SideId, minutes: number): number {
   let mana = state.sides[side].mana;
-  const income = manaIncome(state, side);
-  for (let h = Math.floor(state.clock / 60) + 1; h * 60 <= state.clock + minutes; h++) mana = Math.max(0, Math.min(MANA_MAX, mana + income));
+  for (let h = Math.floor(state.clock / 60) + 1; h * 60 <= state.clock + minutes; h++) mana = Math.max(0, Math.min(MANA_MAX, mana + manaIncome(state, side, h * 60)));
   return mana;
 }
 
@@ -104,6 +113,8 @@ export interface MatchOptions {
   aiLevels?: ['normal' | 'hard', 'normal' | 'hard'];
   /** Each Side's Loadout (Familiar kind ids); null = all Familiars (Test Match). */
   rosters?: [string[] | null, string[] | null];
+  /** Each Side's Signature Familiar (one of its Loadout); ignored without a Loadout. */
+  signatures?: [string | null, string | null];
 }
 
 /** Number of Familiars in a Loadout. */
@@ -113,6 +124,36 @@ export const LOADOUT_SIZE = 20;
 export function inRoster(state: MatchState, side: SideId, kind: string): boolean {
   const r = state.sides[side].roster;
   return !r || r.includes(kind);
+}
+
+/** How many of a Familiar a Signature may have on the map at once (others: 1). */
+export const SIGNATURE_LIMIT = 3;
+
+/** Whether `kind` is `side`'s Signature (never in a Test Match). */
+export function isSignature(state: MatchState, side: SideId, kind: string): boolean {
+  const s = state.sides[side];
+  return !!s.roster && s.signature === kind;
+}
+
+/** How many of `kind` `side` may have on the map at once (no limit without a Loadout). */
+export function summonLimit(state: MatchState, side: SideId, kind: string): number {
+  if (!state.sides[side].roster) return Infinity;
+  return isSignature(state, side, kind) ? SIGNATURE_LIMIT : 1;
+}
+
+/** How many of `kind` `side` has on the map. */
+export function onMap(state: MatchState, side: SideId, kind: string): number {
+  return state.units.filter((u) => u.side === side && u.kind === kind).length;
+}
+
+/**
+ * The Familiars `side` may Summon now: in its Loadout and under their limit on
+ * the map. A Signature comes with its Signature Bonus.
+ */
+export function summonableKinds(state: MatchState, side: SideId): UnitKind[] {
+  return FAMILIARS.filter((k) => inRoster(state, side, k.id) && onMap(state, side, k.id) < summonLimit(state, side, k.id)).map((k) =>
+    isSignature(state, side, k.id) ? kindOf({ kind: k.id, signature: true }) : k,
+  );
 }
 
 export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
@@ -133,8 +174,8 @@ export function createMatch(map: MapDef, opts: MatchOptions = {}): MatchState {
     obstacles: [],
     stones: map.hexes.filter((h) => h.terrain === 'stone').map((h) => ({ hex: h.hex, owner: null })),
     sides: [
-      { mana: MANA_START, ai: opts.ai?.[0] ?? false, aiLevel: opts.aiLevels?.[0] ?? 'normal', ...(opts.rosters?.[0] ? { roster: [...opts.rosters[0]] } : {}) },
-      { mana: MANA_START, ai: opts.ai?.[1] ?? true, aiLevel: opts.aiLevels?.[1] ?? 'normal', ...(opts.rosters?.[1] ? { roster: [...opts.rosters[1]] } : {}) },
+      { mana: MANA_START, ai: opts.ai?.[0] ?? false, aiLevel: opts.aiLevels?.[0] ?? 'normal', ...(opts.rosters?.[0] ? { roster: [...opts.rosters[0]], ...(opts.signatures?.[0] ? { signature: opts.signatures[0]! } : {}) } : {}) },
+      { mana: MANA_START, ai: opts.ai?.[1] ?? true, aiLevel: opts.aiLevels?.[1] ?? 'normal', ...(opts.rosters?.[1] ? { roster: [...opts.rosters[1]], ...(opts.signatures?.[1] ? { signature: opts.signatures[1]! } : {}) } : {}) },
     ],
     nextUnitId: 1,
     activeUnitId: null,
@@ -170,7 +211,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
   if (state.winner !== null) return 'match is over';
   if (action.unitId !== state.activeUnitId) return 'not this unit’s turn';
   const unit = getUnit(state, action.unitId);
-  const kind = kindOf(unit.kind);
+  const kind = kindOf(unit);
   const moved = !hexEq(unit.pos, action.to);
   if (unit.stranded && !moved && action.command.type !== 'wait') return 'stranded units that stay put can only Wait';
   if (moved) {
@@ -197,6 +238,7 @@ export function validateTurn(state: MatchState, action: TurnAction): string | nu
       const sk = kindOf(cmd.kind);
       if (sk.isMaster) return 'cannot summon a Master';
       if (!inRoster(state, unit.side, sk.id)) return 'not in this Side’s Loadout';
+      if (onMap(state, unit.side, sk.id) >= summonLimit(state, unit.side, sk.id)) return 'already on the map';
       if (state.sides[unit.side].mana < sk.cost) return 'not enough mana';
       const h = neighbor(action.to, cmd.dir);
       if (!mapHexAt(state.map, h)) return 'off map';
@@ -216,7 +258,7 @@ function withUnitAt(state: MatchState, id: number, pos: Hex): MatchState {
 /** Exact effects of a Command, without applying it. */
 export function previewEffects(state: MatchState, action: TurnAction): Effect[] {
   const unit = getUnit(state, action.unitId);
-  const kind = kindOf(unit.kind);
+  const kind = kindOf(unit);
   const view = withUnitAt(state, unit.id, action.to);
   const caster = getUnit(view, unit.id);
   const cmd = action.command;
@@ -245,7 +287,7 @@ export function resultingFacing(state: MatchState, action: TurnAction): Dir {
     case 'summon':
       return cmd.dir;
     case 'act': {
-      const ab = kindOf(getUnit(state, action.unitId).kind).ability;
+      const ab = kindOf(getUnit(state, action.unitId)).ability;
       if (ab.kind === 'water' || hexEq(action.to, cmd.target)) return action.facing;
       return facingTowardTarget(action.to, cmd.target, action.facing);
     }
@@ -276,7 +318,7 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
   const state = clone(prev);
   const events: GameEvent[] = [];
   const unit = getUnit(state, action.unitId);
-  const kind = kindOf(unit.kind);
+  const kind = kindOf(unit);
   const moved = !hexEq(unit.pos, action.to);
 
   if (moved) {
@@ -315,7 +357,8 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
     // a physical hit uses up Empower (its damage above already counted it)
     if (isPhysical(ab)) delete unit.empowered;
   } else if (cmd.type === 'summon') {
-    const sk = kindOf(cmd.kind);
+    const signature = isSignature(state, unit.side, cmd.kind);
+    const sk = kindOf({ kind: cmd.kind, signature });
     state.sides[unit.side].mana -= sk.cost;
     const id = state.nextUnitId++;
     state.units.push({
@@ -327,6 +370,7 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
       hp: MAX_HP,
       av: turnDelay(sk, true, true),
       stranded: false,
+      ...(signature ? { signature: true } : {}),
     });
     events.push({ type: 'summon', unitId: id, kind: sk.id, by: unit.id });
   }
@@ -354,7 +398,7 @@ function resolveDeaths(state: MatchState, events: GameEvent[]): void {
   const dead = state.units.filter((u) => u.hp <= 0);
   for (const d of dead) {
     events.push({ type: 'death', unitId: d.id });
-    if (kindOf(d.kind).isMaster && state.winner === null) {
+    if (kindOf(d).isMaster && state.winner === null) {
       state.winner = (1 - d.side) as SideId;
       events.push({ type: 'win', side: state.winner });
     }
@@ -370,8 +414,8 @@ export function compareTurnOrder(a: { av: number; spd: number; side: number; id:
 function nextUnit(state: MatchState): Unit {
   const sorted = [...state.units].sort((a, b) =>
     compareTurnOrder(
-      { av: a.av, spd: kindOf(a.kind).stats.spd, side: a.side, id: a.id },
-      { av: b.av, spd: kindOf(b.kind).stats.spd, side: b.side, id: b.id },
+      { av: a.av, spd: kindOf(a).stats.spd, side: a.side, id: a.id },
+      { av: b.av, spd: kindOf(b).stats.spd, side: b.side, id: b.id },
     ),
   );
   return sorted[0];
@@ -391,7 +435,7 @@ function advance(state: MatchState, events: GameEvent[]): void {
     // Hour marks crossed in (from, to]
     for (let h = Math.floor(from / 60) + 1; h * 60 <= to; h++) {
       for (const side of [0, 1] as const) {
-        const income = manaIncome(state, side);
+        const income = manaIncome(state, side, h * 60);
         const before = state.sides[side].mana;
         state.sides[side].mana = Math.max(0, Math.min(MANA_MAX, before + income));
         events.push({ type: 'mana', side, amount: state.sides[side].mana - before, clock: h * 60 });
@@ -455,7 +499,7 @@ export interface TimelineEntry {
 export function projectTimeline(state: MatchState, count: number, activeDelay?: number): TimelineEntry[] {
   type Sim = { id: number; av: number; spd: number; side: number; repeat: number; exact: boolean; preview: boolean };
   const sims: Sim[] = state.units.map((u) => {
-    const k = kindOf(u.kind);
+    const k = kindOf(u);
     const isActive = u.id === state.activeUnitId;
     return {
       id: u.id,

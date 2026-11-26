@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, hexDistance, kindOf, trajectoryOf, targetedAbility, meleeReach, abilityDisplayName, isPhysical } from '../rules';
+import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, hexDistance, kindOf, trajectoryOf, targetedAbility, meleeReach, abilityDisplayName, isPhysical, isSignature, isBurst } from '../rules';
 import { blockedShot, hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
@@ -114,19 +114,21 @@ export function Overlay() {
   if (u && quick) {
     const { plan } = quick;
     const e = previewEffects(match, { unitId: u.id, to: plan.dest, facing: u.facing, command: { type: 'act', target: plan.aim } });
-    for (const ef of e) tags.push({ unit: targetById(match, ef.unitId)!, effect: ef, label: abilityDisplayName(kindOf(u.kind)) });
+    for (const ef of e) tags.push({ unit: targetById(match, ef.unitId)!, effect: ef, label: abilityDisplayName(kindOf(u)) });
   }
-  if (u && phase.kind === 'target' && hoverHex) {
-    const command: Command = { type: 'act', target: hoverHex };
+  // a Burst is centred on its user: its preview shows at once, wherever the cursor is
+  const burst = !!u && isBurst(kindOf(u).ability);
+  if (u && phase.kind === 'target' && (hoverHex || burst)) {
+    const command: Command = { type: 'act', target: burst ? phase.to : hoverHex! };
     const effects = previewEffects(match, { unitId: u.id, to: phase.to, facing: phase.facing, command });
     for (const e of effects) {
       const t = targetById(match, e.unitId);
       if (t) tags.push({ unit: t, effect: e });
     }
     // in range but blocked: say so
-    const t = targetAt(match, hoverHex);
-    if (!effects.length && t && t.id !== u.id) {
-      const k = kindOf(u.kind);
+    const t = hoverHex && !burst ? targetAt(match, hoverHex) : undefined;
+    if (!effects.length && t && t.id !== u.id && hoverHex) {
+      const k = kindOf(u);
       const ab = k.ability;
       if (ab && 'range' in ab && trajectoryOf(ab) === 'direct' && hexDistance(phase.to, hoverHex) <= ab.range) {
         tags.push({ unit: t, note: 'No clear shot' });
@@ -194,14 +196,14 @@ export function Overlay() {
       ))}
       {quick && u && (
         <div className="anchor" data-anchor="ghost:A">
-          <div className={`ghost-badge ${isPhysical(kindOf(u.kind).ability) ? 'a' : 'm'}`}>
-            <ClassIcon kind={kindOf(u.kind)} size={12} />
+          <div className={`ghost-badge ${isPhysical(kindOf(u).ability) ? 'a' : 'm'}`}>
+            <ClassIcon kind={kindOf(u)} size={12} />
           </div>
         </div>
       )}
       {phase.kind === 'menu' && phase.sub === 'summon' && hoverSummon && u && (
         <div className="summon-card-float">
-          <FamiliarDetail kindId={hoverSummon} side={u.side} />
+          <FamiliarDetail kindId={hoverSummon} side={u.side} signature={isSignature(match, u.side, hoverSummon)} />
         </div>
       )}
       {phase.kind === 'menu' && (

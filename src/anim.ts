@@ -136,7 +136,7 @@ export const SUMMON_PHASES = { approachEnd: 0.24, lightStart: 0.18, fadeStart: 0
  */
 export function planTurnAnim(before: MatchState, action: TurnAction, start: number, skipMove = false, turnEnd?: { events: GameEvent[]; after: MatchState }): TurnAnim {
   const unit = getUnit(before, action.unitId);
-  const kind = kindOf(unit.kind);
+  const kind = kindOf(unit);
   const steps: AnimStep[] = [];
   let t = 0;
 

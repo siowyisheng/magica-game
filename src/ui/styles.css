@@ -293,7 +293,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .loadout-count { display: flex; gap: 12px; align-items: center; margin: 6px 0; }
 .loadout-count .spacer { flex: 1; }
 .loadout-card { min-height: 150px; margin-top: 8px; }
-.loadouts-modal { width: min(1040px, 96vw); }
+.loadouts-modal { width: fit-content; max-width: 96vw; }
 .btn-row .spacer { flex: 1; }
 
 /* pause and replays */
@@ -317,3 +317,16 @@ button:disabled { opacity: 0.4; cursor: default; }
 .replay-text { flex: 1; min-width: 0; }
 .replay-item .btn-row { margin: 0; }
 .ai-plan { color: #c8d2ff; opacity: 0.8; margin-top: 2px; line-height: 1.3; }
+
+/* Signature Familiars */
+.summon-tile .sig-star { position: absolute; top: 14px; right: 2px; line-height: 0; }
+.summon-tile .sig-count { position: absolute; top: 28px; right: 2px; font-size: 9px; color: #ffd040; text-shadow: 0 1px 1px #000; }
+.summon-tile .on-map { position: absolute; top: 22px; left: 0; right: 0; text-align: center; font-size: 9px; color: #fff; background: #000a; }
+.loadout-tile .sig-star { position: absolute; top: 1px; right: 1px; line-height: 0; }
+.loadout-tile.sig { box-shadow: inset 0 0 0 1px #ffd04099; }
+.loadout-strip.big .loadout-tile.sig { border-color: #ffd040aa; }
+.stat.sig b { text-decoration: underline; text-decoration-color: #ffd040; text-underline-offset: 2px; }
+.sc-sig { color: #ffd040; display: flex; align-items: center; gap: 4px; }
+.loadouts-stack { display: flex; flex-direction: column; gap: 6px; }
+.loadouts-modal { max-height: 94vh; overflow-y: auto; }
+.loadouts-modal .loadout-strip.big .loadout-row { flex-wrap: wrap; }

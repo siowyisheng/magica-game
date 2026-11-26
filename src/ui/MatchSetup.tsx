@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { INCOME_MULTIPLIER, LOADOUT_SIZE, STONE_BASE, MASTERS, FAMILIARS, type SideId } from '../rules';
 import { listMaps, RANDOM_MAP_ID } from '../maps/library';
 import { isPlayable, listLoadouts } from '../loadouts/library';
-import { LoadoutStrip } from './LoadoutView';
+import { HideOmittedToggle, LoadoutStrip, useHideOmitted } from './LoadoutView';
 import { useGame, type MatchSetup as Setup } from '../store';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { StatGrid } from './Stats';
@@ -22,6 +22,7 @@ export function MatchSetupDialog() {
   const setScreen = useGame((s) => s.setScreen);
   const maps = listMaps();
   const loadouts = listLoadouts();
+  const [hideOmitted, setHideOmitted] = useHideOmitted();
   if (!open) return null;
   const mapId = setup.mapId === RANDOM_MAP_ID || maps.some((m) => m.id === setup.mapId) ? setup.mapId : maps[0].id;
   const update = (f: (s: Setup) => Setup) =>
@@ -114,14 +115,21 @@ export function MatchSetupDialog() {
                       {loadouts.map((l) => (
                         <option key={l.id} value={l.id} disabled={!isPlayable(l)}>
                           {l.name}
-                          {isPlayable(l) ? '' : ` (needs ${LOADOUT_SIZE} Familiars: edit it)`}
+                          {isPlayable(l) ? '' : new Set(l.familiars).size !== LOADOUT_SIZE ? ` (needs ${LOADOUT_SIZE} Familiars: edit it)` : ' (needs a Signature: edit it)'}
                         </option>
                       ))}
                     </select>
                   </label>
                   {(() => {
                     const l = loadouts.find((x) => x.id === setup.loadouts[side] && isPlayable(x));
-                    return l ? <LoadoutStrip familiars={l.familiars} side={side} /> : <div className="muted small">Chosen when the match starts.</div>;
+                    return l ? (
+                      <>
+                        <LoadoutStrip familiars={l.familiars} signature={l.signature} side={side} hideOmitted={hideOmitted} />
+                        <HideOmittedToggle hide={hideOmitted} setHide={setHideOmitted} />
+                      </>
+                    ) : (
+                      <div className="muted small">Chosen when the match starts, with a random Signature.</div>
+                    );
                   })()}
                 </>
               )}

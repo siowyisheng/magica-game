@@ -9,7 +9,7 @@ import type { AreaAbility } from './combat';
 
 /** The Unit's Ability when it is aimed at hexes (every one but Rise and Ebb). */
 export function targetedAbility(unit: Unit): AreaAbility | null {
-  const a = kindOf(unit.kind).ability;
+  const a = kindOf(unit).ability;
   return a.kind === 'water' ? null : a;
 }
 

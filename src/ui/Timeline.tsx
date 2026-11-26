@@ -1,4 +1,4 @@
-import { compareTurnOrder, formatClock, kindOf, timeOfDay, turnDelay, type SideId } from '../rules';
+import { compareTurnOrder, formatClock, isSignature, kindOf, timeOfDay, turnDelay, type SideId } from '../rules';
 import { previewDelay, useGame } from '../store';
 import { unitIconUrl } from '../render/sprites';
 import { ClassIcon } from './icons';
@@ -35,12 +35,12 @@ export function Timeline() {
   const ghostKind = phase.kind === 'summonDir' ? phase.summonKind : phase.kind === 'menu' && phase.sub === 'summon' ? hoverSummon : null;
   const activeUnit = match.units.find((u) => u.id === active);
   const delay = ghostKind && activeUnit
-    ? turnDelay(kindOf(activeUnit.kind), phase.kind !== 'idle' && 'to' in phase && (phase.to.q !== activeUnit.pos.q || phase.to.r !== activeUnit.pos.r), true)
+    ? turnDelay(kindOf(activeUnit), phase.kind !== 'idle' && 'to' in phase && (phase.to.q !== activeUnit.pos.q || phase.to.r !== activeUnit.pos.r), true)
     : previewDelay({ match, phase, hoverHex, hoverCommand, hoverUnitId });
 
   type Row = Slot & { av: number; spd: number; id: number };
   const rows: Row[] = match.units.map((u) => {
-    const k = kindOf(u.kind);
+    const k = kindOf(u);
     const isActive = u.id === active;
     const av = isActive ? (delay ?? -1) : u.av; // acting unit stays first unless previewing
     return {
@@ -58,7 +58,7 @@ export function Timeline() {
     };
   });
   if (ghostKind && activeUnit) {
-    const gk = kindOf(ghostKind);
+    const gk = kindOf({ kind: ghostKind, signature: isSignature(match, activeUnit.side, ghostKind) });
     const av = turnDelay(gk, true, true);
     rows.push({
       key: 'ghost',
@@ -107,12 +107,12 @@ export function Timeline() {
             style={{ left: 8 + i * SLOT }}
             onMouseEnter={() => s.unitId !== null && setHoverUnit(s.unitId)}
             onMouseLeave={() => setHoverUnit(null)}
-            title={`${kindOf(s.kind).name}${s.ghost ? ' (would be summoned)' : ''} — ${formatClock(s.clock)}`}
+            title={`${kindOf(s).name}${s.ghost ? ' (would be summoned)' : ''} — ${formatClock(s.clock)}`}
           >
             <img src={unitIconUrl(s.kind, s.side)} alt="" />
-            {!kindOf(s.kind).isMaster && (
+            {!kindOf(s).isMaster && (
               <span className="cls">
-                <ClassIcon kind={kindOf(s.kind)} size={10} />
+                <ClassIcon kind={kindOf(s)} size={10} />
               </span>
             )}
             <span className={`t ${tod}`}>{s.now ? 'NOW' : formatClock(s.clock)}</span>

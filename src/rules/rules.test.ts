@@ -9,6 +9,10 @@ import {
   hex,
   hexKey,
   kindOf,
+  signatureStatOf,
+  onMap,
+  summonLimit,
+  isSignature,
   manaIncome,
   projectTimeline,
   reachable,
@@ -846,9 +850,11 @@ describe('loadouts', () => {
     const { LOADOUT_SIZE, loadoutProblems } = await import('./index');
     expect(LOADOUT_SIZE).toBe(20);
     const twenty = FAMILIARS.slice(0, 20).map((k) => k.id);
-    expect(loadoutProblems(twenty)).toEqual([]);
-    expect(loadoutProblems(twenty.slice(0, 18))).not.toEqual([]);
-    expect(loadoutProblems(['imp'])).not.toEqual([]);
+    expect(loadoutProblems(twenty, twenty[3])).toEqual([]);
+    expect(loadoutProblems(twenty.slice(0, 18), twenty[3])).not.toEqual([]);
+    expect(loadoutProblems(['imp'], 'imp')).not.toEqual([]);
+    expect(loadoutProblems(twenty, null)).toEqual(['pick a Signature Familiar']);
+    expect(loadoutProblems(twenty, FAMILIARS[30].id)).toEqual(['pick a Signature Familiar']);
   });
 
   it('only lets a Side Summon what is in its Loadout; no Loadout means all', async () => {
@@ -866,6 +872,53 @@ describe('loadouts', () => {
     } else {
       expect(validateTurn(s, kraken)).toBeNull();
     }
+  });
+});
+
+describe('summon limits and Signatures', () => {
+  const setup = (signature: string | null) => {
+    const roster = FAMILIARS.filter((k) => k.cost <= 56).map((k) => k.id).slice(0, 20);
+    const s = createMatch(SCAFFOLD_MAP, { rosters: [roster, roster], signatures: [signature, signature] });
+    const me = getUnit(s, s.activeUnitId!);
+    s.sides[me.side].mana = 120;
+    return { s, me };
+  };
+  const summonImp = (s: MatchState, me: Unit) => {
+    const dir = ([0, 1, 2, 3, 4, 5] as const).find((d) => validateTurn(s, { unitId: me.id, to: me.pos, facing: d, command: { type: 'summon', kind: 'imp', dir: d } }) === null);
+    return dir === undefined ? null : { unitId: me.id, to: me.pos, facing: dir, command: { type: 'summon' as const, kind: 'imp', dir } };
+  };
+
+  it('allows only one of each Familiar on the map; a death frees the slot', () => {
+    const { s, me } = setup('ember');
+    place(s, 'imp', me.side, 0, 0);
+    const blocked = { unitId: me.id, to: me.pos, facing: 0 as const, command: { type: 'summon' as const, kind: 'imp', dir: 0 as const } };
+    expect(validateTurn(s, blocked)).toBe('already on the map');
+    s.units = s.units.filter((u) => u.kind !== 'imp');
+    expect(summonImp(s, me)).not.toBeNull();
+  });
+
+  it('allows up to 3 of the Signature, each with +1 to its Signature stat', () => {
+    const { s, me } = setup('imp');
+    const stat = signatureStatOf(kindOf('imp'));
+    place(s, 'imp', me.side, 0, 0).signature = true;
+    place(s, 'imp', me.side, 1, 0).signature = true;
+    const a = summonImp(s, me)!;
+    expect(a).not.toBeNull();
+    const r = applyTurn(s, a);
+    const imps = r.state.units.filter((u) => u.kind === 'imp' && u.side === me.side);
+    expect(imps).toHaveLength(3);
+    const fresh = imps.find((u) => u.id === r.state.nextUnitId - 1)!;
+    expect(fresh.signature).toBe(true);
+    expect(kindOf(fresh).stats[stat]).toBe(kindOf('imp').stats[stat] + 1);
+    expect(kindOf(fresh).cost).toBe(kindOf('imp').cost);
+    expect(validateTurn(r.state, { ...a, unitId: me.id })).not.toBeNull();
+    expect(onMap(r.state, me.side, 'imp')).toBe(3);
+  });
+
+  it('has no limits and no Signature in a Test Match', () => {
+    const s = createMatch(SCAFFOLD_MAP, { signatures: ['imp', 'imp'] });
+    expect(summonLimit(s, 0, 'imp')).toBe(Infinity);
+    expect(isSignature(s, 0, 'imp')).toBe(false);
   });
 });
 
@@ -905,7 +958,7 @@ describe('Burst and area Magic', () => {
         abilities: { 'test-burst': { id: 'test-burst', name: 'Test Burst', kind: 'damage', power: 'mp', range: 0, radius: 2, burst: true } },
       });
       const state = createMatch(testMap(8, 8));
-      state.units = state.units.filter((u) => kindOf(u.kind).isMaster);
+      state.units = state.units.filter((u) => kindOf(u).isMaster);
       for (const u of state.units) u.pos = u.side === 0 ? hex(0, 7) : hex(7, 0);
       const caster = place(state, 'golem', 0, 3, 3);
       const ally = place(state, 'clod', 0, 5, 3); // 2 away
@@ -953,7 +1006,7 @@ describe('random Loadouts', () => {
     const seen = new Set<string>();
     for (let i = 0; i < 200; i++) {
       const l = randomLoadout(rng);
-      expect(loadoutProblems(l)).toEqual([]);
+      expect(loadoutProblems(l, l[0])).toEqual([]);
       expect(l.filter((id) => cheap.includes(id)).length).toBeGreaterThanOrEqual(2);
       seen.add([...l].sort().join());
     }
@@ -965,7 +1018,7 @@ describe('Empower', () => {
   it("adds +3 ATK to a friendly unit (or the caster) until its next physical hit, which uses it up; free", () => {
     const state = createMatch(testMap(8, 8));
     state.clock = 18 * 60;
-    state.units = state.units.filter((u) => kindOf(u.kind).isMaster);
+    state.units = state.units.filter((u) => kindOf(u).isMaster);
     for (const u of state.units) u.pos = u.side === 0 ? hex(0, 7) : hex(7, 0);
     const kindle = place(state, 'wisp', 0, 3, 3);
     const ally = place(state, 'hound', 0, 4, 3);
@@ -1011,5 +1064,20 @@ describe('manaAfter', () => {
     expect(manaAfter(s, 0, 11)).toBe(0); // 9:59
     expect(manaAfter(s, 0, 12)).toBe(Math.max(0, inc)); // 10:00
     expect(manaAfter(s, 0, 72)).toBe(Math.max(0, Math.max(0, inc) + inc)); // 11:00
+  });
+});
+
+describe('Mana Income and the Master\'s Alignment', () => {
+  it('pays at the aligned MP of the Time of Day at each hour mark', () => {
+    const s = createMatch(testMap(7, 3));
+    const m = s.units.find((u) => u.side === 0 && kindOf(u).isMaster)!;
+    m.kind = 'seraph'; // Day, MP 6
+    s.clock = 7 * 60 + 30; // 07:30: next payment at 08:00, Day
+    expect(manaIncome(s, 0)).toBe(2 * 2 * 7);
+    expect(manaIncome(s, 0, 7 * 60)).toBe(2 * 2 * 6); // 07:00 is Neutral
+    expect(manaIncome(s, 0, 22 * 60)).toBe(2 * 2 * 5); // Night
+    m.kind = 'banshee'; // Night, MP 7
+    expect(manaIncome(s, 0, 22 * 60)).toBe(2 * 2 * 8);
+    expect(manaIncome(s, 0, 12 * 60)).toBe(2 * 2 * 6);
   });
 });

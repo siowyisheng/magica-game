@@ -28,7 +28,7 @@ function stepKind(state: MatchState, unitKind: string, h: { q: number; r: number
 export function turnCues(before: MatchState, action: TurnAction, anim: TurnAnim | null, events: GameEvent[], viewer: SideId | null): Cue[] {
   const cues: Cue[] = [];
   const actor = getUnit(before, action.unitId);
-  const actorKind = kindOf(actor.kind);
+  const actorKind = kindOf(actor);
   const heavy = actorKind.cost >= 64;
   const damageTo = new Map<number, number>();
   for (const e of events) if (e.type === 'damage' && e.source !== e.unitId) damageTo.set(e.unitId, (damageTo.get(e.unitId) ?? 0) + e.amount);
@@ -127,7 +127,7 @@ export function battleTension(state: MatchState): number {
   const units = state.units;
   if (!units.length) return 0;
   const engaged = units.filter((u) => units.some((o) => o.side !== u.side && hexDistance(o.pos, u.pos) <= 3)).length / units.length;
-  const masters = units.filter((u) => kindOf(u.kind).isMaster);
+  const masters = units.filter((u) => kindOf(u).isMaster);
   const minHp = masters.length ? Math.min(...masters.map((u) => u.hp)) : 10;
   return Math.max(0, Math.min(1, 0.15 + 0.5 * engaged + 0.45 * (1 - minHp / 10)));
 }

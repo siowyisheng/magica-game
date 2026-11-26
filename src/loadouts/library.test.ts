@@ -17,11 +17,11 @@ describe('loadout library', () => {
   it('starts empty, saves, renames-on-import and deletes', () => {
     expect(lib.listLoadouts()).toEqual([]);
     const familiars = FAMILIARS.slice(0, 20).map((k) => k.id);
-    const saved = lib.saveLoadout(null, 'Mine', familiars);
+    const saved = lib.saveLoadout(null, 'Mine', familiars, familiars[2]);
     expect(lib.getLoadout(saved.id)?.name).toBe('Mine');
     expect(lib.isPlayable(saved)).toBe(true);
-    expect(lib.saveProblems('mine', familiars, null)).toContain('a Loadout called “mine” already exists');
-    expect(lib.saveProblems('Other', familiars.slice(1), null).some((p) => p.includes('exactly 20'))).toBe(true);
+    expect(lib.saveProblems('mine', familiars, familiars[2], null)).toContain('a Loadout called “mine” already exists');
+    expect(lib.saveProblems('Other', familiars.slice(1), familiars[2], null).some((p) => p.includes('exactly 20'))).toBe(true);
     const json = lib.exportLoadoutsJson();
     expect(lib.importLoadoutsJson(json)).toBe(1);
     expect(lib.listLoadouts().map((l) => l.name)).toContain('Mine (2)');
@@ -38,5 +38,16 @@ describe('loadout library', () => {
     // an older export imports too, still incomplete
     expect(lib.importLoadoutsJson(JSON.stringify({ loadouts: [{ name: 'Old', familiars: old }] }))).toBe(1);
     expect(lib.listLoadouts().map((x) => x.name)).toContain('Old (2)');
+  });
+
+  it('keeps a Loadout saved before Signatures, not playable until one is picked', () => {
+    const twenty = FAMILIARS.slice(0, 20).map((k) => k.id);
+    mem.set('magica.loadouts', JSON.stringify([{ id: 'nosig', name: 'No Sig', familiars: twenty }]));
+    const l = lib.getLoadout('nosig')!;
+    expect(lib.isPlayable(l)).toBe(false);
+    const fixed = lib.saveLoadout(l.id, l.name, l.familiars, twenty[5]);
+    expect(lib.isPlayable(lib.getLoadout(fixed.id)!)).toBe(true);
+    expect(lib.getLoadout(fixed.id)!.signature).toBe(twenty[5]);
+    expect(lib.importLoadoutsJson(JSON.stringify({ loadouts: [{ name: 'No Sig', familiars: twenty }] }))).toBe(1);
   });
 });

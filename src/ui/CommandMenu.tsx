@@ -17,10 +17,15 @@ import {
   type MatchState,
   type Hex,
   type UnitKind,
+  isSignature,
+  onMap,
+  summonLimit,
+  SIGNATURE_LIMIT,
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
 import { ClassIcon } from './icons';
+import { SignatureStar } from './LoadoutView';
 
 function canSummonAny(match: MatchState, unitId: number, to: Hex, sk: UnitKind): boolean {
   return DIRS.some((d) => {
@@ -40,7 +45,7 @@ export function CommandMenu() {
   const hoverSummon = useGame((s) => s.hoverSummon);
   const u = activeUnit(match);
   if (!u || phase.kind !== 'menu') return null;
-  const kind = kindOf(u.kind);
+  const kind = kindOf(u);
   // A Stranded unit that stays put can only Wait.
   const stuck = u.stranded && phase.to.q === u.pos.q && phase.to.r === u.pos.r;
   const to = phase.to;
@@ -64,14 +69,18 @@ export function CommandMenu() {
                   .slice()
                   .sort((a, b) => a.cost - b.cost)
                   .map((s) => {
-                    const ok = mana >= s.cost && canSummonAny(match, u.id, to, s);
+                    const sig = isSignature(match, u.side, s.id);
+                    const have = onMap(match, u.side, s.id);
+                    const full = have >= summonLimit(match, u.side, s.id);
+                    const ok = !full && mana >= s.cost && canSummonAny(match, u.id, to, s);
                     // a div, not a disabled button, so hover (and the detail card) works even when unaffordable
                     return (
                       <div
                         key={s.id}
                         role="button"
                         aria-disabled={!ok}
-                        className={`summon-tile ${ok ? '' : 'disabled'} ${hoverSummon === s.id ? 'hovered' : ''}`}
+                        className={`summon-tile ${ok ? '' : 'disabled'} ${full ? 'full' : ''} ${hoverSummon === s.id ? 'hovered' : ''}`}
+                        title={full ? (sig ? `All ${SIGNATURE_LIMIT} already on the map` : 'Already on the map') : undefined}
                         style={{ background: `${ELEMENT_COLORS[e]}2e`, borderColor: `${ELEMENT_COLORS[e]}66` }}
                         onClick={() => ok && choose({ summon: s.id })}
                         onMouseEnter={() => {
@@ -87,6 +96,13 @@ export function CommandMenu() {
                         <span className="cls"><ClassIcon kind={s} size={12} /></span>
                         <span className="nm">{s.name}</span>
                         <span className="cost">{s.cost}</span>
+                        {sig && (
+                          <span className="sig-star">
+                            <SignatureStar size={11} />
+                          </span>
+                        )}
+                        {sig && <span className="sig-count">{have}/{SIGNATURE_LIMIT}</span>}
+                        {full && !sig && <span className="on-map">on map</span>}
                       </div>
                     );
                   })}

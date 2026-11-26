@@ -1,8 +1,9 @@
 // The player's Loadouts, kept in this browser, with JSON export / import.
 // A Loadout saved under an older size stays listed but is incomplete
-// (loadoutProblems explains) until it is edited to the current size.
+// (loadoutProblems explains) until it is edited to the current size; one saved
+// before Signatures existed, until a Signature is picked.
 
-import { loadoutProblems, type Loadout } from '../rules';
+import { loadoutProblems, NO_SIGNATURE, type Loadout } from '../rules';
 
 const KEY = 'magica.loadouts';
 
@@ -24,7 +25,7 @@ function readUser(): Loadout[] {
 }
 
 function writeUser(list: Loadout[]) {
-  localStorage.setItem(KEY, JSON.stringify(list.map(({ id, name, familiars }) => ({ id, name, familiars }))));
+  localStorage.setItem(KEY, JSON.stringify(list.map(({ id, name, familiars, signature }) => ({ id, name, familiars, ...(signature ? { signature } : {}) }))));
 }
 
 export function listLoadouts(): StoredLoadout[] {
@@ -35,9 +36,9 @@ export function getLoadout(id: string): StoredLoadout | undefined {
   return listLoadouts().find((l) => l.id === id);
 }
 
-/** Whether a saved Loadout can be played (it has exactly the current number of valid Familiars). */
+/** Whether a saved Loadout can be played (exactly the current number of valid Familiars, and a Signature among them). */
 export function isPlayable(l: Loadout): boolean {
-  return loadoutProblems(l.familiars).length === 0;
+  return loadoutProblems(l.familiars, l.signature).length === 0;
 }
 
 /** Problems with a Loadout's name (empty, too long, or taken by another Loadout). */
@@ -50,14 +51,19 @@ export function nameProblems(name: string, id: string | null): string[] {
 }
 
 /** Problems that stop a Loadout being saved (name and Familiars). */
-export function saveProblems(name: string, familiars: string[], id: string | null): string[] {
-  return [...nameProblems(name, id), ...loadoutProblems(familiars)];
+export function saveProblems(name: string, familiars: string[], signature: string | null | undefined, id: string | null): string[] {
+  return [...nameProblems(name, id), ...loadoutProblems(familiars, signature)];
 }
 
 /** Save (insert or replace) one of the player's Loadouts. */
-export function saveLoadout(id: string | null, name: string, familiars: string[]): StoredLoadout {
+export function saveLoadout(id: string | null, name: string, familiars: string[], signature?: string | null): StoredLoadout {
   const list = readUser();
-  const entry: Loadout = { id: id ?? `loadout-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, name: name.trim(), familiars: [...familiars] };
+  const entry: Loadout = {
+    id: id ?? `loadout-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+    name: name.trim(),
+    familiars: [...familiars],
+    ...(signature && familiars.includes(signature) ? { signature } : {}),
+  };
   const i = list.findIndex((l) => l.id === entry.id);
   if (i >= 0) list[i] = entry;
   else list.push(entry);
@@ -86,11 +92,12 @@ export function importLoadoutsJson(text: string): number {
   let added = 0;
   for (const raw of items) {
     const l = raw && typeof raw === 'object' ? withFamiliars(raw as Loadout & { summons?: string[] }) : raw;
-    // an older export may have fewer Familiars: keep it (incomplete) as long as every Familiar is real
-    if (!l || typeof l.name !== 'string' || !Array.isArray(l.familiars) || loadoutProblems(l.familiars).some((p) => !p.startsWith('pick exactly'))) continue;
+    // an older export may have fewer Familiars or no Signature: keep it (incomplete) as long as every Familiar is real
+    const sig = typeof l?.signature === 'string' ? l.signature : null;
+    if (!l || typeof l.name !== 'string' || !Array.isArray(l.familiars) || loadoutProblems(l.familiars, sig).some((p) => !p.startsWith('pick exactly') && p !== NO_SIGNATURE)) continue;
     let name = l.name.trim().slice(0, 24) || 'Imported';
     for (let k = 2; nameProblems(name, null).length; k++) name = `${l.name.trim().slice(0, 20)} (${k})`;
-    saveLoadout(null, name, l.familiars);
+    saveLoadout(null, name, l.familiars, sig);
     added++;
   }
   if (!added) throw new Error('no valid Loadouts in the file');

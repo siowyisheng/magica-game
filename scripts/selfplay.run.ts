@@ -100,7 +100,7 @@ it('self-play', () => {
     };
     const l0 = lo(0);
     const l1 = lo(1);
-    let st: MatchState = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 42 + g, masters, rosters: [l0.familiars, l1.familiars] });
+    let st: MatchState = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 42 + g, masters, rosters: [l0.familiars, l1.familiars], signatures: [l0.familiars[g % 20], l1.familiars[(g + 7) % 20]] });
     const stats: [SideStats, SideStats] = [blank(masters[0], l0.name), blank(masters[1], l1.name)];
     const timeline: { turn: number; clock: number; units: [number, number]; mana: [number, number]; hp: [number, number]; stones: [number, number] }[] = [];
     const kindById = new Map<number, { kind: string; side: SideId }>();
@@ -124,7 +124,7 @@ it('self-play', () => {
         // Plan metrics, measured with the Plan's own definitions (also when the baseline plays)
         const P = planStats[side];
         const plan = makePlan(st, side);
-        if (kindOf(me.kind).isMaster) {
+        if (kindOf(me).isMaster) {
           P.masterTurns++;
           if (plan.front) P.masterFrontDist += hexDistance(a.to, plan.front);
           if (a.command.type === 'summon') {
@@ -143,9 +143,9 @@ it('self-play', () => {
       }
       S.msPerTurn += Date.now() - tA;
       const moved = a.to.q !== me.pos.q || a.to.r !== me.pos.r;
-      const isMaster = kindOf(me.kind).isMaster;
-      const es = st.units.find((u) => u.side !== side && kindOf(u.kind).isMaster);
-      const ms = st.units.find((u) => u.side === side && kindOf(u.kind).isMaster);
+      const isMaster = kindOf(me).isMaster;
+      const es = st.units.find((u) => u.side !== side && kindOf(u).isMaster);
+      const ms = st.units.find((u) => u.side === side && kindOf(u).isMaster);
       if (es && ms) distSum[side] += hexDistance(es.pos, ms.pos);
       switch (a.command.type) {
         case 'wait':
@@ -153,7 +153,7 @@ it('self-play', () => {
           if (!moved) S.idleWaits++;
           break;
         case 'act': {
-          const ab = kindOf(me.kind).ability;
+          const ab = kindOf(me).ability;
           // physical hits count as attacks, everything else as magic; Abilities cost no Mana
           if (ab.kind === 'water') S.waterSpells++;
           else if (ab.kind === 'damage' && ab.power === 'atk') S.attacks++;
@@ -177,7 +177,7 @@ it('self-play', () => {
           if (e.type === 'summon') return `summoned ${e.kind}`;
           return `capture`;
         });
-        const hpS = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u.kind).isMaster)?.hp;
+        const hpS = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u).isMaster)?.hp;
         log.push(`t${turns} ${Math.floor(st.clock / 60)}:${String(st.clock % 60).padStart(2, '0')} S${side} ${me.kind}#${me.id} hp${me.hp} (${me.pos.q},${me.pos.r})→(${a.to.q},${a.to.r}) ${JSON.stringify(a.command)} mana ${st.sides[side].mana} | ${dmg.join(', ')} | masterHP ${hpS(0)}/${hpS(1)}`);
       }
       st = res.state;
@@ -187,7 +187,7 @@ it('self-play', () => {
       turns++;
       if (turns % 10 === 0) {
         const count = (s: SideId) => st.units.filter((u) => u.side === s).length;
-        const hp = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u.kind).isMaster)?.hp ?? 0;
+        const hp = (s: SideId) => st.units.find((u) => u.side === s && kindOf(u).isMaster)?.hp ?? 0;
         const stones = (s: SideId) => st.stones.filter((x) => x.owner === s).length;
         timeline.push({ turn: turns, clock: st.clock, units: [count(0), count(1)], mana: [st.sides[0].mana, st.sides[1].mana], hp: [hp(0), hp(1)], stones: [stones(0), stones(1)] });
       }
@@ -224,7 +224,7 @@ function analyseEvents(
         stats[src.side].damageDealt += e.amount;
         stats[t.side].damageTaken += e.amount;
         if (e.amount === 0) stats[src.side].zeroDamageHits++;
-        if (kindOf(t.kind).isMaster) {
+        if (kindOf(t).isMaster) {
           stats[t.side].masterDamageTaken += e.amount;
           const u = after.units.find((x) => x.id === e.unitId);
           stats[t.side].masterHpMin = Math.min(stats[t.side].masterHpMin, u?.hp ?? 0);

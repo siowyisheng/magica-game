@@ -4,7 +4,7 @@ import { Timeline } from './ui/Timeline';
 import { InfoPanel } from './ui/InfoPanel';
 import { FamiliarCard } from './ui/FamiliarCard';
 import { useGame } from './store';
-import { activeUnit, kindOf } from './rules';
+import { activeUnit, isBurst, kindOf } from './rules';
 import { MapEditor } from './editor/MapEditor';
 import { DevTool } from './dev/DevTool';
 import { MatchSetupDialog } from './ui/MatchSetup';
@@ -20,7 +20,7 @@ function PhaseHint() {
   const watching = useGame((s) => s.replay !== null);
   if (match.winner !== null || watching) return null;
   if (!u) return null;
-  const who = `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}`;
+  const who = `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u).name}`;
   const text: Record<string, string> = {
     idle: `${who} is acting…`,
     move:
@@ -30,7 +30,7 @@ function PhaseHint() {
     menu: u.stranded && phase.kind === 'menu' && phase.to.q === u.pos.q && phase.to.r === u.pos.r
       ? `${who} is Stranded: staying put allows only Wait (right-click to move instead)`
       : `${who}: left-click the map to set facing, then choose a command (right-click cancels the move)`,
-    target: `${who}: hover a target to preview, click to confirm`,
+    target: isBurst(kindOf(u).ability) ? `${who}: click anywhere in the outlined area to set off the Burst (right-click: back)` : `${who}: hover a target to preview, click to confirm`,
     summonDir: `${who}: click a highlighted adjacent hex to summon (right-click: back to the list)`,
   };
   return <div className="phase-hint">{text[phase.kind]}</div>;

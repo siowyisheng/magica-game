@@ -6,17 +6,18 @@ import { ELEMENTS, LOADOUT_SIZE, FAMILIARS, kindOf } from '../rules';
 import { ELEMENT_COLORS } from '../render/sprites';
 import { useGame } from '../store';
 import { deleteLoadout, exportLoadoutsJson, importLoadoutsJson, isPlayable, listLoadouts, nameProblems, saveLoadout, saveProblems, type StoredLoadout } from '../loadouts/library';
-import { LoadoutStrip } from './LoadoutView';
+import { LoadoutStrip, SignatureStar } from './LoadoutView';
 import { FamiliarDetail } from './FamiliarCard';
 
 interface Draft {
   id: string | null;
   name: string;
   familiars: string[];
+  signature: string | null;
 }
 
-const fromStored = (l: StoredLoadout): Draft => ({ id: l.id, name: l.name, familiars: [...l.familiars] });
-const blank = (): Draft => ({ id: null, name: uniqueName('New Loadout'), familiars: [] });
+const fromStored = (l: StoredLoadout): Draft => ({ id: l.id, name: l.name, familiars: [...l.familiars], signature: l.signature ?? null });
+const blank = (): Draft => ({ id: null, name: uniqueName('New Loadout'), familiars: [], signature: null });
 
 export function LoadoutEditor() {
   const setScreen = useGame((s) => s.setScreen);
@@ -36,14 +37,14 @@ export function LoadoutEditor() {
     setDraft((d) => f({ ...d, familiars: [...d.familiars] }));
     setDirty(true);
   };
-  const problems = saveProblems(draft.name, draft.familiars, draft.id);
+  const problems = saveProblems(draft.name, draft.familiars, draft.signature, draft.id);
   const canSave = problems.length === 0;
 
   const save = (asNew: boolean) => {
     const name = asNew ? uniqueName(`${draft.name} (copy)`) : draft.name;
-    const p = saveProblems(name, draft.familiars, asNew ? null : draft.id);
+    const p = saveProblems(name, draft.familiars, draft.signature, asNew ? null : draft.id);
     if (p.length) return flash(p[0]);
-    const saved = saveLoadout(asNew ? null : draft.id, name, draft.familiars);
+    const saved = saveLoadout(asNew ? null : draft.id, name, draft.familiars, draft.signature);
     setList(listLoadouts());
     setDraft(fromStored(saved));
     setDirty(false);
@@ -95,20 +96,36 @@ export function LoadoutEditor() {
               </span>
             ))}
             <span className="spacer" />
-            <button onClick={() => change((d) => ({ ...d, familiars: [] }))}>Clear</button>
+            <label className="small" title="The Familiar you may have up to 3 of, each with its Signature Bonus">
+              <SignatureStar size={11} /> Signature{' '}
+              <select value={draft.signature ?? ''} onChange={(e) => change((d) => ({ ...d, signature: e.target.value || null }))}>
+                <option value="">(none)</option>
+                {draft.familiars.map((id) => (
+                  <option key={id} value={id}>
+                    {kindOf(id).name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button onClick={() => change((d) => ({ ...d, familiars: [], signature: null }))}>Clear</button>
             <button onClick={() => change((d) => ({ ...d, familiars: FAMILIARS.map((s) => s.id) }))}>All</button>
           </div>
           <LoadoutStrip
             familiars={draft.familiars}
+            signature={draft.signature}
             side={0}
             big
             onHover={setHover}
             onToggle={(id) =>
-              change((d) => ({ ...d, familiars: d.familiars.includes(id) ? d.familiars.filter((x) => x !== id) : [...d.familiars, id] }))
+              change((d) => {
+                const out = d.familiars.includes(id);
+                return { ...d, familiars: out ? d.familiars.filter((x) => x !== id) : [...d.familiars, id], signature: out && d.signature === id ? null : d.signature };
+              })
             }
+            onSignature={(id) => change((d) => ({ ...d, familiars: d.familiars.includes(id) ? d.familiars : [...d.familiars, id], signature: id }))}
           />
-          <div className="muted small">Click a Familiar to add or remove it. Darkened Familiars are left out.</div>
-          <div className="loadout-card">{hover && <FamiliarDetail kindId={hover} side={0} />}</div>
+          <div className="muted small">Click a Familiar to add or remove it; right-click one to make it the Signature. Darkened Familiars are left out.</div>
+          <div className="loadout-card">{hover && <FamiliarDetail kindId={hover} side={0} signature={hover === draft.signature} />}</div>
         </div>
 
         <div className="window editor-side">
@@ -178,9 +195,9 @@ export function LoadoutEditor() {
 
 function LoadoutItem({ l, on, pick }: { l: StoredLoadout; on: boolean; pick: () => void }) {
   return (
-    <button className={`map-item ${on ? 'on' : ''}`} onClick={pick} title={isPlayable(l) ? undefined : `Has ${l.familiars.length} Familiars: add or remove to make ${LOADOUT_SIZE}`}>
+    <button className={`map-item ${on ? 'on' : ''}`} onClick={pick} title={isPlayable(l) ? undefined : new Set(l.familiars).size !== LOADOUT_SIZE ? `Has ${l.familiars.length} Familiars: add or remove to make ${LOADOUT_SIZE}` : 'Pick a Signature Familiar to play it'}>
       {l.name}
-      {!isPlayable(l) && <span className="bad small"> · needs {LOADOUT_SIZE}</span>}
+      {!isPlayable(l) && <span className="bad small"> · {new Set(l.familiars).size !== LOADOUT_SIZE ? `needs ${LOADOUT_SIZE}` : 'needs a Signature'}</span>}
     </button>
   );
 }

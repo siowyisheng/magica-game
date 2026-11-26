@@ -81,7 +81,15 @@ export interface UnitKind {
   ability: Ability;
   /** Its own name for the Ability, shown instead of the Ability's name. */
   abilityName?: string;
+  /** The stat its Signature Bonus raises by 1 (default: its power stat). */
+  signatureStat?: SignatureStat;
+  /** Set on the kind a Signature Unit uses (its Signature Bonus applied). */
+  asSignature?: true;
 }
+
+/** The stats a Signature Bonus may raise. */
+export type SignatureStat = 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'mov';
+export const SIGNATURE_STATS: readonly SignatureStat[] = ['atk', 'def', 'mp', 'mdf', 'spd', 'mov'];
 
 export type HexTerrain = 'plain' | 'rough' | 'stone' | 'pit';
 
@@ -127,6 +135,8 @@ export interface Unit {
   stranded: boolean;
   /** Empowered: ATK added to this Unit's next physical hit, then cleared. */
   empowered?: number;
+  /** Summoned as its Side's Signature: has the Signature Bonus. */
+  signature?: boolean;
 }
 
 /** A neutral map object with HP; ids share the Unit id space. */
@@ -156,6 +166,8 @@ export interface SideState {
   aiLevel?: 'normal' | 'hard';
   /** Familiar kinds this Side may Summon (its Loadout); absent = all (Test Match). */
   roster?: string[];
+  /** The Loadout's Signature Familiar (absent with no Loadout). */
+  signature?: string;
 }
 
 export interface MatchState {

@@ -106,7 +106,7 @@ export function canStandOn(kind: UnitKind, mh: MapHex, waterLevel: number): bool
 
 export function isStranded(state: MatchState, unit: Unit): boolean {
   const mh = mapHexAt(state.map, unit.pos);
-  return !mh || !canStandOn(kindOf(unit.kind), mh, state.waterLevel);
+  return !mh || !canStandOn(kindOf(unit), mh, state.waterLevel);
 }
 
 export function unitAt(state: MatchState, h: Hex): Unit | undefined {
@@ -157,7 +157,7 @@ export function enemyZoc(state: MatchState, side: number): Set<string> {
   const zoc = new Set<string>();
   for (const e of state.units) {
     if (e.side === side || e.hp <= 0) continue;
-    const ek = kindOf(e.kind);
+    const ek = kindOf(e);
     const from = mapHexAt(state.map, e.pos);
     if (!from) continue;
     for (const n of neighbors(e.pos)) {
@@ -180,7 +180,7 @@ export interface ReachNode {
 
 /** All hexes the Unit can reach this turn (Dijkstra, deterministic). */
 export function reachable(state: MatchState, unit: Unit): Map<string, ReachNode> {
-  const kind = kindOf(unit.kind);
+  const kind = kindOf(unit);
   const out = new Map<string, ReachNode>();
   const startKey = hexKey(unit.pos);
   out.set(startKey, { hex: unit.pos, cost: 0, prev: null, canEnd: true });
