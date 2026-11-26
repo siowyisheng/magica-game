@@ -67,6 +67,7 @@ export function createApp({ db, now = Date.now }: Options): Server {
   };
 
   const routes: Record<string, (body: Record<string, unknown>) => Promise<unknown>> = {
+    'GET /': async () => ({ ok: true, service: 'magica online server', health: '/api/health' }),
     'GET /api/health': async () => ({ ok: true }),
     'POST /api/register': async (body) => {
       const playerId = `p_${randomBytes(9).toString('base64url')}`;

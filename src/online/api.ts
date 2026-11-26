@@ -2,8 +2,15 @@
 
 import type { MatchReport, MatchResult, ResultStatus } from './report';
 
-/** Where the server is: VITE_MAGICA_SERVER at build time, else a local one in development. */
-export const SERVER_URL: string = (import.meta.env?.VITE_MAGICA_SERVER as string | undefined) ?? 'http://localhost:8787';
+/**
+ * Where the server is: VITE_MAGICA_SERVER at build time, else a local one in development.
+ * Forgiving of how it was typed into a host's settings: quotes, spaces, a trailing slash.
+ */
+export function serverUrl(raw: string | undefined): string {
+  const v = (raw ?? '').trim().replace(/^["']+|["']+$/g, '').trim().replace(/\/+$/, '');
+  return v || 'http://localhost:8787';
+}
+export const SERVER_URL: string = serverUrl(import.meta.env?.VITE_MAGICA_SERVER as string | undefined);
 
 export function wsUrl(path: string): string {
   return SERVER_URL.replace(/^http/, 'ws') + path;

@@ -4,6 +4,15 @@ import { canonical, comparisonKey, resultStatus, SECOND_REPORT_WAIT_MS, type Mat
 import { commitPick, rulesFingerprint, verifyPick } from './fingerprint';
 import { createMatch, SCAFFOLD_MAP } from '../rules';
 
+describe('the server address', () => {
+  it('tolerates quotes, spaces and a trailing slash in VITE_MAGICA_SERVER', async () => {
+    const { serverUrl } = await import('./api');
+    expect(serverUrl('"https://magica-server.onrender.com"')).toBe('https://magica-server.onrender.com');
+    expect(serverUrl(" 'https://x.example/' ")).toBe('https://x.example');
+    expect(serverUrl(undefined)).toBe('http://localhost:8787');
+  });
+});
+
 describe('Online clock', () => {
   it('drains the Time Bank only past the free Turn Timer', () => {
     expect(spend(TIME_BANK_MS, 4_000)).toBe(TIME_BANK_MS);
