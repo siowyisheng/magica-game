@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyTurn, createMatch, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex, type MatchState } from '../rules';
+import { applyTurn, createMatch, facingToward, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex, type MatchState } from '../rules';
 import { autoLoadout, chooseAction } from './ai';
 import { loadoutProblems, kindOf, randomLoadout, mulberry32, FAMILIARS } from '../rules';
 
@@ -247,6 +247,36 @@ describe('a hurt Master in a replayed match (Duelist vs Warlock)', () => {
     } finally {
       endTemporaryBalance();
     }
+  });
+});
+
+describe('Hard takes a free kill (Vampire vs Gorgon)', () => {
+  // turn 384: Green's Rook can Shockwave the 7-HP Clay next to it; Hard used to Wait instead,
+  // because the Wait line happened to fit a summon into the look-ahead and a summon counted
+  // for far more than its Mana
+  const load = async () => {
+    const { readFileSync } = await import('node:fs');
+    return JSON.parse(readFileSync(new URL('./fixtures/vampire-vs-gorgon.positions.json', import.meta.url), 'utf8'));
+  };
+
+  it('Shockwaves the Clay', async () => {
+    const { applyTemporaryBalance, endTemporaryBalance } = await import('../rules');
+    const r = await load();
+    applyTemporaryBalance(r.balance);
+    try {
+      const a = chooseAction(r.states[384], undefined, 'hard');
+      expect(a.unitId).toBe(50);
+      expect(a.command.type).toBe('act');
+    } finally {
+      endTemporaryBalance();
+    }
+  }, 60000);
+
+  it('waiting, faces the harmless Clay next to it, not a far enemy that cannot reach it', async () => {
+    const { rankCandidates, AI_WEIGHTS } = await import('./ai');
+    const r = await load();
+    const w = rankCandidates(r.states[384], AI_WEIGHTS).candidates.find((c) => c.action.command.type === 'wait' && c.action.to.q === 2 && c.action.to.r === 16)!;
+    expect(w.action.facing).toBe(facingToward(hex(2, 16), hex(1, 17)));
   });
 });
 

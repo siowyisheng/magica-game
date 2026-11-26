@@ -128,6 +128,12 @@ export const AI_WEIGHTS = {
   screenTop: 8,
   /** Per enemy that breaking an Obstacle would bring into this Unit's Reach. */
   obstacleOpening: 25,
+  /**
+   * Hard's position value per point of Mana. A fresh Familiar counts as (1 + Cost/48) × 48 =
+   * 48 + Cost, so at 2 a summon of a typical (48-Cost) Familiar neither gains nor loses
+   * value: look-ahead lines are compared on the position, not on which one fit a summon in.
+   */
+  evalMana: 2,
 };
 
 type W = typeof AI_WEIGHTS;
@@ -439,14 +445,21 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   const bestFacing = (h: Hex, delay: number, killed: Set<number>): { facing: Dir; threat: number } => {
     let bestF: Dir = me.facing;
     let bestT = Infinity;
-    // On a tie, face the most dangerous enemy close by (its hit from the front, over the hexes to it).
+    // On a tie, face the most dangerous enemy that could get here (its hit from the front, over
+    // the hexes to it); when none could hurt it, the nearest enemy.
     let pref: Dir = me.facing;
     let worst = -1;
+    let nearest = Infinity;
     for (const e of state.units) {
       if (e.side === me.side || killed.has(e.id) || hexEq(e.pos, h)) continue;
-      const danger = approxDamage(state, e, me, h, facingToward(h, e.pos)) / (1 + hexDistance(e.pos, h));
-      if (danger > worst) {
+      const d = hexDistance(e.pos, h);
+      // only an enemy that could get here counts as a danger (Move + range, a hex to spare)
+      const ek = kindOf(e);
+      const inReach = d <= ek.stats.mov + (ek.ability.kind === 'water' ? 0 : ek.ability.range) + 1;
+      const danger = inReach ? approxDamage(state, e, me, h, facingToward(h, e.pos)) / (1 + d) : 0;
+      if (danger > worst || (danger === worst && d < nearest)) {
         worst = danger;
+        nearest = d;
         pref = facingToward(h, e.pos);
       }
     }
@@ -967,7 +980,7 @@ export function evaluate(st: MatchState, side: number, w: W = AI_WEIGHTS): numbe
   // Stones count for their Mana, not for the Time Limit: the AI never plays for time.
   const stoneWeight = w.capture * EVAL_STONE;
   for (const s of st.stones) if (s.owner !== null) v += (s.owner === side ? 1 : -1) * stoneWeight;
-  v += 0.15 * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
+  v += w.evalMana * (st.sides[side as 0 | 1].mana - st.sides[(1 - side) as 0 | 1].mana);
   return v;
 }
 
