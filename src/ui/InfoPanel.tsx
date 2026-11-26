@@ -10,6 +10,8 @@ import {
   formatClock,
   kindOf,
   manaIncome,
+  nextIncomeAt,
+  signatureStatOf,
   mapHexAt,
   stonesControlled,
   surfaceOf,
@@ -25,6 +27,7 @@ import { makePlan } from '../ai/plan';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { AlignmentIcon, ClassIcon, ElementIcon, Icon } from './icons';
 import { StatGrid, abilityText, hiddenStat } from './Stats';
+import { SignatureStar } from './LoadoutView';
 import { useAudio } from '../audio';
 import { listMaps } from '../maps/library';
 import { fromMapDef, useEditor } from '../editor/editorStore';
@@ -168,7 +171,7 @@ function UnitCard({ unitId }: { unitId: number }) {
   const match = useGame((s) => s.match);
   const u = match.units.find((x) => x.id === unitId);
   if (!u) return null;
-  const k = kindOf(u.kind);
+  const k = kindOf(u);
   const align = alignmentBonus(k.alignment, match.clock);
   return (
     <div className="window">
@@ -176,6 +179,12 @@ function UnitCard({ unitId }: { unitId: number }) {
         {k.element && <ElementIcon element={k.element} />} {k.name}{' '}
         {k.alignment !== 'none' && <AlignmentIcon alignment={k.alignment} />}
         {align !== 0 && <span className={`small ${align > 0 ? 'good' : 'bad'}`}> {align > 0 ? '+' : '−'}{Math.abs(align)}</span>}
+        {u.signature && (
+          <span className="small" title={`Signature: +1 ${signatureStatOf(k).toUpperCase()}`}>
+            {' '}
+            <SignatureStar size={12} />
+          </span>
+        )}
       </div>
       <div className="unit-card">
         <img src={unitIconUrl(u.kind, u.side)} alt="" />
@@ -189,7 +198,7 @@ function UnitCard({ unitId }: { unitId: number }) {
           <div className="muted">Move Type: {k.moveTypes.join(' + ')}</div>
         </div>
       </div>
-      <StatGrid stats={k.stats} align={align} atkBonus={u.empowered ?? 0} hide={hiddenStat(k)} />
+      <StatGrid stats={k.stats} align={align} atkBonus={u.empowered ?? 0} hide={hiddenStat(k)} boosted={u.signature ? signatureStatOf(k) : undefined} />
       {!!u.empowered && <div className="good small">Empowered: +{u.empowered} ATK until its next physical hit</div>}
       <div className="muted small">
         {!k.isMaster && (
@@ -210,8 +219,10 @@ function UnitCard({ unitId }: { unitId: number }) {
  */
 function ManaBars({ side }: { side: SideId }) {
   const match = useGame((s) => s.match);
-  const master = match.units.find((u) => u.side === side && kindOf(u.kind).isMaster);
-  const mp = master ? INCOME_MULTIPLIER * kindOf(master.kind).stats.mp : 0; // Mana per Stone-hour
+  const master = match.units.find((u) => u.side === side && kindOf(u).isMaster);
+  const mk = master ? kindOf(master) : null;
+  // Mana per Stone-hour, with the Master's Alignment at the next hour mark
+  const mp = mk ? INCOME_MULTIPLIER * Math.max(0, mk.stats.mp + alignmentBonus(mk.alignment, nextIncomeAt(match.clock))) : 0;
   const stones = stonesControlled(match, side);
   const base = STONE_BASE * mp;
   const gross = (STONE_BASE + stones) * mp;

@@ -13,10 +13,11 @@ import { BASE_MASTERS, DEFAULT_MASTER } from './data/masters';
 import { BASE_FAMILIARS } from './data/familiars';
 import { BASE_ABILITY_LIST } from './data/abilities';
 import repoOverridesJson from './data/overrides.json';
-import type { Ability, UnitKind } from './types';
+import type { Ability, SignatureStat, UnitKind } from './types';
+import { powerStat } from './ability';
 
 /** The editable parts of a kind; its Ability by id. */
-export type KindPatch = Partial<Pick<UnitKind, 'name' | 'cost' | 'alignment' | 'element' | 'stats' | 'moveTypes' | 'abilityName'>> & { abilityId?: string };
+export type KindPatch = Partial<Pick<UnitKind, 'name' | 'cost' | 'alignment' | 'element' | 'stats' | 'moveTypes' | 'abilityName' | 'signatureStat'>> & { abilityId?: string };
 
 /** Balance overrides: per-kind patches and edited or new Abilities. */
 export interface Balance {
@@ -99,10 +100,33 @@ function rebuild() {
 }
 rebuild();
 
-export function kindOf(id: string): UnitKind {
+/**
+ * A kind by id, or a Unit's kind: a Unit summoned as its Side's Signature gets
+ * the kind with its Signature Bonus (+1 to its Signature stat).
+ */
+export function kindOf(x: string | { kind: string; signature?: boolean }): UnitKind {
+  const id = typeof x === 'string' ? x : x.kind;
   const k = KINDS.get(id);
   if (!k) throw new Error(`unknown unit kind ${id}`);
-  return k;
+  return typeof x !== 'string' && x.signature ? signatureKind(k) : k;
+}
+
+/** The stat a kind's Signature Bonus raises. */
+export function signatureStatOf(k: UnitKind): SignatureStat {
+  return k.signatureStat ?? powerStat(k);
+}
+
+const SIGNATURE_KINDS = new WeakMap<UnitKind, UnitKind>();
+/** A kind with its Signature Bonus. */
+export function signatureKind(k: UnitKind): UnitKind {
+  if (k.isMaster) return k;
+  let s = SIGNATURE_KINDS.get(k);
+  if (!s) {
+    const stat = signatureStatOf(k);
+    s = { ...k, stats: { ...k.stats, [stat]: k.stats[stat] + 1 }, asSignature: true };
+    SIGNATURE_KINDS.set(k, s);
+  }
+  return s;
 }
 
 /** A kind as built in, before any overrides. */

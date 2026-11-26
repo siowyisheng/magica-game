@@ -10,21 +10,25 @@ const ORDER: { key: keyof Stats; icon: 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'm
   { key: 'mov', icon: 'mov', aligned: false },
 ];
 
+/** Short stat names, for text. */
+export const STAT_NAME: Record<keyof Stats, string> = { atk: 'ATK', def: 'DEF', mp: 'MP', mdf: 'MDF', spd: 'SPD', mov: 'MOV' };
+
 /**
  * The basic stats with their icons; ATK/DEF/MP/MDF show the current Alignment
- * adjustment. `hide` leaves one out (a Familiar's unused ATK or MP).
+ * adjustment. `hide` leaves one out (a Familiar's unused ATK or MP);
+ * `boosted` marks the stat its Signature Bonus raised (already in `stats`).
  */
-export function StatGrid({ stats, align = 0, size = 14, atkBonus = 0, hide }: { stats: Stats; align?: number; size?: number; atkBonus?: number; hide?: keyof Stats }) {
+export function StatGrid({ stats, align = 0, size = 14, atkBonus = 0, hide, boosted }: { stats: Stats; align?: number; size?: number; atkBonus?: number; hide?: keyof Stats; boosted?: keyof Stats }) {
   return (
     <div className="stat-grid">
       {ORDER.filter(({ key }) => key !== hide).map(({ key, icon, aligned }) => {
         const v = stats[key];
         const bonus = key === 'atk' ? atkBonus : 0;
         const shown = (aligned ? v + align : v) + bonus;
-        const net = (aligned ? align : 0) + bonus;
+        const net = (aligned ? align : 0) + bonus + (key === boosted ? 1 : 0);
         const cls = net !== 0 ? (net > 0 ? 'good' : 'bad') : '';
         return (
-          <span key={key} className="stat">
+          <span key={key} className={`stat ${key === boosted ? 'sig' : ''}`} title={key === boosted ? 'Signature Bonus: +1' : undefined}>
             <Icon name={icon} size={size} />
             <b className={cls}>{shown}</b>
           </span>

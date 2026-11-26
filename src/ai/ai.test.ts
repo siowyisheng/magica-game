@@ -50,16 +50,20 @@ describe('AI', () => {
   it('builds valid Auto Loadouts and only summons from its Loadout', () => {
     for (const id of ['regent', 'efreet', 'selkie']) {
       const l = autoLoadout(id, () => 0.3);
-      expect(loadoutProblems(l)).toEqual([]);
+      expect(loadoutProblems(l, l[0])).toEqual([]);
       const own = kindOf(id).element;
       if (own) expect(l.filter((k) => kindOf(k).element === own).length).toBe(5);
     }
     const heavy = randomLoadout(mulberry32(3));
-    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy] });
+    // a cheap Signature, so the AI wants several (applyTurn would throw on an illegal summon)
+    const sig = [...heavy].sort((x, y) => kindOf(x).cost - kindOf(y).cost)[0];
+    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy], signatures: [sig, sig] });
     for (let i = 0; i < 80 && st.winner === null; i++) {
       const a = chooseAction(st);
       if (a.command.type === 'summon') expect(heavy).toContain(a.command.kind);
       st = applyTurn(st, a).state;
+      for (const side of [0, 1] as const)
+        for (const id of heavy) expect(st.units.filter((u) => u.side === side && u.kind === id).length).toBeLessThanOrEqual(id === sig ? 3 : 1);
     }
   }, 60000);
 });
@@ -109,7 +113,7 @@ describe('Stones and pointless hits', () => {
       const a = chooseAction(st);
       const r = applyTurn(st, a);
       const c = a.command;
-      const damaging = c.type === 'act' && kindOf(me.kind).ability.kind === 'damage';
+      const damaging = c.type === 'act' && kindOf(me).ability.kind === 'damage';
       if (damaging) {
         const hurt = r.events.some((e) => e.type === 'damage' && e.amount > 0 && (st.units.find((u) => u.id === e.unitId)?.side ?? -1) !== me.side);
         expect(hurt, `${me.kind} ${JSON.stringify(c)}`).toBe(true);

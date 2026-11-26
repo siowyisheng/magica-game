@@ -45,6 +45,7 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
     // one power stat: ATK for a physical Ability, MP for a magical one
     const unused = powerStat(k) === 'atk' ? 'mp' : 'atk';
     if (k.stats[unused] > 0) w.push(`${unused.toUpperCase()} ${k.stats[unused]} does nothing: ${name} uses ${powerStat(k).toUpperCase()} (set ${unused.toUpperCase()} to 0)`);
+    if (k.signatureStat === unused) w.push(`its Signature Bonus raises ${unused.toUpperCase()}, which ${name} doesn't use`);
   }
   return w;
 }

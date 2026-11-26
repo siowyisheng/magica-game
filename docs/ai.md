@@ -100,7 +100,7 @@ After a Unit moves, the AI picks the Facing that leaves it the least exposed. If
 
 Summoning is decided in two steps.
 
-**Step one: which Familiars are worth considering.** Before looking at placements, the AI ranks every Familiar kind it can afford and that is in its Loadout. Each gets a value:
+**Step one: which Familiars are worth considering.** Before looking at placements, the AI ranks every Familiar kind it can afford, that is in its Loadout and that it doesn't already have its limit of on the map (one of each; three of its Signature, whose Signature Bonus counts). The same list, for the enemy Side, is what the AI fears the enemy Master could summon. Each gets a value:
 
 - Starts at `summonBase` (12.7): any extra Familiar is worth a little.
 - Adds `needScale` (55.2) × how well it fits the Plan's **Needs**: grab Stones (Move, Fly, cheap), answer a particular enemy (the damage it deals that enemy against the damage it takes, from the damage formula, so Elements count), heal, hold (DEF + MDF), hunt the Master (ATK, Move, Fly) and fight (damage against the enemies near the Front). There is **no bonus for Cost**: an expensive Familiar wins only when its stats serve a Need ([ai-plan.md](ai-plan.md) §5).

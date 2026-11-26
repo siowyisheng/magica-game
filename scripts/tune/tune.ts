@@ -53,7 +53,7 @@ function makeSetup(r: () => number, maps: MapMode): Setup {
 function play(setup: Setup, w: [Overrides, Overrides], maxTurns: number): Winner {
   const weights: [Weights, Weights] = [{ ...AI_WEIGHTS, ...w[0] }, { ...AI_WEIGHTS, ...w[1] }];
   const map = setup.mapSeed === null ? SCAFFOLD_MAP : generateRandomMap(setup.mapSeed);
-  let st: MatchState = createMatch(map, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters });
+  let st: MatchState = createMatch(map, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters, signatures: [setup.rosters[0][setup.seed % setup.rosters[0].length], setup.rosters[1][(setup.seed + 7) % setup.rosters[1].length]] });
   for (let t = 0; t < maxTurns && st.winner === null; t++) {
     const side = st.units.find((u) => u.id === st.activeUnitId)!.side;
     st = applyTurn(st, chooseAction(st, weights[side], 'normal')).state;

@@ -10,14 +10,13 @@ import {
   type SideId,
   type Unit,
   type UnitKind,
-  FAMILIARS,
   MAX_HP,
   computeDamage,
   facingToward,
   hexDistance,
   hexEq,
   hexKey,
-  inRoster,
+  summonableKinds,
   kindOf,
   manaIncome,
   neighbor,
@@ -82,7 +81,7 @@ export interface Plan {
 const clamp = (x: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, x));
 
 export function unitValue(u: Unit): number {
-  const k = kindOf(u.kind);
+  const k = kindOf(u);
   return k.isMaster ? 6 : 1 + k.cost / 48;
 }
 
@@ -96,12 +95,12 @@ export function hitReach(k: UnitKind): number {
 
 /** A Unit of `kind` standing at `pos`, for what-if damage. */
 function virtual(kind: UnitKind, side: SideId, pos: Hex, facing = 0): Unit {
-  return { id: -1000 - side, kind: kind.id, side, pos, facing: facing as Unit['facing'], hp: MAX_HP, av: 0, stranded: false };
+  return { id: -1000 - side, kind: kind.id, side, pos, facing: facing as Unit['facing'], hp: MAX_HP, av: 0, stranded: false, ...(kind.asSignature ? { signature: true } : {}) };
 }
 
 /** Damage `attacker` could deal `target` with one hit from `from` (0 if its Ability doesn't damage). */
 function bestHit(state: MatchState, attacker: Unit, from: Hex, target: Unit): number {
-  const a = kindOf(attacker.kind).ability;
+  const a = kindOf(attacker).ability;
   if (a.kind !== 'damage') return 0;
   return computeDamage(state, attacker, from, target, powerOf(a) === 'atk' ? 'physical' : 'magic').amount;
 }
@@ -112,7 +111,7 @@ function bestHit(state: MatchState, attacker: Unit, from: Hex, target: Unit): nu
  * Unit holds out (the move scorer's real-path danger covers the turn at hand).
  */
 export function arriveTurns(e: Unit, h: Hex): number {
-  const ek = kindOf(e.kind);
+  const ek = kindOf(e);
   const reach = ek.stats.mov + hitReach(ek);
   const d = hexDistance(e.pos, h);
   return d <= reach ? 0 : Math.ceil((d - reach) / Math.max(1, ek.stats.mov));
@@ -142,7 +141,7 @@ const defendOf = (ttk: number) => (ttk <= 2 ? 1 : 0);
 
 /** How well a Familiar of `kind` (for `side`) answers `enemy`: share of its HP taken per hit, against the hit it takes back. */
 function answerFitOf(state: MatchState, side: SideId, kind: UnitKind, enemy: Unit): number {
-  const ek = kindOf(enemy.kind);
+  const ek = kindOf(enemy);
   // attack from its front (no Facing Bonus): an honest estimate
   const from = neighbor(enemy.pos, enemy.facing);
   const me = virtual(kind, side, from, facingToward(from, enemy.pos));
@@ -176,9 +175,9 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   const enemySide = (1 - side) as SideId;
   const mine = state.units.filter((u) => u.side === side);
   const theirs = state.units.filter((u) => u.side !== side);
-  const master = mine.find((u) => kindOf(u.kind).isMaster);
-  const enemyMaster = theirs.find((u) => kindOf(u.kind).isMaster);
-  const myFamiliars = mine.filter((u) => !kindOf(u.kind).isMaster);
+  const master = mine.find((u) => kindOf(u).isMaster);
+  const enemyMaster = theirs.find((u) => kindOf(u).isMaster);
+  const myFamiliars = mine.filter((u) => !kindOf(u).isMaster);
 
   // ---- situation ----
   const material = (us: Unit[]) => us.reduce((a, u) => a + (unitValue(u) * u.hp) / MAX_HP, 0);
@@ -219,7 +218,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   const eta = (us: Unit[], h: Hex) => {
     let best = Infinity;
     for (const u of us) {
-      const k = kindOf(u.kind);
+      const k = kindOf(u);
       const d = hexDistance(u.pos, h);
       best = Math.min(best, Math.ceil(d / Math.max(1, k.stats.mov)));
       if (k.isMaster) best = Math.min(best, 1 + Math.ceil(Math.max(0, d - 1) / 5));
@@ -237,7 +236,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     const occupied = state.units.find((u) => hexEq(u.pos, st.hex));
     // standing on it hides it from reachable(): an enemy that can end next to it could take it if it were empty
     const near = [st.hex, ...[0, 1, 2, 3, 4, 5].map((d) => neighbor(st.hex, d as Unit['facing']))];
-    const takeable = occupied ? theirs.some((e) => near.some((h) => enemyCanEnd.has(hexKey(h)) && hexDistance(e.pos, st.hex) <= kindOf(e.kind).stats.mov)) : enemyCanEnd.has(hexKey(st.hex));
+    const takeable = occupied ? theirs.some((e) => near.some((h) => enemyCanEnd.has(hexKey(h)) && hexDistance(e.pos, st.hex) <= kindOf(e).stats.mov)) : enemyCanEnd.has(hexKey(st.hex));
     if (takeable) threatenedStones.add(hexKey(st.hex));
   }
 
@@ -252,7 +251,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     contest: 0.35,
     // ahead on income from Stones it holds, and those Stones safe
     squeeze: ownStones ? clamp((incMe - incThem) / Math.max(4, incThem)) * (1 - threatenedStones.size / ownStones) : 0,
-    kill: enemyMaster ? clamp((ratio - 1.8) / 0.7) * (myFamiliars.some((u) => hexDistance(u.pos, enemyMaster.pos) <= 3 * kindOf(u.kind).stats.mov) ? 1 : 0.5) : 0,
+    kill: enemyMaster ? clamp((ratio - 1.8) / 0.7) * (myFamiliars.some((u) => hexDistance(u.pos, enemyMaster.pos) <= 3 * kindOf(u).stats.mov) ? 1 : 0.5) : 0,
   };
   const dominant = (Object.keys(posture) as PostureName[]).reduce((a, b) => (posture[b] > posture[a] ? b : a));
 
@@ -275,7 +274,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   if (enemyMaster && (posture.kill * 2 > bestScore || !front)) {
     bestScore = posture.kill * 2;
     front = enemyMaster.pos;
-    frontLabel = `enemy Master ${kindOf(enemyMaster.kind).name}`;
+    frontLabel = `enemy Master ${kindOf(enemyMaster).name}`;
     frontKind = 'master';
   }
   // what the Master stages toward even when the Front is a threat
@@ -299,17 +298,17 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   }
   if (front) {
     const strong = theirs
-      .filter((e) => !kindOf(e.kind).isMaster && !answered.has(e.id) && hexDistance(e.pos, front!) <= 5 && kindOf(e.kind).cost >= 48)
+      .filter((e) => !kindOf(e).isMaster && !answered.has(e.id) && hexDistance(e.pos, front!) <= 5 && kindOf(e).cost >= 48)
       .sort((a, b) => unitValue(b) - unitValue(a) || a.id - b.id)[0];
     if (strong) needs.push({ tag: 'answer', weight: 0.4 * (unitValue(strong) / 3), target: strong });
   }
-  const ownHealerNear = master && myFamiliars.some((u) => kindOf(u.kind).ability.kind === 'heal' && hexDistance(u.pos, master.pos) <= 6);
+  const ownHealerNear = master && myFamiliars.some((u) => kindOf(u).ability.kind === 'heal' && hexDistance(u.pos, master.pos) <= 6);
   if (master && (posture.defend > 0 || master.hp < MAX_HP)) needs.push({ tag: 'heal', weight: 0.8 * Math.max(posture.defend, (MAX_HP - master.hp) / MAX_HP) * (ownHealerNear ? 0.3 : 1) });
   if (posture.squeeze > 0) needs.push({ tag: 'hold', weight: 0.8 * posture.squeeze });
   if (posture.kill > 0) needs.push({ tag: 'assassin', weight: 1.2 * posture.kill });
   needs.push({ tag: 'fight', weight: 0.4 });
 
-  const nearFront = front ? theirs.filter((e) => !kindOf(e.kind).isMaster).sort((a, b) => hexDistance(a.pos, front!) - hexDistance(b.pos, front!) || a.id - b.id).slice(0, 3) : [];
+  const nearFront = front ? theirs.filter((e) => !kindOf(e).isMaster).sort((a, b) => hexDistance(a.pos, front!) - hexDistance(b.pos, front!) || a.id - b.id).slice(0, 3) : [];
   const fitCache = new Map<string, number>();
   const fit = (k: UnitKind): number => {
     const hit = fitCache.get(k.id);
@@ -349,18 +348,18 @@ function buildPlan(state: MatchState, side: SideId): Plan {
   let reserveFor: string | null = null;
   let reserveAnswer: string | null = null;
   if (master && enemyMaster) {
-    const hours = turnDelay(kindOf(master.kind), true, true) / 60;
+    const hours = turnDelay(kindOf(master), true, true) / 60;
     const theirBudget = state.sides[enemySide].mana + Math.max(0, incThem) * hours;
     let worst: { k: UnitKind; ttk: number } | null = null;
     const spawn = neighbor(enemyMaster.pos, facingToward(enemyMaster.pos, master.pos));
-    for (const k of FAMILIARS) {
-      if (k.cost > theirBudget || !inRoster(state, enemySide, k.id)) continue;
+    for (const k of summonableKinds(state, enemySide)) {
+      if (k.cost > theirBudget) continue;
       const ttk = turnsToKill(state, virtual(k, enemySide, spawn), master);
       if (!worst || ttk < worst.ttk || (ttk === worst.ttk && k.cost > worst.k.cost)) worst = { k, ttk };
     }
     if (worst && worst.ttk <= 3) {
       const threat = virtual(worst.k, enemySide, spawn, facingToward(spawn, master.pos));
-      const answer = FAMILIARS.filter((k) => inRoster(state, side, k.id) && answerFitOf(state, side, k, threat) >= 0.6).sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
+      const answer = summonableKinds(state, side).filter((k) => answerFitOf(state, side, k, threat) >= 0.6).sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
       if (answer) {
         reserve = Math.max(0, Math.round(answer.cost - Math.max(0, incMe) * hours));
         reserveFor = worst.k.name;
@@ -379,16 +378,16 @@ function buildPlan(state: MatchState, side: SideId): Plan {
       if (st.owner === side && threatenedStones.has(hexKey(st.hex))) objs.push({ hex: st.hex, value: GUARD_SHARE, cap: 1, label: `guard ${st.hex.q},${st.hex.r}` });
     for (const e of theirs) {
       const t = threats.find((x) => x.unit.id === e.id);
-      const isM = kindOf(e.kind).isMaster;
+      const isM = kindOf(e).isMaster;
       // a healer keeping the enemy Master up is hunted first (peel, then kill)
-      const ek = kindOf(e.kind).ability;
-      const medic = !isM && enemyMaster && ek.kind === 'heal' && hexDistance(e.pos, enemyMaster.pos) <= kindOf(e.kind).stats.mov + ek.range + ek.radius;
+      const ek = kindOf(e).ability;
+      const medic = !isM && enemyMaster && ek.kind === 'heal' && hexDistance(e.pos, enemyMaster.pos) <= kindOf(e).stats.mov + ek.range + ek.radius;
       const value = isM ? 0.8 + 3 * posture.kill : unitValue(e) * (t && t.urgency > 0 ? 0.6 + 1.5 * t.urgency : medic ? 1 : 0.4);
-      objs.push({ hex: e.pos, value, cap: isM ? 4 : 2, label: `hunt ${kindOf(e.kind).name}` });
+      objs.push({ hex: e.pos, value, cap: isM ? 4 : 2, label: `hunt ${kindOf(e).name}` });
     }
     const pairs: { f: Unit; o: Obj; cost: number }[] = [];
     for (const f of myFamiliars) {
-      const mov = Math.max(1, kindOf(f.kind).stats.mov);
+      const mov = Math.max(1, kindOf(f).stats.mov);
       for (const o of objs) pairs.push({ f, o, cost: (1 + hexDistance(f.pos, o.hex) / mov) / o.value });
     }
     pairs.sort((a, b) => a.cost - b.cost || a.f.id - b.f.id || hexKey(a.o.hex).localeCompare(hexKey(b.o.hex)));
@@ -407,7 +406,7 @@ function buildPlan(state: MatchState, side: SideId): Plan {
     .filter((n) => n.weight >= 0.15)
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 3)
-    .map((n) => (n.tag === 'answer' && n.target ? `answer ${kindOf(n.target.kind).name}` : n.tag))
+    .map((n) => (n.tag === 'answer' && n.target ? `answer ${kindOf(n.target).name}` : n.tag))
     .join(', ');
   const top = (Object.keys(posture) as PostureName[])
     .filter((p) => posture[p] >= 0.2)

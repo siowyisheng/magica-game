@@ -39,7 +39,7 @@ function rng(seed: number) {
 type Policy = (s: MatchState) => TurnAction;
 
 function play(setup: { masters: [string, string]; rosters: [string[], string[]]; seed: number }, p0: Policy, p1: Policy, levels: ['normal' | 'hard', 'normal' | 'hard'], log = false) {
-  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters, aiLevels: levels });
+  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters, signatures: [setup.rosters[0][setup.seed % setup.rosters[0].length], setup.rosters[1][(setup.seed + 7) % setup.rosters[1].length]], aiLevels: levels });
   let turns = 0;
   const ms: [number, number] = [0, 0];
   const n: [number, number] = [0, 0];

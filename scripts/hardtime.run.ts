@@ -6,7 +6,7 @@ import { autoLoadout, chooseAction } from '../src/ai/ai';
 
 it('times Hard', () => {
   const lo = autoLoadout('regent', () => 0.3);
-  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 9, masters: ['regent', 'oni'], rosters: [lo, lo] });
+  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 9, masters: ['regent', 'oni'], rosters: [lo, lo], signatures: [lo[0], lo[1]] });
   const times: number[] = [];
   for (let t = 0; t < 160 && st.winner === null; t++) {
     const t0 = performance.now();

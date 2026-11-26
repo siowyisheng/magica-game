@@ -291,6 +291,22 @@ const ICONS = {
       '....o....',
     ],
   },
+  signature: {
+    title: 'Signature Familiar',
+    // a gold five-point star
+    palette: { o: O, y: '#ffd040', w: '#fff4b0', d: '#c88a10' },
+    grid: [
+      '....o....',
+      '...owo...',
+      'oooowyooo',
+      'oywwwyyyo',
+      '.oyyyyyo.',
+      '..oyyyo..',
+      '.oyydyyo.',
+      '.oyo.oyo.',
+      '.oo...oo.',
+    ],
+  },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

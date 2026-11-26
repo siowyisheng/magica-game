@@ -263,6 +263,37 @@ describe('random maps', () => {
     }
   });
 
+  it('put about one Stone in five in Shallow Water (at most a third), each reachable by wading', () => {
+    const wader = { moveTypes: ['walk', 'wade'] } as unknown as UnitKind;
+    let stones = 0;
+    let wet = 0;
+    let wetCentres = 0;
+    for (const { seed, map } of maps) {
+      const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));
+      const all = map.hexes.filter((h) => h.terrain === 'stone');
+      const inWater = all.filter((h) => surfaceOf(h, map.waterLevel) !== 'land');
+      stones += all.length;
+      wet += inWater.length;
+      expect(inWater.length, `seed ${seed}`).toBeLessThanOrEqual(Math.floor(all.length / 3));
+      if (all.length % 2 && inWater.length % 2) wetCentres++;
+      const seen = new Set([hexKey(map.spawns[0])]);
+      const queue = [byKey.get(hexKey(map.spawns[0]))!];
+      while (queue.length) {
+        const h = queue.pop()!;
+        for (const d of DIRS) {
+          const n = byKey.get(hexKey(neighbor(h.hex, d)));
+          if (!n || seen.has(hexKey(n.hex)) || !stepCost(wader, h, n, map.waterLevel)?.canStand) continue;
+          seen.add(hexKey(n.hex));
+          queue.push(n);
+        }
+      }
+      for (const s of inWater) expect(seen.has(hexKey(s.hex)), `seed ${seed}: water Stone ${hexKey(s.hex)}`).toBe(true);
+    }
+    expect(wet / stones).toBeGreaterThan(0.15);
+    expect(wet / stones).toBeLessThan(0.25);
+    expect(wetCentres).toBeGreaterThan(0);
+  });
+
   it('leave every tile touching at least 3 other tiles', () => {
     for (const { seed, map } of maps) {
       const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));

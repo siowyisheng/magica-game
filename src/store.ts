@@ -28,6 +28,9 @@ import {
   type Target,
   MASTERS,
   randomLoadout,
+  randomSignature,
+  isBurst,
+  hexDistance,
   targetAt,
   targetById,
   canSummonAt,
@@ -83,22 +86,22 @@ export function resolveMasters(choice: [string, string], rand: () => number = Ma
   return [pick(choice[0]), pick(choice[1])];
 }
 
-/** Resolve a Loadout choice into its Familiars. */
-export function resolveLoadout(choice: string, masterId: string, rand: () => number = Math.random): string[] {
-  if (choice === 'auto') return autoLoadout(masterId, rand);
+/** Resolve a Loadout choice into its Familiars and Signature (random and AI-built Loadouts get a random one). */
+export function resolveLoadout(choice: string, masterId: string, rand: () => number = Math.random): { familiars: string[]; signature: string } {
   const l = getLoadout(choice);
-  if (l && isPlayable(l)) return [...l.familiars];
-  // 'random', or a choice that can't be played: an old 'random18' or starter, a deleted or incomplete Loadout
-  return randomLoadout(rand);
+  if (choice !== 'auto' && l && isPlayable(l)) return { familiars: [...l.familiars], signature: l.signature! };
+  // 'auto', 'random', or a choice that can't be played: an old 'random18' or starter, a deleted or incomplete Loadout
+  const familiars = choice === 'auto' ? autoLoadout(masterId, rand) : randomLoadout(rand);
+  return { familiars, signature: randomSignature(familiars, rand) };
 }
 
 /** Masters and Loadouts for a Match Setup ('random' / 'auto' resolved). */
 export function resolveSetup(setup: Pick<MatchSetup, 'test' | 'masters' | 'loadouts'>, rand: () => number = Math.random) {
   const masters = resolveMasters(setup.masters, rand);
-  const rosters: [string[] | null, string[] | null] = setup.test
-    ? [null, null]
-    : [resolveLoadout(setup.loadouts[0], masters[0], rand), resolveLoadout(setup.loadouts[1], masters[1], rand)];
-  return { masters, rosters };
+  const l = setup.test ? null : ([resolveLoadout(setup.loadouts[0], masters[0], rand), resolveLoadout(setup.loadouts[1], masters[1], rand)] as const);
+  const rosters: [string[] | null, string[] | null] = l ? [l[0].familiars, l[1].familiars] : [null, null];
+  const signatures: [string | null, string | null] = l ? [l[0].signature, l[1].signature] : [null, null];
+  return { masters, rosters, signatures };
 }
 
 /** UI phase for the human's turn. The rules only see the final TurnAction. */
@@ -231,7 +234,7 @@ function phaseFor(match: MatchState): Phase {
 function describe(match: MatchState, e: GameEvent): string | null {
   const name = (id: number) => {
     const u = match.units.find((x) => x.id === id);
-    if (u) return `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u.kind).name}`;
+    if (u) return `${u.side === 0 ? 'Green' : 'Red'} ${kindOf(u).name}`;
     const o = match.obstacles.find((x) => x.id === id);
     return o ? `Obstacle (DEF ${o.def})` : `#${id}`;
   };
@@ -243,7 +246,7 @@ function describe(match: MatchState, e: GameEvent): string | null {
     case 'empower':
       return `${name(e.source)} empowered ${name(e.unitId)}: +${e.amount} ATK until its next Attack`;
     case 'summon':
-      return `${name(e.by)} summoned ${kindOf(e.kind).name}`;
+      return `${name(e.by)} summoned ${kindOf(e).name}`;
     case 'capture':
       return `${e.side === 0 ? 'Green' : 'Red'} captured a Magic Stone`;
     case 'water':
@@ -374,9 +377,9 @@ export const useGame = create<Store>((set, get) => {
     startMatch: (map, mapId, setup) => {
       const last = get().setup;
       const ai = setup?.ai ?? (get().match.sides.map((s) => s.ai) as [boolean, boolean]);
-      const { masters, rosters } = resolveSetup({ ...last, ...setup });
+      const { masters, rosters, signatures } = resolveSetup({ ...last, ...setup });
       const aiLevels = setup?.aiLevels ?? last.aiLevels ?? (['normal', 'normal'] as ['normal' | 'hard', 'normal' | 'hard']);
-      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, masters, rosters, aiLevels });
+      const m = createMatch(map, { ai, seed: Date.now() & 0xffff, masters, rosters, signatures, aiLevels });
       if (mapId) set({ mapId });
       if (get().replay) endTemporaryBalance();
       set({ match: m, recording: { ...newReplay(m, activeBalance()), head: m }, replay: null, paused: false, aiThinking: false, anim: null, inspected: [], phase: phaseFor(m), log: [`${map.name}: match start — ${formatClock(map.startClock)}`], version: get().version + 1 });
@@ -418,7 +421,10 @@ export const useGame = create<Store>((set, get) => {
           return;
         }
         case 'target': {
-          const command: Command = { type: 'act', target: h };
+          // a Burst goes off around its user: a click anywhere in its area fires it
+          const ab = kindOf(u).ability;
+          if (isBurst(ab) && hexDistance(phase.to, h) > ab.radius) return signal({ type: 'deny' });
+          const command: Command = { type: 'act', target: isBurst(ab) ? phase.to : h };
           const action = { unitId: u.id, to: phase.to, facing: phase.facing, command };
           if (validateTurn(match, action)) return signal({ type: 'deny' });
           commit(action);
@@ -474,7 +480,7 @@ export const useGame = create<Store>((set, get) => {
       if (c === 'wait') return commit({ unitId: u.id, to, facing, command: { type: 'wait' } });
       if (c === 'act') {
         // Rise / Ebb need no aim; everything else is aimed at a hex
-        if (kindOf(u.kind).ability.kind === 'water') return commit({ unitId: u.id, to, facing, command: { type: 'act', target: to } });
+        if (kindOf(u).ability.kind === 'water') return commit({ unitId: u.id, to, facing, command: { type: 'act', target: to } });
         return set({ phase: { kind: 'target', to, facing } });
       }
       if ('sub' in c) return set({ phase: { kind: 'menu', to, facing, sub: c.sub } });

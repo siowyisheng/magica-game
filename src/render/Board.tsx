@@ -301,7 +301,7 @@ function useOutlines(): OutlineLayer[] {
     const u = activeUnit(match);
     const layers: OutlineLayer[] = [];
     if (!u || phase.kind === 'idle') return layers;
-    const kind = kindOf(u.kind);
+    const kind = kindOf(u);
 
     // Toggled units: move (pale Side colour), Reach (dashed: red for a physical Ability, blue for Magic).
     for (const id of inspected) {
@@ -309,7 +309,7 @@ function useOutlines(): OutlineLayer[] {
       if (!o) continue;
       const r = unitReach(match, o);
       layers.push({ key: `i${id}m`, region: r.move, style: { color: PALE_SIDE[o.side], width: 0.05, opacity: 0.9 } });
-      if (r.act.size) layers.push({ key: `i${id}a`, region: r.act, style: dashed(reachColor(kindOf(o.kind)), 0) });
+      if (r.act.size) layers.push({ key: `i${id}a`, region: r.act, style: dashed(reachColor(kindOf(o)), 0) });
     }
 
     if (phase.kind === 'move' && phase.selected) {
@@ -432,10 +432,10 @@ function useTargetMarks(): Map<number, TargetMark> {
     if (phase.kind === 'move' && phase.selected) {
       for (const t of match.units) {
         if (t.id === u.id) continue;
-        if (planAct(match, u, t)) out.set(t.id, markFor(kindOf(u.kind)));
+        if (planAct(match, u, t)) out.set(t.id, markFor(kindOf(u)));
       }
     } else if (phase.kind === 'target') {
-      const k = kindOf(u.kind);
+      const k = kindOf(u);
       const ab = k.ability;
       if (ab.kind === 'damage' && ab.burst) {
         // a Burst hits everything around the user, allies too
@@ -854,10 +854,10 @@ function UnitView({
       >
         <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={ghost ? 0.2 : 0.5} color={baseColor} opacity={ghost ? 0.45 : 1} depthWrite={!ghost} />
       </sprite>
-      {!ghost && !kindOf(unit.kind).isMaster && (
+      {!ghost && !kindOf(unit).isMaster && (
         // the Familiar's Class, always shown by its feet
         <sprite scale={[0.3, 0.3, 1]} position={[0.36, 0.2, 0.2]} renderOrder={11} raycast={() => null}>
-          <spriteMaterial map={classBadgeTexture(classIconName(kindOf(unit.kind)), unit.side)} transparent depthTest={false} />
+          <spriteMaterial map={classBadgeTexture(classIconName(kindOf(unit)), unit.side)} transparent depthTest={false} />
         </sprite>
       )}
     </group>

@@ -8,10 +8,15 @@ export interface Loadout {
   name: string;
   /** Exactly LOADOUT_SIZE Familiar kind ids. */
   familiars: string[];
+  /** Its Signature Familiar, one of `familiars` (missing in Loadouts saved before Signatures). */
+  signature?: string;
 }
 
+/** The problem reported for a Loadout with no (valid) Signature. */
+export const NO_SIGNATURE = 'pick a Signature Familiar';
+
 /** Problems with a Loadout (empty = valid). */
-export function loadoutProblems(familiars: string[]): string[] {
+export function loadoutProblems(familiars: string[], signature: string | null | undefined): string[] {
   const p: string[] = [];
   const set = new Set(familiars);
   if (set.size !== familiars.length) p.push('a Familiar is listed twice');
@@ -23,6 +28,7 @@ export function loadoutProblems(familiars: string[]): string[] {
     }
   }
   if (set.size !== LOADOUT_SIZE) p.push(`pick exactly ${LOADOUT_SIZE} Familiars (${set.size} picked)`);
+  if (!signature || !set.has(signature)) p.push(NO_SIGNATURE);
   return p;
 }
 
@@ -57,4 +63,9 @@ export function randomLoadout(rand: () => number = Math.random): string[] {
   const must = shuffle(cheap).slice(0, Math.min(RANDOM_LOADOUT_CHEAP_MIN, cheap.length));
   const rest = shuffle(FAMILIARS.map((k) => k.id).filter((id) => !must.includes(id))).slice(0, LOADOUT_SIZE - must.length);
   return [...must, ...rest];
+}
+
+/** A random Signature from a Loadout's Familiars. */
+export function randomSignature(familiars: string[], rand: () => number = Math.random): string {
+  return familiars[Math.floor(rand() * familiars.length)];
 }

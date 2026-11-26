@@ -18,6 +18,8 @@ export interface Replay {
   initial: MatchState;
   actions: TurnAction[];
   winner: SideId | 'draw' | null;
+  /** The Replay format it was recorded in (absent: before version 3). */
+  version?: number;
 }
 
 export type ReplayMeta = Omit<Replay, 'initial' | 'actions' | 'balance'> & {
@@ -44,11 +46,12 @@ export function newReplay(initial: MatchState, balance: Balance): Replay {
     initial: JSON.parse(JSON.stringify(initial)),
     actions: [],
     winner: initial.winner,
+    version: REPLAY_VERSION,
   };
 }
 
 function mastersOf(s: MatchState): [string, string] {
-  const of = (side: SideId) => s.units.find((u) => u.side === side && kindOf(u.kind).isMaster)?.kind ?? '?';
+  const of = (side: SideId) => s.units.find((u) => u.side === side && kindOf(u).isMaster)?.kind ?? '?';
   return [of(0), of(1)];
 }
 
@@ -163,31 +166,34 @@ export function exportReplayJson(r: Replay): string {
 
 /**
  * The Replay format's version. 2: one Ability per Unit (the Act Command), and
- * Speed shifted down by 6. Older Replays can't be watched: their Attack and
- * Magic Commands and their balance don't map onto the current rules.
+ * Speed shifted down by 6. 3: one of each Familiar on the map (Signatures up to
+ * 3), and Mana Income following the Master's Alignment. Older Replays can't be
+ * watched: their turns may no longer be legal, or play out differently.
  */
-export const REPLAY_VERSION = 2;
+export const REPLAY_VERSION = 3;
 
-/** True for a Replay recorded before version 2 (it has Attack or Magic Commands, or an old balance). */
-export function isOldReplay(r: Pick<Replay, 'actions' | 'balance'>): boolean {
-  return r.actions.some((a) => (a.command.type as string) === 'attack' || (a.command.type as string) === 'magic') || isOldBalance(r.balance);
+/** True for a Replay recorded before the current version. */
+export function isOldReplay(r: Pick<Replay, 'actions' | 'balance' | 'version'>): boolean {
+  return (r.version ?? 0) < REPLAY_VERSION || r.actions.some((a) => (a.command.type as string) === 'attack' || (a.command.type as string) === 'magic') || isOldBalance(r.balance);
 }
+
+const OLD_REPLAY = 'it was recorded under older rules (before Signature Familiars)';
 
 /** Parse an exported Replay; it is stored as a new, saved Replay. */
 export function importReplayJson(text: string): Replay {
   const raw = JSON.parse(text);
   const r = raw?.format === 'magica-replay' ? raw.replay : null;
   if (!r || !r.initial || !Array.isArray(r.actions) || !r.balance) throw new Error('not a magica Replay file');
-  if ((typeof raw.version === 'number' && raw.version < REPLAY_VERSION) || isOldReplay(r))
-    throw new Error('this Replay was recorded before Familiars had one Ability each, and can’t be watched any more');
+  if (typeof raw.version !== 'number' || raw.version < REPLAY_VERSION || isOldReplay({ ...r, version: raw.version }))
+    throw new Error(`this Replay can’t be watched any more: ${OLD_REPLAY}`);
   const imported: Replay = { ...newReplay(r.initial, r.balance), name: r.name ?? null, saved: true, actions: r.actions, winner: r.winner ?? null, createdAt: r.createdAt ?? Date.now() };
   storeReplay(imported);
   return imported;
 }
 
 /** Why a Replay can't be watched at all (it names unit kinds that no longer exist), or null. */
-export function replayProblem(r: Pick<Replay, 'initial' | 'actions' | 'balance'>): string | null {
-  if (isOldReplay(r)) return 'it was recorded before Familiars had one Ability each';
+export function replayProblem(r: Pick<Replay, 'initial' | 'actions' | 'balance' | 'version'>): string | null {
+  if (isOldReplay(r)) return OLD_REPLAY;
   const kinds = new Set<string>(r.initial.units.map((u) => u.kind));
   for (const a of r.actions) if (a.command.type === 'summon') kinds.add(a.command.kind);
   for (const k of kinds)

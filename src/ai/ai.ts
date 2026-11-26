@@ -35,7 +35,8 @@ import {
   ALIGN_STAT,
   resultingFacing,
   canSummonAt,
-  inRoster,
+  isSignature,
+  summonableKinds,
   planAct,
   isPhysical,
   powerOf,
@@ -142,7 +143,7 @@ function mulberry32(seed: number): () => number {
 }
 
 function unitValue(u: Unit): number {
-  const k = kindOf(u.kind);
+  const k = kindOf(u);
   return k.isMaster ? 6 : 1 + k.cost / 48;
 }
 
@@ -161,7 +162,7 @@ function enemyReaches(state: MatchState, me: Unit): EnemyReach[] {
       // (where it ends, enemies stop next to it anyway, so its own body there hardly matters).
       // For a Master, its own Familiars that act before this enemy may walk away too:
       // they don't count as blocking it (a screen that leaves first is no screen).
-      const view = { ...state, units: state.units.filter((a) => a.id !== me.id && (a.side !== me.side || !kindOf(me.kind).isMaster || a.av >= u.av)) };
+      const view = { ...state, units: state.units.filter((a) => a.id !== me.id && (a.side !== me.side || !kindOf(me).isMaster || a.av >= u.av)) };
       const nodes = reachable(view, u);
       const positions: Hex[] = [];
       for (const n of nodes.values()) if (n.canEnd || hexEq(n.hex, u.pos)) positions.push(n.hex);
@@ -171,7 +172,7 @@ function enemyReaches(state: MatchState, me: Unit): EnemyReach[] {
 
 /** Max damage `e` could deal to a virtual copy of `me` standing at `h` facing `f`. */
 function maxDamageFrom(state: MatchState, e: EnemyReach, me: Unit, h: Hex, f: Dir): number {
-  const ek = kindOf(e.unit.kind);
+  const ek = kindOf(e.unit);
   const target: Unit = { ...me, pos: h, facing: f };
   // judged when it acts: the time of day then (Alignment may turn at an hour mark).
   // Abilities are free, so Mana doesn't matter.
@@ -213,7 +214,7 @@ function obstacleValue(state: MatchState, me: Unit, dest: Hex, id: number, amoun
 
 /** Rough best damage `e` could deal to `me` at `h` from somewhere near, ignoring reach and Clear Angles. */
 function approxDamage(state: MatchState, e: Unit, me: Unit, h: Hex, f: Dir): number {
-  const ek = kindOf(e.kind);
+  const ek = kindOf(e);
   const target: Unit = { ...me, pos: h, facing: f };
   // it arrives from its own direction: use the hex next to `h` toward it
   const dir = facingToward(h, e.pos);
@@ -248,7 +249,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   const light = opts.light === true;
   const me = activeUnit(state);
   if (!me) throw new Error('no active unit');
-  const kind = kindOf(me.kind);
+  const kind = kindOf(me);
   const w = weights;
   const reaches = enemyReaches(state, me);
   // the Side's Plan: Posture, Front, Needs, Reserve, Jobs (docs/ai-plan.md)
@@ -275,7 +276,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   const secondWindow = kind.isMaster ? turnDelay(kind, true, true) : 0;
   /** Whether a unit acting at `at` (from now) goes before this Unit's next turn at `next`: a tie goes by the real turn order (Speed, then Side, then creation). */
   const goesBefore = (u: { kind: string; side: number; id: number }, at: number, next: number) =>
-    at < next || (at === next && compareTurnOrder({ av: 0, spd: kindOf(u.kind).stats.spd, side: u.side, id: u.id }, { av: 0, spd: kind.stats.spd, side: me.side, id: me.id }) < 0);
+    at < next || (at === next && compareTurnOrder({ av: 0, spd: kindOf(u).stats.spd, side: u.side, id: u.id }, { av: 0, spd: kind.stats.spd, side: me.side, id: me.id }) < 0);
   /** How many turns a unit with first turn at `av` and repeat `rep` gets before this Unit's next turn at `next`. */
   const turnsBeforeOf = (u: { kind: string; side: number; id: number }, av: number, rep: number, next: number) => {
     if (!goesBefore(u, av, next)) return 0;
@@ -292,10 +293,10 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   const reachOdds = (slack: number) => (slack < 0 ? 0 : Math.min(1, (slack + 1) / 3));
   // Familiars the enemy Master could summon in time (for the Master's danger): the 6
   // hardest-hitting it can afford, placed next to it after it walks.
-  const enemyMasterU = state.units.find((u) => u.side !== me.side && kindOf(u.kind).isMaster);
+  const enemyMasterU = state.units.find((u) => u.side !== me.side && kindOf(u).isMaster);
   const enemyBudget = enemyMasterU ? manaAfter(state, enemyMasterU.side, enemyMasterU.av) : 0;
   const summonables = kind.isMaster && enemyMasterU
-    ? FAMILIARS.filter((k) => k.cost <= enemyBudget && inRoster(state, enemyMasterU.side, k.id))
+    ? summonableKinds(state, enemyMasterU.side).filter((k) => k.cost <= enemyBudget)
         .sort((a, b) => Math.max(b.stats.atk, b.stats.mp) - Math.max(a.stats.atk, a.stats.mp) || a.id.localeCompare(b.id))
         .slice(0, 6)
     : [];
@@ -318,7 +319,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
     let sure = 0;
     for (const e of reaches) {
       if (gone.has(e.unit.id) || finishedFirst(e.unit, 0)) continue;
-      const ek = kindOf(e.unit.kind);
+      const ek = kindOf(e.unit);
       const first = goesBefore(e.unit, e.unit.av, delay);
       const second = !light && !first && kind.isMaster && goesBefore(e.unit, e.unit.av, delay + secondWindow);
       if (!first && !second) continue; // acts after the window
@@ -350,13 +351,13 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
     }
     // a Familiar the enemy Master could summon next to itself and act with in time
     if (!light && summonables.length && enemyMasterU && !gone.has(enemyMasterU.id) && goesBefore(enemyMasterU, enemyMasterU.av, delay)) {
-      const fromSpawn = hexDistance(enemyMasterU.pos, h) - kindOf(enemyMasterU.kind).stats.mov - 1;
+      const fromSpawn = hexDistance(enemyMasterU.pos, h) - kindOf(enemyMasterU).stats.mov - 1;
       let best = 0;
       for (const k of summonables) {
         if (!goesBefore({ kind: k.id, side: enemyMasterU.side, id: state.nextUnitId }, enemyMasterU.av + turnDelay(k, true, true), delay)) continue;
         const odds = reachOdds(k.stats.mov + hitReach(k) - fromSpawn);
         if (odds <= 0) continue;
-        const v: Unit = { id: -99, kind: k.id, side: enemyMasterU.side, pos: neighbor(h, facingToward(h, enemyMasterU.pos)), facing: 0, hp: MAX_HP, av: 0, stranded: false };
+        const v: Unit = { id: -99, kind: k.id, side: enemyMasterU.side, pos: neighbor(h, facingToward(h, enemyMasterU.pos)), facing: 0, hp: MAX_HP, av: 0, stranded: false, ...(k.asSignature ? { signature: true } : {}) };
         best = Math.max(best, odds * approxDamage(state, v, me, h, f));
       }
       total += best;
@@ -397,11 +398,11 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   /** Heal a healer would give, ignoring the target's missing HP. */
   const rawHeal = (h: Unit) => computeHeal(state, h, { ...h, hp: 1 }).amount;
   const healers = reaches.filter((e) => {
-    const k = kindOf(e.unit.kind);
+    const k = kindOf(e.unit);
     return e.unit.av < healWindow && k.ability.kind === 'heal';
   });
   const healReach = (e: EnemyReach, at: Hex) => {
-    const m = kindOf(e.unit.kind).ability;
+    const m = kindOf(e.unit).ability;
     if (m.kind !== 'heal') return false;
     return e.positions.some((p) => hexDistance(p, at) <= m.range + m.radius) || hexDistance(e.unit.pos, at) <= m.range + m.radius;
   };
@@ -480,9 +481,9 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   const recovery = (h: Hex): number => {
     let r = stoneAt(h) ? 1 : 0;
     for (const a of allies) {
-      const m = kindOf(a.kind).ability;
+      const m = kindOf(a).ability;
       if (m.kind !== 'heal') continue;
-      if (hexDistance(a.pos, h) <= kindOf(a.kind).stats.mov + m.range + m.radius) r += computeHeal(state, a, { ...me, hp: 1 }).amount;
+      if (hexDistance(a.pos, h) <= kindOf(a).stats.mov + m.range + m.radius) r += computeHeal(state, a, { ...me, hp: 1 }).amount;
     }
     return r;
   };
@@ -565,7 +566,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   // Rank summon kinds once (placement-independent), affordable or not: by how well
   // they fit the Plan's Needs, never by Cost for its own sake (docs/ai-plan.md §5).
   const rankedKinds = kind.isMaster
-    ? FAMILIARS.filter((s) => inRoster(state, me.side, s.id))
+    ? summonableKinds(state, me.side)
         .map((s) => {
           let v = w.summonBase + w.needScale * plan.fit(s);
           if (s.alignment !== 'none') {
@@ -606,8 +607,9 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
     const key = `${hexKey(dest)}|${f}|${hexKey(h)}|${delay}|${[...gone].join(',')}`;
     const hit = blockCache.get(key);
     if (hit !== undefined) return hit;
-    const sk = kindOf(kindId);
-    const placed: Unit = { id: -98, kind: kindId, side: me.side, pos: h, facing: f, hp: MAX_HP, av: turnDelay(sk, true, true), stranded: false };
+    const signature = isSignature(state, me.side, kindId);
+    const sk = kindOf({ kind: kindId, signature });
+    const placed: Unit = { id: -98, kind: kindId, side: me.side, pos: h, facing: f, hp: MAX_HP, av: turnDelay(sk, true, true), stranded: false, ...(signature ? { signature } : {}) };
     const view: MatchState = { ...state, units: [...state.units.map((u) => (u.id === me.id ? { ...u, pos: dest, facing: f } : u)), placed] };
     let saved = 0;
     for (const e of reaches) {
@@ -657,8 +659,8 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
           for (const u of state.units) {
             const mh = mapHexAt(state.map, u.id === me.id ? dest : u.pos);
             if (!mh) continue;
-            const strandedNow = !canStandOn(kindOf(u.kind), mh, state.waterLevel);
-            const strandedAfter = !canStandOn(kindOf(u.kind), mh, level);
+            const strandedNow = !canStandOn(kindOf(u), mh, state.waterLevel);
+            const strandedAfter = !canStandOn(kindOf(u), mh, level);
             if (strandedAfter && !strandedNow) score += u.side === me.side ? -w.strandAlly : w.strandEnemy * unitValue(u);
             if (!strandedAfter && strandedNow) score += u.side === me.side ? w.strandAlly : -w.strandEnemy;
           }
@@ -687,7 +689,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
                 score += (net + (dealt - net) * w.healedDamage) * w.damage * v * (kind.isMaster ? w.masterHit : 1);
                 if (e.lethal) {
                   killed.add(t.id);
-                  score += kindOf(t.kind).isMaster ? w.killMaster : w.kill * v;
+                  score += kindOf(t).isMaster ? w.killMaster : w.kill * v;
                   // it was holding a Stone my Side doesn't own: that Stone is open to take again
                   if (state.stones.some((st) => hexEq(st.hex, t.pos) && st.owner !== me.side)) score += w.capture * w.stoneReopen;
                 } else if (canFinish) {
@@ -698,7 +700,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
               }
             } else if (e.kind === 'empower') {
               // worth the extra damage on its next physical hit; nothing if it already has it, or hits with MP
-              const tk = kindOf(t.kind);
+              const tk = kindOf(t);
               if (t.side === me.side && (t.empowered ?? 0) < e.amount && isPhysical(tk.ability)) {
                 const pos = t.id === me.id ? dest : t.pos;
                 const reach = tk.stats.mov + (tk.ability.kind === 'water' ? 0 : tk.ability.range) + 1;
@@ -795,7 +797,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
       return Math.min(t, a.hp) * unitValue(a);
     };
     const baseThreat = allies.reduce((acc, a) => acc + ev(a, reaches), 0);
-    const near = (e: Unit, h: Hex) => hexDistance(e.pos, h) <= kindOf(e.kind).stats.mov + 2;
+    const near = (e: Unit, h: Hex) => hexDistance(e.pos, h) <= kindOf(e).stats.mov + 2;
     const done = new Map<string, number>();
     const screened = new Set<Candidate>();
     const screenBonus = (dest: Hex) => {
@@ -820,7 +822,7 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
       if (healers.length) {
         const hs = rs.filter((e) => healers.some((h) => h.unit.id === e.unit.id));
         for (const t of state.units) {
-          if (t.side === me.side || (t.hp >= 10 && !kindOf(t.kind).isMaster)) continue;
+          if (t.side === me.side || (t.hp >= 10 && !kindOf(t).isMaster)) continue;
           const lost = (healIn.get(t.id) ?? 0) - incomingHealFrom(hs, t);
           if (lost > 0) v += lost * w.damage * unitValue(t) * w.screen;
         }
@@ -951,7 +953,7 @@ export function evaluate(st: MatchState, side: number, w: W = AI_WEIGHTS): numbe
   if (st.winner !== null && st.winner !== 'draw') return -1e6;
   let v = 0;
   for (const u of st.units) {
-    const k = kindOf(u.kind);
+    const k = kindOf(u);
     const worth = k.isMaster ? 40 + u.hp * 12 : unitValue(u) * (8 + u.hp * 4);
     v += u.side === side ? worth : -worth;
   }

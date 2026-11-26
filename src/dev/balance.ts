@@ -30,7 +30,7 @@ import {
 // under the old key ('magica.balance.v2') don't convert, and are left there untouched.
 const KEY = 'magica.balance.v3';
 const OLD_KEY = 'magica.balance.v2';
-const FIELDS = ['name', 'cost', 'alignment', 'element', 'stats', 'moveTypes', 'abilityName'] as const;
+const FIELDS = ['name', 'cost', 'alignment', 'element', 'stats', 'moveTypes', 'abilityName', 'signatureStat'] as const;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));

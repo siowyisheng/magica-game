@@ -44,6 +44,10 @@ export const RANDOM_MAP_ODD_STONES = 2 / 3;
 export const RANDOM_MAP_THEMES = ['meadow', 'desert', 'ruins', 'tundra', 'volcanic'];
 
 const WATER_LEVEL = 2;
+/** The share of Stones in Shallow Water on Random Maps (at most a third of a map's Stones). */
+export const RANDOM_MAP_WATER_STONES = 0.2;
+/** The chance each Stone (or pair) is tried in water: higher, as maps with water Stones are rejected more often. */
+const WATER_STONES = 0.3;
 const PLAIN = 3;
 const SHALLOW = 1;
 const LOW = 2;
@@ -133,10 +137,11 @@ class Board {
 
 const isLand = (c: Cell) => c.terrain !== 'pit' && c.height >= WATER_LEVEL;
 
-/** A walking Unit, for the connectivity check. */
+/** A walking Unit, and one that also wades (as every Master does), for the connectivity checks. */
 const WALKER = { moveTypes: ['walk'] } as unknown as UnitKind;
+const WADER = { moveTypes: ['walk', 'wade'] } as unknown as UnitKind;
 
-function walkable(map: MapDef, from: Hex, blocked: Set<string>): Set<string> {
+function walkable(map: MapDef, from: Hex, blocked: Set<string>, mover: UnitKind = WALKER): Set<string> {
   const seen = new Set<string>([hexKey(from)]);
   const queue: Hex[] = [from];
   while (queue.length) {
@@ -148,7 +153,7 @@ function walkable(map: MapDef, from: Hex, blocked: Set<string>): Set<string> {
       if (seen.has(k) || blocked.has(k)) continue;
       const nh = mapHexAt(map, n);
       if (!nh) continue;
-      const step = stepCost(WALKER, mh, nh, map.waterLevel);
+      const step = stepCost(mover, mh, nh, map.waterLevel);
       if (!step || !step.canStand) continue;
       seen.add(k);
       queue.push(n);
@@ -400,17 +405,28 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   const CLOSE_STONES = 2;
   const spaced = (c: Cell, min: number) => stones.every((s) => hexDistance(s.hex, c.hex) >= min);
   const nearest = (c: Cell) => Math.min(...stones.map((s) => hexDistance(s.hex, c.hex)));
-  const free = (c: Cell) => isLand(c) && c.terrain !== 'stone' && !b.edge(c) && d0(c) >= 3 && d1(c) >= 3;
+  const free = (c: Cell) => c.terrain !== 'pit' && c.terrain !== 'stone' && !b.edge(c) && d0(c) >= 3 && d1(c) >= 3;
+  /**
+   * About one Stone (or mirrored pair) in five goes in Shallow Water, at most a third of
+   * them: in water already there, or in a pool made for it.
+   */
+  const maxWet = Math.floor(n / 3);
+  let wetStones = 0;
+  const wantWet = (count: number) => wetStones + count <= maxWet && r() < WATER_STONES;
   /**
    * Place a mirrored pair, preferring spots 4–7 hexes from the nearest Stone so far. The
    * spacing is a guideline: about one pair in 12 (or one that fits nowhere else) may sit
    * 2–3 hexes from another Stone.
    */
   const place = (cands: Cell[]): boolean => {
+    const inWater = wantWet(2);
+    // in water: a spot already wet if there is one, else any spot (made into a pool); on land: dry only
+    const wetFirst = inWater && cands.some((c) => !isLand(c) && free(c));
+    const allowed = (c: Cell) => (inWater ? !wetFirst || !isLand(c) : isLand(c));
     const fits = (min: number) =>
       cands.filter((c) => {
         const m = b.mirror(c);
-        return free(c) && spaced(c, min) && hexDistance(c.hex, m.hex) >= min && free(m) && spaced(m, min);
+        return allowed(c) && free(c) && spaced(c, min) && hexDistance(c.hex, m.hex) >= min && free(m) && spaced(m, min);
       });
     let ok = r() < 1 / 12 ? fits(CLOSE_STONES).filter((c) => nearest(c) < SPACING) : [];
     if (!ok.length) ok = fits(SPACING);
@@ -420,14 +436,21 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
     const c = pick(good.length ? good : ok);
     const m = b.mirror(c);
     c.terrain = m.terrain = 'stone';
+    if (inWater) {
+      c.height = m.height = SHALLOW;
+      wetStones += 2;
+    }
     stones.push(c, m);
     return true;
   };
   if (oddStones) {
-    // 1, 3 or 5 exactly on the line: the centre hex (an island if it's water), then pairs
+    // 1, 3 or 5 exactly on the line: the centre hex (sometimes in water), then pairs
     const c = centre!;
     if (b.edge(c)) return null;
-    c.height = c.terrain === 'pit' ? PLAIN : Math.max(c.height, LOW);
+    if (wantWet(1)) {
+      c.height = SHALLOW;
+      wetStones++;
+    } else c.height = c.terrain === 'pit' ? PLAIN : Math.max(c.height, LOW);
     c.terrain = 'stone';
     stones.push(c);
     const onLine = Math.min(pick([1, 3, 5]), n);
@@ -506,9 +529,11 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
     spawnFacing: [toward(spawn0), toward(spawn1)],
   };
   if (validateMap(map).length) return null;
-  // a walking Unit gets from one Master to the other and onto every Stone
+  // a walking Unit gets from one Master to the other and onto every dry Stone; a wading one onto every Stone
   const reach = walkable(map, spawn0.hex, taken);
-  if (!reach.has(hexKey(spawn1.hex)) || !stones.every((s) => reach.has(hexKey(s.hex)))) return null;
+  if (!reach.has(hexKey(spawn1.hex)) || !stones.every((s) => !isLand(s) || reach.has(hexKey(s.hex)))) return null;
+  const wade = walkable(map, spawn0.hex, taken, WADER);
+  if (!stones.every((s) => wade.has(hexKey(s.hex)))) return null;
   // and onto every dry hex but the pillars (Obstacles aside: they can be broken)
   const open = walkable(map, spawn0.hex, new Set());
   if (b.cells.some((c) => isLand(c) && !pillars.has(c) && !open.has(hexKey(c.hex)))) return null;

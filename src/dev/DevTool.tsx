@@ -32,6 +32,9 @@ import {
   generateSpread,
   predictKindCost,
   mulberry32,
+  signatureStatOf,
+  SIGNATURE_STATS,
+  type SignatureStat,
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
@@ -413,6 +416,30 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
             }
           />
         </label>
+        {!kind.isMaster && (
+          <label
+            className={`dev-field ${signatureStatOf(kind) !== signatureStatOf(shipped) ? 'changed' : ''}`}
+            title="The stat that is 1 higher when this Familiar is its Loadout's Signature (default: its power stat, ATK or MP)"
+          >
+            <span>Signature +1</span>
+            <select
+              value={kind.signatureStat ?? ''}
+              onChange={(e) =>
+                edit((k) => {
+                  if (e.target.value) k.signatureStat = e.target.value as SignatureStat;
+                  else delete k.signatureStat;
+                })
+              }
+            >
+              <option value="">default ({signatureStatOf({ ...kind, signatureStat: undefined }).toUpperCase()})</option>
+              {SIGNATURE_STATS.map((s) => (
+                <option key={s} value={s}>
+                  {s.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <span className="muted small">
           {LABEL_TEXT[abilityLabel(kind.ability)]} · {abilitySummary(kind.ability)} · used by {abilityUsers(kind.ability.id).length}
         </span>
