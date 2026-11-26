@@ -11,14 +11,18 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "tune:build": "vite build --config scripts/tune/vite.config.ts",
-    "tune": "npm run --silent tune:build -- --logLevel warn && node dist-tune/tune.mjs"
+    "tune": "npm run --silent tune:build -- --logLevel warn && node dist-tune/tune.mjs",
+    "server": "tsx server/main.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "three": "^0.187.0",
+    "tsx": "^4.23.15",
+    "ws": "^8.23.0",
     "zustand": "^5.1.0"
   },
   "devDependencies": {
@@ -26,6 +30,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.3.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",

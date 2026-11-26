@@ -12,6 +12,9 @@ import { LoadoutEditor } from './ui/LoadoutEditor';
 import { LoadoutsModal } from './ui/LoadoutView';
 import { PauseButton, PausedBanner, ReplayBar, TakeoverDialog } from './ui/ReplayControls';
 import { ReplaysScreen } from './ui/ReplaysScreen';
+import { OnlineScreen, joinCodeFromUrl } from './ui/OnlineScreen';
+import { OnlinePanel } from './ui/OnlinePanel';
+import { useOnline } from './online/session';
 
 function PhaseHint() {
   const phase = useGame((s) => s.phase);
@@ -41,7 +44,9 @@ function GameOver() {
   const newMatch = useGame((s) => s.newMatch);
   const watching = useGame((s) => s.replay !== null);
   const recordingId = useGame((s) => s.recording?.id);
-  if (match.winner === null || watching) return null;
+  const online = useOnline((s) => s.stage !== null);
+  // an Online Match shows its result with its clocks
+  if (match.winner === null || watching || online) return null;
   return (
     <div className="game-over">
       <div className="window">
@@ -73,6 +78,10 @@ export function App() {
     tickAi();
     useGame.getState().tickReplay();
   }, [version, match, tickAi, screen, paused, replay?.playing, replay?.index, anim]);
+  // a shared link (?join=ABC123) opens the Online screen with the Game ID filled in
+  useEffect(() => {
+    if (joinCodeFromUrl()) useGame.getState().setScreen('online');
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || useGame.getState().screen !== 'game') return;
@@ -86,6 +95,7 @@ export function App() {
   }, []);
   if (screen === 'editor') return <MapEditor />;
   if (screen === 'replays') return <ReplaysScreen />;
+  if (screen === 'online') return <OnlineScreen />;
   if (screen === 'loadouts')
     return (
       <>
@@ -112,6 +122,7 @@ export function App() {
           <PausedBanner />
           <ReplayBar />
           <GameOver />
+          <OnlinePanel />
         </div>
         <InfoPanel />
       </div>

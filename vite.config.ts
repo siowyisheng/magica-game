@@ -41,6 +41,6 @@ function balanceWriter(): Plugin {
 export default defineConfig({
   plugins: [react(), balanceWriter()],
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts'],
   },
 } as never);

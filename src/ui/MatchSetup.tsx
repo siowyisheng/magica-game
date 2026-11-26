@@ -156,7 +156,7 @@ export function MatchSetupDialog() {
   );
 }
 
-function MasterInfo({ id }: { id: string }) {
+export function MasterInfo({ id }: { id: string }) {
   const k = MASTERS.find((x) => x.id === id);
   if (!k) return <div className="muted small master-info">A Master picked at random when the match starts.</div>;
   return (

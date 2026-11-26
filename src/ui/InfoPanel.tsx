@@ -23,6 +23,7 @@ import {
   type SideId,
 } from '../rules';
 import { type HpBarsMode, useGame } from '../store';
+import { useOnline } from '../online/session';
 import { makePlan } from '../ai/plan';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
 import { AlignmentIcon, ClassIcon, ElementIcon, Icon } from './icons';
@@ -44,6 +45,7 @@ export function InfoPanel() {
   const setHpBars = useGame((s) => s.setHpBars);
   const setAi = useGame((s) => s.setAi);
   const watching = useGame((s) => s.replay !== null);
+  const online = useOnline((s) => s.stage !== null);
   const newMatch = useGame((s) => s.newMatch);
   const log = useGame((s) => s.log);
   const aiThinking = useGame((s) => s.aiThinking);
@@ -128,7 +130,7 @@ export function InfoPanel() {
             <option value="off">Off (no AV bars either)</option>
           </select>
         </label>
-        {!watching && (
+        {!watching && !online && (
           <>
             <label>
               <input type="checkbox" checked={match.sides[1].ai} onChange={(e) => setAi(1, e.target.checked)} /> Red is AI (off = hotseat)
@@ -139,9 +141,16 @@ export function InfoPanel() {
           </>
         )}
         <SoundOptions />
+        {!online && (
+          <div className="btn-row">
+            <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
+            <button onClick={newMatch} title="Same map and Masters">Rematch</button>
+          </div>
+        )}
         <div className="btn-row">
-          <button onClick={() => useGame.getState().setSetupOpen(true)}>New match…</button>
-          <button onClick={newMatch} title="Same map and Masters">Rematch</button>
+          <button onClick={() => useGame.getState().setScreen('online')} title="Play someone on another computer">
+            Online…
+          </button>
         </div>
         <div className="btn-row">
           <button onClick={() => useGame.getState().setLoadoutsOpen(true)} title="Both Sides' Master and Loadout">View Loadouts</button>
