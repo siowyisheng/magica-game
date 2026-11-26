@@ -9,15 +9,19 @@ Any piece on the map that takes turns. Every Unit has exactly 10 HP.
 _Avoid_: Piece, character, monster
 
 **Master**:
-The single leader Unit of each Side. Its Ability is a physical one (a Strike, or a Shot or Lob for the few that attack at range), and it is the only Unit that can Summon; its MP sets its Side's Mana Income. There is no limit on how many Familiars a Side may have on the map. When it dies, its Side loses. Each Side picks one of thirty Masters before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Master's stats fit the Stat Budget. Both Sides may pick the same one.
+The single leader Unit of each Side. Its Ability is a physical one (a Strike, or a Shot or Lob for the few that attack at range), and it is the only Unit that can Summon; its MP sets its Side's Mana Income. A Side may have only one of each Familiar on the map at once, except its Signature (up to 3). When it dies, its Side loses. Each Side picks one of thirty Masters before the match; they differ in stats, and a few attack at range or have an Element or Alignment. Every Master's stats fit the Stat Budget. Both Sides may pick the same one.
 _Avoid_: Summoner, hero, commander
 
 **Loadout**:
-A set of exactly 20 of the 40 Familiars: the only Familiars a Side may Summon in a match. It is chosen separately from the Master. Players save Loadouts in the browser; none ship with the game. A Loadout saved when Loadouts were smaller stays saved but can't be played until it is edited to 20. A Side may also take a **random Loadout**: 20 Familiars drawn at random, at least two of them an Element's cheapest Familiar, or one the AI builds for its Master. Both Sides' Loadouts, and the Familiars each one leaves out, are visible to both players during the match.
+A set of exactly 20 of the 40 Familiars: the only Familiars a Side may Summon in a match. It is chosen separately from the Master. Players save Loadouts in the browser; none ship with the game. One of the 20 is its Signature. A Loadout saved when Loadouts were smaller, or before Signatures existed, stays saved but can't be played until it is edited to 20 with a Signature. A Side may also take a **random Loadout**: 20 Familiars drawn at random, at least two of them an Element's cheapest Familiar, with a random Signature, or one the AI builds for its Master (its Signature also picked at random). Both Sides' Loadouts, their Signatures, and the Familiars each one leaves out, are visible to both players during the match.
 _Avoid_: Deck, army, roster (as a player-facing term)
 
+**Signature Familiar** (or **Signature**):
+The one Familiar of a Loadout that its Side may have up to 3 of on the map at once (every other Familiar is limited to one). Each copy gets its **Signature Bonus**: +1 to one stat fixed for that Familiar (ATK, DEF, MP, MDF, Speed or Move). Its Cost and Upkeep are unchanged.
+_Avoid_: Favourite, ace
+
 **Test Match**:
-A match where both Sides may Summon all 40 Familiars, ignoring Loadouts. For trying things out.
+A match where both Sides may Summon all 40 Familiars, ignoring Loadouts, as many of each as they like; there is no Signature. For trying things out.
 
 **Match Setup**:
 The choices made before a match: the map, whether it is a Test Match, and for each Side its Master, its Loadout and whether a person or the AI plays it.
@@ -103,7 +107,7 @@ Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
 A match ends 72 Game Clock hours after it starts if no Master has fallen. The Side controlling more Magic Stones then wins; if they are level, the Side with more total HP across its Units; if that is level too, the match is a draw.
 
 **Alignment**:
-Whether a Familiar is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF are 1 higher; at the opposite one they are 1 lower. Speed and Move are never changed by Alignment.
+Whether a Unit is tied to Day, to Night, or to neither. At its aligned Time of Day its ATK, DEF, MP and MDF are 1 higher; at the opposite one they are 1 lower. Speed and Move are never changed by Alignment. A Master's Alignment also changes its Side's Mana Income, since that follows its MP.
 
 ## Turn structure
 
@@ -187,7 +191,7 @@ A neutral map object placed on dry Plain or Rough at the start of a match. No Un
 _Avoid_: Wall, prop, blocker
 
 **Random Map**:
-A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting opposite each other (near the SW and NE corners on 40% of maps, at 8 and 2 o'clock on 30%, at 9 and 3 o'clock on 30%, on maps at least 18 wide, as seen from the centre) and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. Every tile touches at least 3 other tiles that aren't Pits, so there are no stray hexes or thin spurs. Its Heights run from 1 (Shallow Water) to 4. It has plateaus at Height 4 with 2-Height cliffs on most sides and steps up on the rest, and on about a quarter of maps a pair of **pillars**: one or two hexes 2 above everything around them, which only Fly reaches. It has 7–12 Magic Stones, mostly 4–7 hexes apart (now and then as close as 2), never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, all Shallow, in varying amounts and shapes: one large lake, a few lakes, many small pools, a thin river through the middle with fords, or thin streams, sometimes with a second, smaller kind as well. A walking Unit can always reach the other Master, every Stone and every dry hex but the pillars.
+A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting opposite each other (near the SW and NE corners on 40% of maps, at 8 and 2 o'clock on 30%, at 9 and 3 o'clock on 30%, on maps at least 18 wide, as seen from the centre) and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. Every tile touches at least 3 other tiles that aren't Pits, so there are no stray hexes or thin spurs. Its Heights run from 1 (Shallow Water) to 4. It has plateaus at Height 4 with 2-Height cliffs on most sides and steps up on the rest, and on about a quarter of maps a pair of **pillars**: one or two hexes 2 above everything around them, which only Fly reaches. It has 7–12 Magic Stones, mostly 4–7 hexes apart (now and then as close as 2), never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About one Stone in five (the centre one included) sits in Shallow Water, at most a third of them, so only Units that Wade, Swim or Fly can take it; every Master can. About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, all Shallow, in varying amounts and shapes: one large lake, a few lakes, many small pools, a thin river through the middle with fords, or thin streams, sometimes with a second, smaller kind as well. A walking Unit can always reach the other Master, every dry Stone and every dry hex but the pillars; a wading one can reach every Stone.
 _Avoid_: Procedural map, generated level
 
 **Theme**:
@@ -202,7 +206,7 @@ The hexes next to a Unit that the Unit itself could move into. An opposing Unit 
 A Side's resource for summoning. Abilities are free, so Mana only pays for Summons (and Upkeep comes out of Income). It is gained at the start of every Game Clock hour.
 
 **Mana Income**:
-What a Side gains each hour: 2 × (2 + Magic Stones controlled) × Master MP, minus the Upkeep of its Familiars. Mana never drops below 0 or rises above 120.
+What a Side gains each hour: 2 × (2 + Magic Stones controlled) × Master MP (with Alignment, at the Time of Day of that hour mark), minus the Upkeep of its Familiars. Mana never drops below 0 or rises above 120.
 
 **Cost**:
 The Mana needed to Summon a Familiar: a multiple of 8, from 16 to 88; each Element has exactly one Familiar at each Cost. It reflects the Familiar's power: its stats (Move most of all), Fly and its Ability (a ranged physical one, or a magical one by its shape), priced from a reference set of Familiars treated as balanced.
