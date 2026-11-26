@@ -34,7 +34,7 @@ export function DamageTag({ effect, label, note }: { effect: Effect; label?: str
   return (
     <div className="dmg-tag">
       {label && <div className="lbl">{label}</div>}
-      <DamageNumber kind={effect.kind} amount={effect.amount} lethal={effect.lethal} />
+      <DamageNumber kind={effect.kind} amount={effect.amount} lethal={effect.lethal && !effect.obstacle} />
       {note && <div className="note">{note}</div>}
     </div>
   );

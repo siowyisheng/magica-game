@@ -48,6 +48,7 @@ import {
   LOADOUT_SIZE,
   MAX_HP,
 } from '../rules';
+import { pathDistance } from './pathdist';
 import { arriveTurns, ENEMY_STONE_SHARE, GUARD_SHARE, hitReach, makePlan } from './plan';
 
 /** Defend: the hold-out estimate (6 enemy turns) is priced at this × the Master's safety steepness (masterRisk). */
@@ -524,6 +525,8 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   // Stones decide the Time Limit: they matter more over the last day, most when not ahead.
   // Stones are worth their Mana, the same at any hour.
   const stoneUrgency = 1;
+  /** Steps from `h` to `goal` over the terrain for this Unit: a cliff top is reached by its way up, not straight up the face. */
+  const walk = (goal: Hex, h: Hex) => pathDistance(state, kind, h, goal, hexDistance(goal, h));
   const positionalScore = (h: Hex): number => {
     let s = 0;
     const stone = stoneAt(h);
@@ -539,15 +542,15 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
       // Advance toward the Front, so the Familiars it summons appear near the objectives (M3)
       // (never toward a threat it is defending against: its Familiars go there)
       // toward the objective (a Stone or the enemy Master), never toward a threat
-      if (plan.objective) s -= w.approach * w.masterStage * pressure * (1 - posture.defend) * hexDistance(plan.objective, h);
+      if (plan.objective) s -= w.approach * w.masterStage * pressure * (1 - posture.defend) * walk(plan.objective, h);
     } else if (objs.length) {
       // its Job, plus a little for whatever objective is nearest (opportunities)
       let minD = 99;
-      for (const o of objs) minD = Math.min(minD, hexDistance(o, h));
+      for (const o of objs) minD = Math.min(minD, walk(o, h));
       const job = plan.jobs.get(me.id)?.hex ?? plan.front;
       // a hurt Familiar likes where it holds out longer (cover, a Stone's heal), priced as its own HP
       if (me.hp < MAX_HP) s += w.ownHp * FAMILIAR_HOLD_OUT * (1 - me.hp / MAX_HP) * survivalTurns(h);
-      s -= w.approach * pressure * (w.nearPull * minD + (job ? w.jobPull * hexDistance(job, h) : 0));
+      s -= w.approach * pressure * (w.nearPull * minD + (job ? w.jobPull * walk(job, h) : 0));
     }
     return s;
   };
@@ -670,6 +673,10 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
           // never deal damage for nothing: it must hurt an enemy or an Obstacle
           const isDamage = ab.kind === 'damage';
           if (isDamage && !effects.some((e) => e.kind === 'damage' && e.amount > 0 && (e.obstacle || state.units.find((u) => u.id === e.unitId)?.side !== me.side))) continue;
+          // nor heal or Empower for nothing: some ally must gain HP it lacks, or ATK it doesn't have yet
+          const ally = (id: number) => state.units.find((u) => u.id === id && u.side === me.side);
+          if (ab.kind === 'heal' && !effects.some((e) => e.kind === 'heal' && e.amount > 0 && ally(e.unitId))) continue;
+          if (ab.kind === 'empower' && !effects.some((e) => e.kind === 'empower' && (ally(e.unitId)?.empowered ?? 0) < e.amount)) continue;
           for (const e of effects) {
             if (e.obstacle) {
               if (!light) score += obstacleValue(state, me, dest, e.unitId, Math.min(e.amount, e.hpBefore), e.lethal, w);

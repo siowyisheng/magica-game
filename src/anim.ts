@@ -82,6 +82,8 @@ export interface Impact {
   /** HP shown from the impact on. */
   hpAfter: number;
   lethal: boolean;
+  /** An Obstacle: its breaking shows no KO. */
+  obstacle?: boolean;
 }
 
 /** A unit brought to 0 HP fades out over this long after the impact. */
@@ -212,7 +214,7 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
   if (impactT !== null) {
     for (const e of previewEffects(before, action)) {
       const hpAfter = e.kind === 'heal' ? Math.min(MAX_HP, e.hpBefore + e.amount) : e.kind === 'empower' ? e.hpBefore : Math.max(0, e.hpBefore - e.amount);
-      impacts.push({ unitId: e.unitId, t: impactT, kind: e.kind, amount: e.amount, hpAfter, lethal: e.lethal });
+      impacts.push({ unitId: e.unitId, t: impactT, kind: e.kind, amount: e.amount, hpAfter, lethal: e.lethal, ...(e.obstacle ? { obstacle: true } : {}) });
       if (e.lethal) t = Math.max(t, impactT + KO_FADE_MS); // let the fade finish
     }
   }

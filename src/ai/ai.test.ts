@@ -136,6 +136,48 @@ describe('Stones and pointless hits', () => {
   });
 });
 
+describe('pathfinding over cliffs', () => {
+  // a plateau 2 above the plain (a cliff along its west side) with a ramp at its north end,
+  // and a free Stone on top, just 3 hexes from a walking Treant at the cliff's foot
+  const setup = () => {
+    const hexes: MapHex[] = [];
+    for (let r = 0; r < 6; r++)
+      for (let q = 0; q < 14; q++) {
+        const top = q >= 7 && r >= 1;
+        const ramp = r === 0 && q >= 7;
+        hexes.push({ hex: hex(q, r), height: top ? 4 : ramp ? (q === 7 ? 3 : 4) : 2, terrain: q === 10 && r === 5 ? 'stone' : 'plain' });
+      }
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(0, 5), hex(0, 0)], spawnFacing: [0, 0] };
+    const st = createMatch(map, { ai: [true, true], masters: ['regent', 'hermit'] });
+    st.units.push({ id: 60, kind: 'treant', side: 0, pos: hex(6, 5), facing: 0, hp: 10, av: 0, stranded: false });
+    st.units.forEach((u) => { if (u.id !== 60) u.av = 50; });
+    st.activeUnitId = 60;
+    return st;
+  };
+
+  it('counts steps over the terrain: up the ramp, not straight up the cliff', async () => {
+    const { pathDistance } = await import('./pathdist');
+    const st = setup();
+    const treant = kindOf('treant');
+    expect(pathDistance(st, treant, hex(6, 5), hex(10, 5), 4)).toBeGreaterThan(8);
+    expect(pathDistance(st, treant, hex(6, 0), hex(10, 5), 6)).toBeLessThan(pathDistance(st, treant, hex(6, 5), hex(10, 5), 4));
+  });
+
+  it('heads for the ramp instead of waiting at the foot of the cliff', async () => {
+    const { pathDistance } = await import('./pathdist');
+    let st = setup();
+    const treant = kindOf('treant');
+    const left = () => pathDistance(st, treant, st.units.find((u) => u.id === 60)!.pos, hex(10, 5), 99);
+    const start = left();
+    for (let i = 0; i < 12 && st.winner === null; i++) {
+      const a = chooseAction(st);
+      st = applyTurn(st, a).state;
+      if (st.stones[0].owner === 0) break;
+    }
+    expect(st.stones[0].owner === 0 || left() < start - 2).toBe(true);
+  });
+});
+
 describe('Plan: Defend (docs/ai-plan.md)', () => {
   const setup = (mana: number) => {
     const hexes: MapHex[] = [];

@@ -303,15 +303,6 @@ export function minAimDistance(ability: AreaAbility): number {
   return ability.kind === 'damage' && !ability.burst ? 1 : 0;
 }
 
-/**
- * Where a hit on `t` comes from, for Facing: the caster's hex, except
- * that a High area spell's splash comes from the hex it landed on.
- */
-export function magicHitOrigin(ability: AreaAbility, casterPos: Hex, aim: Hex, t: Target): Hex {
-  if (ability.radius > 0 && !ability.burst && trajectoryOf(ability) === 'high' && !hexEq(t.pos, aim)) return aim;
-  return casterPos;
-}
-
 /** Units and Obstacles affected by an area/single ability centred on `target`. */
 export function affectedUnits(state: MatchState, caster: Unit, ability: AreaAbility, target: Hex): Target[] {
   if (ability.radius === 0) {

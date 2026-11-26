@@ -3,6 +3,8 @@ import { onTestFinished, describe, expect, it } from 'vitest';
 import {
   applyTurn,
   computeDamage,
+  previewEffects,
+  powerOf,
   createMatch,
   facingBonus,
   getUnit,
@@ -979,17 +981,25 @@ describe('Burst and area Magic', () => {
     }
   });
 
-  it('a High area spell splashes with Facing measured from the hex it landed on', async () => {
-    const { magicHitOrigin } = await import('./index');
-    const lob = { id: 'lob', name: 'Lob', kind: 'damage', range: 4, radius: 1, trajectory: 'high' } as const;
-    const direct = { ...lob, trajectory: 'direct' } as const;
-    const caster = hex(0, 0);
-    const aim = hex(3, 0);
-    const splashed = { pos: hex(4, 0) } as Unit;
-    const centre = { pos: aim } as Unit;
-    expect(magicHitOrigin(lob, caster, aim, splashed)).toEqual(aim);
-    expect(magicHitOrigin(lob, caster, aim, centre)).toEqual(caster);
-    expect(magicHitOrigin(direct, caster, aim, splashed)).toEqual(caster);
+  it('measures Facing from the attacker for every Unit an area hits, splash included', () => {
+    const s = createMatch(testMap(9, 9));
+    s.units = s.units.filter((u) => kindOf(u).isMaster);
+    const caster = place(s, 'pyromancer', 0, 1, 4, 0, 0);
+    // two foes: one on the aimed hex facing the caster; one splashed, between the caster and
+    // the aimed hex, facing the aimed hex: its back is to the caster, though it faces the impact
+    const front = place(s, 'imp', 1, 5, 4, 3);
+    const back = place(s, 'imp', 1, 4, 4, 0);
+    activate(s, caster);
+    const ab = kindOf(caster).ability;
+    const aim = hex(5, 4);
+    if (ab.kind === 'water') throw new Error('needs an aimed area');
+    expect(ab.radius).toBeGreaterThan(0);
+    const effects = previewEffects(s, { unitId: caster.id, to: caster.pos, facing: 0, command: { type: 'act', target: aim } });
+    const dmg = (id: number) => effects.find((e) => e.unitId === id)!.amount;
+    const fromCaster = (t: Unit) => computeDamage(s, caster, caster.pos, t, powerOf(ab) === 'atk' ? 'physical' : 'magic').amount;
+    expect(dmg(front.id)).toBe(fromCaster(front));
+    expect(dmg(back.id)).toBe(fromCaster(back));
+    expect(dmg(back.id)).toBeGreaterThan(dmg(front.id)); // hit from behind
   });
 });
 
