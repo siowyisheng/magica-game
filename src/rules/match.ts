@@ -10,7 +10,7 @@ import {
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { DEFAULT_MASTER, FAMILIARS, kindOf } from './kinds';
-import { affectedUnits, computeDamage, computeEmpower, computeHeal, magicHitOrigin, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
+import { affectedUnits, computeDamage, computeEmpower, computeHeal, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
 import { alignmentBonus } from './time';
 import { isPhysical, powerOf } from './ability';
 import { canPlace, canSummonAt, isStranded, mapHexAt, reachable, surfaceOf } from './terrain';
@@ -267,7 +267,7 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
     if (ab.kind === 'water') return [];
     const hit = powerOf(ab) === 'atk' ? 'physical' : 'magic';
     return affectedUnits(view, caster, ab, cmd.target).map((t) =>
-      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : ab.kind === 'empower' && !isObstacle(t) ? computeEmpower(ab, t) : computeDamage(view, caster, magicHitOrigin(ab, action.to, cmd.target, t), t, hit),
+      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : ab.kind === 'empower' && !isObstacle(t) ? computeEmpower(ab, t) : computeDamage(view, caster, action.to, t, hit),
     );
   }
   return [];

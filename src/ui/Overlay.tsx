@@ -30,7 +30,10 @@ export function Overlay() {
   const [pops, setPops] = useState<{ key: string; impact: Impact }[]>([]);
   const fired = useRef(new Set<string>());
   useEffect(() => {
-    if (!anim) setStruck((m) => (m.size ? new Map() : m));
+    if (!anim) {
+      setStruck((m) => (m.size ? new Map() : m));
+      fired.current.clear();
+    }
   }, [anim]);
 
   useEffect(() => {
@@ -45,10 +48,8 @@ export function Overlay() {
           fired.current.add(key);
           setStruck((m) => new Map(m).set(imp.unitId, imp.hpAfter));
           setPops((p) => [...p, { key, impact: imp }]);
-          setTimeout(() => {
-            setPops((p) => p.filter((x) => x.key !== key));
-            fired.current.delete(key);
-          }, POP_MS + 50);
+          // the key stays fired until the animation ends: an impact pops once, however long the turn's animation runs on
+          setTimeout(() => setPops((p) => p.filter((x) => x.key !== key)), POP_MS + 50);
         });
       }
       const root = ref.current;
@@ -189,7 +190,7 @@ export function Overlay() {
         <div key={`pop${key}`} className="anchor top" data-anchor={`tag:${impact.unitId}`} data-sticky="">
           <div className="center-bottom">
             <div className="dmg-pop" style={{ animationDuration: `${POP_MS}ms` }}>
-              <DamageNumber kind={impact.kind} amount={impact.amount} lethal={impact.lethal} />
+              <DamageNumber kind={impact.kind} amount={impact.amount} lethal={impact.lethal && !impact.obstacle} />
             </div>
           </div>
         </div>

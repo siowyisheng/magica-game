@@ -4,12 +4,13 @@
 // Env: PAIRS (default 8), SEED (default 1), LEVEL (candidate level: normal|hard), OPP (baseline|normal),
 //      REPLIES (candidate Hard: enemy replies tried, default 1), OPP_LEVEL / OPP_REPLIES (OPP=normal: the current
 //      AI at that level and replies, e.g. Hard with 3 replies against Hard with 1).
+//      MAP=random: each pair on a random map made from its seed (default: Scaffold Ford).
 //      LIGHT=1: the candidate Hard plays its look-ahead with the light scorer.
 //      BALANCE=path: a replay (or balance) .json whose stats to play with. W (candidate only; OPP=normal always
 //      plays the default weights): W='{"capture":116}' or W=@file.json.
 
 import { it } from 'vitest';
-import { SCAFFOLD_MAP, MASTERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
+import { SCAFFOLD_MAP, generateRandomMap, MASTERS, randomLoadout, applyTurn, createMatch, type MatchState, type TurnAction } from '../src/rules';
 import { AI_WEIGHTS, autoLoadout, chooseAction as chooseRaw } from '../src/ai/ai';
 import { readFileSync } from 'node:fs';
 import { applyTemporaryBalance, normalizeBalance } from '../src/rules';
@@ -39,7 +40,9 @@ function rng(seed: number) {
 type Policy = (s: MatchState) => TurnAction;
 
 function play(setup: { masters: [string, string]; rosters: [string[], string[]]; seed: number }, p0: Policy, p1: Policy, levels: ['normal' | 'hard', 'normal' | 'hard'], log = false) {
-  let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters, signatures: [setup.rosters[0][setup.seed % setup.rosters[0].length], setup.rosters[1][(setup.seed + 7) % setup.rosters[1].length]], aiLevels: levels });
+  // MAP=random plays each pair on a random map (from its seed); otherwise Scaffold Ford
+  const map = process.env.MAP === 'random' ? generateRandomMap(setup.seed) : SCAFFOLD_MAP;
+  let st = createMatch(map, { ai: [true, true], seed: setup.seed, masters: setup.masters, rosters: setup.rosters, signatures: [setup.rosters[0][setup.seed % setup.rosters[0].length], setup.rosters[1][(setup.seed + 7) % setup.rosters[1].length]], aiLevels: levels });
   let turns = 0;
   const ms: [number, number] = [0, 0];
   const n: [number, number] = [0, 0];
@@ -60,7 +63,7 @@ function play(setup: { masters: [string, string]; rosters: [string[], string[]];
   }
   const stones = [0, 1].map((x) => st.stones.filter((s) => s.owner === x).length);
   const units = [0, 1].map((x) => st.units.filter((u) => u.side === x).length);
-  return { stones, units, winner: st.winner, turns, hours: (st.clock - SCAFFOLD_MAP.startClock) / 60, byTime: st.clock >= st.timeLimit, ms: [ms[0] / Math.max(1, n[0]), ms[1] / Math.max(1, n[1])] };
+  return { stones, units, winner: st.winner, turns, hours: (st.clock - map.startClock) / 60, byTime: st.clock >= st.timeLimit, ms: [ms[0] / Math.max(1, n[0]), ms[1] / Math.max(1, n[1])] };
 }
 
 it('arena', () => {
