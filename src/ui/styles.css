@@ -330,3 +330,29 @@ button:disabled { opacity: 0.4; cursor: default; }
 .loadouts-stack { display: flex; flex-direction: column; gap: 6px; }
 .loadouts-modal { max-height: 94vh; overflow-y: auto; }
 .loadouts-modal .loadout-strip.big .loadout-row { flex-wrap: wrap; }
+
+/* Online */
+.online-body { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 8px; padding: 8px; align-content: start; overflow: auto; }
+.online-body .online-history { grid-column: 1 / -1; }
+.online-body .window { display: flex; flex-direction: column; gap: 6px; }
+.history-row { display: grid; grid-template-columns: 70px 1fr 1.2fr 140px 170px 70px; gap: 8px; align-items: center; padding: 2px 0; border-bottom: 1px solid #ffffff10; }
+.mono { font-family: ui-monospace, monospace; letter-spacing: 1px; }
+.status.confirmed { color: var(--green); }
+.status.contested { color: var(--red); }
+.status.unconfirmed, .status.pending { color: #e8c060; }
+.online-modal { width: min(560px, 94vw); display: flex; flex-direction: column; gap: 8px; }
+.online-modal.picking { width: min(900px, 96vw); max-height: 92vh; overflow-y: auto; }
+.game-code { font-family: ui-monospace, monospace; font-size: 34px; letter-spacing: 6px; text-align: center; padding: 6px; color: #fff; }
+.online-planning { position: absolute; top: 96px; left: 8px; z-index: 46; max-width: min(760px, 62%); max-height: calc(100% - 140px); overflow-y: auto; }
+.online-planning .title { display: flex; align-items: center; gap: 8px; }
+.online-planning .title .spacer { flex: 1; }
+.planning-sides { display: flex; flex-direction: column; gap: 6px; }
+.online-clocks { position: absolute; top: 8px; right: 112px; z-index: 46; min-width: 230px; display: flex; flex-direction: column; gap: 3px; }
+.online-clocks .clock { display: flex; gap: 8px; align-items: baseline; padding: 2px 4px; border-radius: 3px; }
+.online-clocks .clock.on { background: #ffffff14; outline: 1px solid #ffffff33; }
+.online-clocks .who { flex: 1; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.online-clocks .timer { font-family: ui-monospace, monospace; font-size: 18px; color: #fff; }
+.online-clocks .bank { font-family: ui-monospace, monospace; color: #cfe0ff; }
+.online-clocks .low { color: #ff7070; }
+.online-result { border-top: 1px solid #ffffff22; padding-top: 4px; }
+.online-banner { position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%); z-index: 47; }

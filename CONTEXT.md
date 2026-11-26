@@ -27,7 +27,39 @@ A match where both Sides may Summon all 40 Familiars, ignoring Loadouts, as many
 The choices made before a match: the map, whether it is a Test Match, and for each Side its Master, its Loadout and whether a person or the AI plays it.
 
 **Pause**:
-Stopping a match in place: no turn starts and no Command can be given until it is resumed. The map can still be looked at and Units inspected.
+Stopping a match in place: no turn starts and no Command can be given until it is resumed. The map can still be looked at and Units inspected. In an Online Match either player may Pause (3 times each per match) and either may resume; a Pause ends by itself after 2 minutes, and the Time Bank and Turn Timer stop while it lasts.
+
+## Online play
+
+**Online Match**:
+A match between two people on different machines, connected directly to each other. A player creates one and shares its **Game ID** (as a code or link); the other joins with it. Each picks a Master and Loadout unseen by the other; both are revealed together, and a coin flip decides who is Green (who moves first). The map is chosen by the creator (a Random Map comes from a seed both share). Online Matches always use the stats the game ships with, and both players must be on the same version. Each player's moves travel straight to the other; the server only introduces the two and receives Match Reports.
+_Avoid_: Multiplayer game, lobby, room (as player-facing terms)
+
+**Player ID**:
+Who a player is online: an identity made once in their browser and kept there, with a display name they choose. There are no accounts.
+
+**Planning Phase**:
+The first 30 seconds of an Online Match, before any turn: both players see the map, both Masters with their stats, and both Loadouts with their Signatures. Nothing can be changed. It ends early when both players are **Ready**. No time is used from either Time Bank.
+
+**Turn Timer**:
+The 10 seconds each turn of an Online Match is given for free. Unused seconds are lost; once they run out, the Time Bank drains. The timer stops while a turn's animation plays.
+
+**Time Bank**:
+Each player's pool of extra thinking time in an Online Match: 60 seconds at the start, drained only once a turn's Turn Timer has run out, never refilled.
+_Avoid_: Reserve (the AI's Mana held back), Time Limit (the 72 Game Clock hours a match lasts), Game Clock
+
+**Timeout**:
+What happens when both the Turn Timer and the Time Bank run out: the Unit Waits where it stands, as if its player had chosen Wait. The match goes on; every later turn of that player Times Out after its 10 seconds.
+
+**Resign**:
+Giving up an Online Match: the other player wins at once.
+
+**Abandon**:
+A player who has been disconnected from an Online Match for 2 minutes has Abandoned it: the other player may claim the win. Until then, the absent player's turns Time Out and they may rejoin with the Game ID.
+
+**Match Report**:
+What each player's game sends the server when an Online Match ends: the Game ID, both Player IDs, the result (the winner, or a draw, and how it ended: a Master fell, the Time Limit, a Resign or an Abandon) and the Replay, with the time each turn took. The server stores the reports and gives the match a **result status**: **Confirmed** when both reports agree (on the result, the starting position and every turn; turn times may differ a little), **Contested** when they differ (one player is assumed to be cheating; resolving it comes later), **Unconfirmed** when only one arrives in time. The server doesn't check the Replay itself. A player's **Online History** lists their Online Matches with the opponent, result and result status, and opens each Replay.
+
 
 **Replay**:
 A recorded match that can be watched back turn by turn, played forward, stepped back or jumped to any turn. Every match is recorded; the most recent ones are kept for a while and a player can save one to keep it. A Replay shows the match with the unit stats and abilities in force when it was played. From any turn of a Replay, the player can **Play from here**: the match continues live from that position, with each Side played by a person or the AI.

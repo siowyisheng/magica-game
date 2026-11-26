@@ -11,6 +11,7 @@ npm install
 npm run dev      # play at http://localhost:5173
 npm test         # rules + headless AI-vs-AI match
 npm run build
+npm run server   # the Online Match server, http://localhost:8787 (docs/online.md)
 ```
 
 ## Layout
@@ -29,6 +30,7 @@ npm run build
 | `src/loadouts/` | Saved Loadouts (browser storage, JSON import / export). |
 | `src/anim.ts` | Pure turn-animation plan (slide along path, melee wind-up and bonk, projectiles, hit shake). The board samples it, and the store applies the new state when it ends. |
 | `src/audio/` | Procedural music and sound effects (Web Audio; no audio files): five composed tracks with a smart shuffle, a synthesized effect for every action, and the hooks that time them to the turn animations. |
+| `src/online/`, `server/` | Online Matches: two browsers connected directly (WebRTC), a small server that introduces them and stores Match Reports. See [`docs/online.md`](./docs/online.md). |
 | `src/ui/` | Action Timeline, info panel, command menu, damage preview, and the floating HP/AV overlay. |
 
 ## Controls

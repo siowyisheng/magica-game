@@ -1,0 +1,18 @@
+# Render Blueprint for the Online Match server (free web service).
+# Storage is Turso: set DATABASE_URL and DATABASE_AUTH_TOKEN in the Render dashboard.
+# See docs/online.md.
+services:
+  - type: web
+    name: magica-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false

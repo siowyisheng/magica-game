@@ -7,6 +7,7 @@ import {
   type MapDef,
   type MatchState,
   type TurnAction,
+  type SideId,
   type Unit,
   activeUnit,
   applyTurn,
@@ -132,7 +133,7 @@ export interface ReplayView {
 /** The live match's Replay while it is recorded, with the position it has reached. */
 export type Recording = Replay & { head: MatchState };
 
-export type Screen = 'game' | 'editor' | 'dev' | 'loadouts' | 'replays';
+export type Screen = 'game' | 'editor' | 'dev' | 'loadouts' | 'replays' | 'online';
 
 /** Things outside the store (sound) may want to react to. */
 export type GameSignal =
@@ -223,11 +224,43 @@ interface Store {
   /** Continue the Replay's current position as a live match. */
   playFromHere: (ai: [boolean, boolean]) => void;
   tickReplay: () => void;
+
+  /** Online: start the match both players set up (no AI). */
+  startOnlineMatch: (match: MatchState, label: string) => void;
+  /** Online: the other player's turn. */
+  playRemote: (action: TurnAction) => void;
+  /** Online: jump to a position rebuilt from the turns (a rejoin, or an overriding Timeout). */
+  loadOnlinePosition: (state: MatchState, start: MatchState, actions: TurnAction[]) => void;
+  /** Online: a Resign or Abandon ends the match with this winner. */
+  endOnlineMatch: (winner: SideId | 'draw') => void;
+}
+
+/** An Online Match in progress (set by src/online/session.ts): this player's Side and the session's hooks. */
+export interface OnlineHooks {
+  side: SideId;
+  /** This player confirmed a turn (called before it is applied). */
+  onLocalTurn: (action: TurnAction) => void;
+  /** Pause / resume pressed. */
+  onPause: () => void;
+  /** Whether this player may give Commands now (not during the Planning Phase or a Pause). */
+  canAct: () => boolean;
+}
+let online: OnlineHooks | null = null;
+export function setOnlineHooks(h: OnlineHooks | null) {
+  online = h;
+}
+export const onlineSide = (): SideId | null => online?.side ?? null;
+/** While an Online Match is being set up, the local match underneath stands still (no AI turns). */
+let localSuspended = false;
+export function setLocalSuspended(on: boolean) {
+  localSuspended = on;
 }
 
 function phaseFor(match: MatchState): Phase {
   const u = activeUnit(match);
   if (!u || match.winner !== null || match.sides[u.side].ai) return { kind: 'idle' };
+  // online: the other player's Units are moved by the other player
+  if (online && u.side !== online.side) return { kind: 'idle' };
   return { kind: 'move', selected: true };
 }
 
@@ -267,7 +300,7 @@ function describe(match: MatchState, e: GameEvent): string | null {
 }
 
 export const useGame = create<Store>((set, get) => {
-  const commit = (action: TurnAction, alreadyMoved = true, rate = 1) => {
+  const commit = (action: TurnAction, alreadyMoved = true, rate = 1, remote = false) => {
     const { match } = get();
     const err = validateTurn(match, action);
     const watching = get().replay;
@@ -281,6 +314,7 @@ export const useGame = create<Store>((set, get) => {
       signal({ type: 'deny' });
       return;
     }
+    if (online && !remote && !watching) online.onLocalTurn(action);
     // describe with the pre-state for names of units that die
     const { state, events } = applyTurn(match, action);
     if (!watching) record(match, action, state);
@@ -395,7 +429,7 @@ export const useGame = create<Store>((set, get) => {
     setHoverSummon: (k) => get().hoverSummon !== k && set({ hoverSummon: k }),
 
     clickHex: (h) => {
-      if (get().paused || get().replay) return;
+      if (get().paused || get().replay || (online && !online.canAct())) return;
       const { match, phase } = get();
       const u = activeUnit(match);
       if (!u) return;
@@ -471,7 +505,7 @@ export const useGame = create<Store>((set, get) => {
     },
 
     choose: (c) => {
-      if (get().paused || get().replay) return;
+      if (get().paused || get().replay || (online && !online.canAct())) return;
       const { phase, match } = get();
       const u = activeUnit(match);
       if (!u) return;
@@ -518,7 +552,7 @@ export const useGame = create<Store>((set, get) => {
     tickAi: () => {
       const { match, aiThinking, anim, paused, replay } = get();
       const u = activeUnit(match);
-      if (paused || replay || aiThinking || anim || !u || match.winner !== null || !match.sides[u.side].ai) return;
+      if (localSuspended || paused || replay || aiThinking || anim || !u || match.winner !== null || !match.sides[u.side].ai) return;
       set({ aiThinking: true });
       setTimeout(() => {
         const m = get().match;
@@ -529,8 +563,26 @@ export const useGame = create<Store>((set, get) => {
       }, 450);
     },
 
+    startOnlineMatch: (match, label) => {
+      if (get().replay) get().exitReplay();
+      set({ match, recording: { ...newReplay(match, activeBalance()), head: match }, paused: false, aiThinking: false, anim: null, inspected: [], phase: phaseFor(match), log: [`${label}: ${match.map.name} — ${formatClock(match.clock)}`], screen: 'game', version: get().version + 1 });
+      signal({ type: 'newMatch' });
+    },
+    playRemote: (action) => commit(action, false, 1, true),
+    loadOnlinePosition: (state, start, actions) => {
+      const rec: Recording = { ...newReplay(start, activeBalance()), actions, winner: state.winner, head: state };
+      persist(rec);
+      set({ match: state, recording: rec, anim: null, inspected: [], phase: phaseFor(state), version: get().version + 1 });
+    },
+    endOnlineMatch: (winner) => {
+      const match = { ...get().match, winner };
+      const rec = get().recording;
+      set({ match, anim: null, phase: { kind: 'idle' }, recording: rec && { ...rec, winner, head: match }, version: get().version + 1 });
+    },
+
     togglePause: () => {
       if (get().replay) return get().replayTogglePlay();
+      if (online) return online.onPause();
       const paused = !get().paused;
       // a person's turn keeps its place; it just can't be confirmed while Paused
       set({ paused });
