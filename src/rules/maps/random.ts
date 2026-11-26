@@ -44,6 +44,22 @@ export const RANDOM_MAP_ODD_STONES = 2 / 3;
 export const RANDOM_MAP_THEMES = ['meadow', 'desert', 'ruins', 'tundra', 'volcanic'];
 
 const WATER_LEVEL = 2;
+/**
+ * How far each Stone is from its nearest other Stone on Random Maps: the share of Stones
+ * at each distance (2–9 hexes) the generator aims for.
+ */
+export const RANDOM_MAP_STONE_GAPS: Readonly<Record<number, number>> = { 2: 0.02, 3: 0.09, 4: 0.33, 5: 0.24, 6: 0.14, 7: 0.09, 8: 0.07, 9: 0.02 };
+const MIN_STONE_GAP = 2;
+const MAX_STONE_GAP = 9;
+/**
+ * The distance drawn for each new pair. Pairs placed later often end up nearer to earlier
+ * Stones than those were drawn for, so this leans further out than RANDOM_MAP_STONE_GAPS
+ * to land on it (tuned by measuring many maps).
+ */
+/** Stone layouts tried per map before the map itself is tried again. */
+const STONE_LAYOUT_TRIES = 30;
+const STONE_GAP_DRAW: Readonly<Record<number, number>> = { 2: 0.003, 3: 0.003, 4: 0.086, 5: 0.087, 6: 0.091, 7: 0.089, 8: 0.265, 9: 0.376 };
+
 /** The share of Stones in Shallow Water on Random Maps (at most a third of a map's Stones). */
 export const RANDOM_MAP_WATER_STONES = 0.2;
 /** The chance each Stone (or pair) is tried in water: higher, as maps with water Stones are rejected more often. */
@@ -400,76 +416,83 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   // ---- Magic Stones
   const n = oddStones ? pick([7, 9, 11]) : pick([8, 10, 12]);
   const stones: Cell[] = [];
-  /** Stones are kept this far apart as a rule; now and then (or when nothing else fits) only CLOSE_STONES. */
-  const SPACING = 4;
-  const CLOSE_STONES = 2;
-  const spaced = (c: Cell, min: number) => stones.every((s) => hexDistance(s.hex, c.hex) >= min);
-  const nearest = (c: Cell) => Math.min(...stones.map((s) => hexDistance(s.hex, c.hex)));
-  const free = (c: Cell) => c.terrain !== 'pit' && c.terrain !== 'stone' && !b.edge(c) && d0(c) >= 3 && d1(c) >= 3;
-  /**
-   * About one Stone (or mirrored pair) in five goes in Shallow Water, at most a third of
-   * them: in water already there, or in a pool made for it.
-   */
-  const maxWet = Math.floor(n / 3);
-  let wetStones = 0;
-  const wantWet = (count: number) => wetStones + count <= maxWet && r() < WATER_STONES;
-  /**
-   * Place a mirrored pair, preferring spots 4–7 hexes from the nearest Stone so far. The
-   * spacing is a guideline: about one pair in 12 (or one that fits nowhere else) may sit
-   * 2–3 hexes from another Stone.
-   */
-  const place = (cands: Cell[]): boolean => {
-    const inWater = wantWet(2);
-    // in water: a spot already wet if there is one, else any spot (made into a pool); on land: dry only
-    const wetFirst = inWater && cands.some((c) => !isLand(c) && free(c));
-    const allowed = (c: Cell) => (inWater ? !wetFirst || !isLand(c) : isLand(c));
-    const fits = (min: number) =>
-      cands.filter((c) => {
-        const m = b.mirror(c);
-        return allowed(c) && free(c) && spaced(c, min) && hexDistance(c.hex, m.hex) >= min && free(m) && spaced(m, min);
-      });
-    let ok = r() < 1 / 12 ? fits(CLOSE_STONES).filter((c) => nearest(c) < SPACING) : [];
-    if (!ok.length) ok = fits(SPACING);
-    if (!ok.length) ok = fits(CLOSE_STONES);
-    if (!ok.length) return false;
-    const good = stones.length ? ok.filter((c) => nearest(c) <= 7) : ok;
-    const c = pick(good.length ? good : ok);
-    const m = b.mirror(c);
-    c.terrain = m.terrain = 'stone';
-    if (inWater) {
-      c.height = m.height = SHALLOW;
-      wetStones += 2;
+  // a layout is retried when a pair can't go within a hex of the distance drawn for it
+  const before = b.cells.map((c) => ({ terrain: c.terrain, height: c.height }));
+  const layStones = (): boolean => {
+    b.cells.forEach((c, i) => ((c.terrain = before[i].terrain), (c.height = before[i].height)));
+    stones.length = 0;
+    /** How far a pair at `c` (and its mirror) would be from its nearest Stone, the other of the pair included. */
+    const gap = (c: Cell) => Math.min(hexDistance(c.hex, b.mirror(c).hex), ...stones.map((s) => Math.min(hexDistance(s.hex, c.hex), hexDistance(s.hex, b.mirror(c).hex))));
+    const free = (c: Cell) => c.terrain !== 'pit' && c.terrain !== 'stone' && !b.edge(c) && d0(c) >= 3 && d1(c) >= 3;
+    /**
+     * About one Stone (or mirrored pair) in five goes in Shallow Water, at most a third of
+     * them: in water already there, or in a pool made for it.
+     */
+    const maxWet = Math.floor(n / 3);
+    let wetStones = 0;
+    const wantWet = (count: number) => wetStones + count <= maxWet && r() < WATER_STONES;
+    const drawGap = () => {
+      const total = Object.values(STONE_GAP_DRAW).reduce((x, y) => x + y, 0);
+      let x = r() * total;
+      for (const [g, p] of Object.entries(STONE_GAP_DRAW)) if ((x -= p) < 0) return Number(g);
+      return MAX_STONE_GAP;
+    };
+    /**
+     * Place a mirrored pair at a distance from its nearest Stone drawn from STONE_GAP_DRAW
+     * (2–9 hexes); when nothing fits that distance, the closest distance that does.
+     */
+    const place = (cands: Cell[]): boolean => {
+      const inWater = wantWet(2);
+      // in water: a spot already wet if there is one, else any spot (made into a pool); on land: dry only
+      const wetFirst = inWater && cands.some((c) => !isLand(c) && free(c));
+      const allowed = (c: Cell) => (inWater ? !wetFirst || !isLand(c) : isLand(c));
+      const byGap = new Map<number, Cell[]>();
+      for (const c of cands) {
+        if (!allowed(c) || !free(c) || !free(b.mirror(c))) continue;
+        const g = gap(c);
+        if (g < MIN_STONE_GAP || g > MAX_STONE_GAP) continue;
+        byGap.set(g, [...(byGap.get(g) ?? []), c]);
+      }
+      if (!byGap.size) return false;
+      const want = drawGap();
+      let best = -1;
+      for (const g of byGap.keys()) if (best < 0 || Math.abs(g - want) < Math.abs(best - want) || (Math.abs(g - want) === Math.abs(best - want) && r() < 0.5)) best = g;
+      // more than a hex off the distance drawn: give up this layout (a forced squeeze, usually)
+    if (Math.abs(best - want) > 1) return false;
+    const c = pick(byGap.get(best)!);
+      const m = b.mirror(c);
+      c.terrain = m.terrain = 'stone';
+      if (inWater) {
+        c.height = m.height = SHALLOW;
+        wetStones += 2;
+      }
+      stones.push(c, m);
+      return true;
+    };
+    if (oddStones) {
+      // 1, 3 or 5 exactly on the line: the centre hex (sometimes in water), then pairs
+      const c = centre!;
+      if (b.edge(c)) return false;
+      if (wantWet(1)) {
+        c.height = SHALLOW;
+        wetStones++;
+      } else c.height = c.terrain === 'pit' ? PLAIN : Math.max(c.height, LOW);
+      c.terrain = 'stone';
+      stones.push(c);
+      const onLine = Math.min(pick([1, 3, 5]), n);
+      while (stones.length < onLine) if (!place(b.cells.filter((c) => offLine(c) === 0))) return false;
     }
-    stones.push(c, m);
-    return true;
+    // at least a third on or near the line (within a hex of it), the rest anywhere;
+    // with an odd count, no more exactly on the line
+    const offExact = (c: Cell) => !oddStones || offLine(c) > 0;
+    const nearLine = Math.ceil(n / 3);
+    while (stones.length < nearLine) if (!place(b.cells.filter((c) => offLine(c) <= 1 && offExact(c)))) return false;
+    while (stones.length < n) if (!place(b.cells.filter(offExact))) return false;
+    return stones.length === n;
   };
-  if (oddStones) {
-    // 1, 3 or 5 exactly on the line: the centre hex (sometimes in water), then pairs
-    const c = centre!;
-    if (b.edge(c)) return null;
-    if (wantWet(1)) {
-      c.height = SHALLOW;
-      wetStones++;
-    } else c.height = c.terrain === 'pit' ? PLAIN : Math.max(c.height, LOW);
-    c.terrain = 'stone';
-    stones.push(c);
-    const onLine = Math.min(pick([1, 3, 5]), n);
-    while (stones.length < onLine) if (!place(b.cells.filter((c) => offLine(c) === 0))) return null;
-  }
-  // at least a third on or near the line (within a hex of it), the rest anywhere;
-  // with an odd count, no more exactly on the line
-  const offExact = (c: Cell) => !oddStones || offLine(c) > 0;
-  const nearLine = Math.ceil(n / 3);
-  while (stones.length < nearLine) if (!place(b.cells.filter((c) => offLine(c) <= 1 && offExact(c)))) return null;
-  while (stones.length < n) if (!place(b.cells.filter(offExact))) return null;
-  if (stones.length !== n) return null;
-  // mostly 4–7 apart
-  const inBand = stones.filter((s) => {
-    const others = stones.filter((t) => t !== s).map((t) => hexDistance(t.hex, s.hex));
-    const m = Math.min(...others);
-    return m >= 4 && m <= 7;
-  }).length;
-  if (inBand < stones.length * 0.75) return null;
+  let laid = false;
+  for (let i = 0; i < STONE_LAYOUT_TRIES && !laid; i++) laid = layStones();
+  if (!laid) return null;
 
   // ---- Wade Entries: in every body of water, at least half (50–90%) of the edges to the
   // land around it are beaches, land exactly 1 above the water hex, where wading Units
