@@ -27,7 +27,7 @@ A match where both Sides may Summon all 40 Familiars, ignoring Loadouts, as many
 The choices made before a match: the map, whether it is a Test Match, and for each Side its Master, its Loadout and whether a person or the AI plays it.
 
 **Pause**:
-Stopping a match in place: no turn starts and no Command can be given until it is resumed. The map can still be looked at and Units inspected. In an Online Match either player may Pause and either may resume, and the Time Bank and Turn Timer stop while it lasts.
+Stopping a match in place: no turn starts and no Command can be given until it is resumed. The map can still be looked at and Units inspected. In an Online Match either player may Pause (3 times each per match) and either may resume; a Pause ends by itself after 2 minutes, and the Time Bank and Turn Timer stop while it lasts.
 
 ## Online play
 
@@ -51,11 +51,14 @@ _Avoid_: Reserve (the AI's Mana held back), Time Limit (the 72 Game Clock hours 
 **Timeout**:
 What happens when both the Turn Timer and the Time Bank run out: the Unit Waits where it stands, as if its player had chosen Wait. The match goes on; every later turn of that player Times Out after its 10 seconds.
 
+**Resign**:
+Giving up an Online Match: the other player wins at once.
+
 **Abandon**:
 A player who has been disconnected from an Online Match for 2 minutes has Abandoned it: the other player may claim the win. Until then, the absent player's turns Time Out and they may rejoin with the Game ID.
 
 **Match Report**:
-What each player's game sends the server when an Online Match ends: the Game ID, both Player IDs, the result and the Replay. The server stores the reports and gives the match a **result status**: **Confirmed** when both reports agree, **Contested** when they differ (one player is assumed to be cheating; resolving it comes later), **Unconfirmed** when only one arrives in time. The server doesn't check the Replay itself.
+What each player's game sends the server when an Online Match ends: the Game ID, both Player IDs, the result (the winner, or a draw, and how it ended: a Master fell, the Time Limit, a Resign or an Abandon) and the Replay, with the time each turn took. The server stores the reports and gives the match a **result status**: **Confirmed** when both reports agree (on the result, the starting position and every turn; turn times may differ a little), **Contested** when they differ (one player is assumed to be cheating; resolving it comes later), **Unconfirmed** when only one arrives in time. The server doesn't check the Replay itself. A player's **Online History** lists their Online Matches with the opponent, result and result status, and opens each Replay.
 
 
 **Replay**:
