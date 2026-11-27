@@ -366,3 +366,28 @@ button:disabled { opacity: 0.4; cursor: default; }
 .dev-riders { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px dashed #ffffff22; }
 .hexed { color: #d8b0ff; display: flex; align-items: center; gap: 4px; }
 .entangled { color: #9fe07a; display: flex; align-items: center; gap: 4px; }
+
+/* Turn Marker: a floating gem over the Unit whose turn it is */
+.turn-marker {
+  --tm-hi: #fff6c2; --tm-mid: #ffc928; --tm-lo: #c07a00; --tm-edge: #6b3f00;
+  filter: drop-shadow(0 0 6px rgba(255, 200, 40, 0.85)) drop-shadow(0 2px 1px rgba(0, 0, 0, 0.6));
+  animation: tm-in 420ms cubic-bezier(0.3, 1.6, 0.5, 1) both, tm-bob 1.4s ease-in-out 420ms infinite;
+  pointer-events: none; margin-bottom: 2px;
+}
+.turn-marker.grey {
+  --tm-hi: #f2f2f2; --tm-mid: #a9a9a9; --tm-lo: #626262; --tm-edge: #2e2e2e;
+  filter: drop-shadow(0 0 4px rgba(200, 200, 200, 0.5)) drop-shadow(0 2px 1px rgba(0, 0, 0, 0.6));
+}
+.turn-marker.leaving { animation: tm-out 260ms ease-in both; }
+@keyframes tm-in {
+  0% { opacity: 0; transform: translateY(-28px) scale(0.4); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tm-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes tm-out {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-22px) scale(0.3); }
+}

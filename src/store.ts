@@ -11,6 +11,7 @@ import {
   type Unit,
   activeUnit,
   applyTurn,
+  autoFacing,
   abilityTargetHexes,
   createMatch,
   delayForAction,
@@ -452,7 +453,7 @@ export const useGame = create<Store>((set, get) => {
           }
           if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
           const n = reachable(match, u).get(hexKey(h));
-          if (n && n.canEnd) return set({ phase: { kind: 'menu', to: h, facing: u.facing } });
+          if (n && n.canEnd) return set({ phase: { kind: 'menu', to: h, facing: autoFacing(match, u, h) } }); // it turns as it arrives (Auto-Facing)
           return set({ phase: { kind: 'move', selected: false } }); // not in range: deselect
         }
         case 'menu': {

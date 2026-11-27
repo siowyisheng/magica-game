@@ -10,6 +10,7 @@ import { animElapsed, type Impact } from '../anim';
 const POP_MS = 800;
 import { FamiliarDetail } from './FamiliarCard';
 import { ClassIcon, Icon } from './icons';
+import { TurnMarker } from './TurnMarker';
 
 /** DOM layer over the canvas; children with data-anchor follow 3D anchors. */
 export function Overlay() {
@@ -202,6 +203,7 @@ export function Overlay() {
           </div>
         </div>
       )}
+      <TurnMarker />
       {phase.kind === 'menu' && phase.sub === 'summon' && hoverSummon && u && (
         <div className="summon-card-float">
           <FamiliarDetail kindId={hoverSummon} side={u.side} signature={isSignature(match, u.side, hoverSummon)} />

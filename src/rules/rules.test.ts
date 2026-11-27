@@ -36,6 +36,9 @@ import {
   isPhysical,
   powerStat,
   atkHidden,
+  autoFacing,
+  facingToward,
+  facingTowardTarget,
   type Hex,
 } from './index';
 import { ELEMENTS } from './data/familiars';
@@ -1091,6 +1094,50 @@ describe('Empower', () => {
     // a Master's ATK is never hidden
     const master = state.units.find((u) => kindOf(u).isMaster && u.side === 0)!;
     expect(at(master.pos)).toBeNull();
+  });
+});
+
+describe('Auto-Facing', () => {
+  const setup = () => {
+    const state = createMatch(testMap(20, 8));
+    state.units = state.units.filter((u) => kindOf(u).isMaster); // at (0,7) and (19,0): far from everything
+    const mover = place(state, 'hound', 0, 5, 3, 3);
+    activate(state, mover);
+    return { state, mover };
+  };
+
+  it('faces the way the last step went when no enemy is within 6 hexes', () => {
+    const { state, mover } = setup();
+    place(state, 'imp', 1, 14, 3); // 7 hexes from (7,3): too far
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingToward(hex(6, 3), hex(7, 3)));
+  });
+
+  it('keeps its Facing when it doesn\'t move', () => {
+    const { state, mover } = setup();
+    place(state, 'imp', 1, 8, 3);
+    expect(autoFacing(state, mover, mover.pos)).toBe(3);
+  });
+
+  it('faces the nearest enemy within 6; equally near, the one that would hit it hardest from the front', () => {
+    const { state, mover } = setup();
+    place(state, 'hound', 1, 12, 3); // 5 away
+    const near = place(state, 'hound', 1, 10, 3); // 3 away
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingTowardTarget(hex(7, 3), near.pos, facingToward(hex(6, 3), hex(7, 3))));
+    // equally near (3 away): the one that would hit harder from the front, else the lower id
+    const tied = place(state, 'hound', 1, 7, 6);
+    const first = near.id < tied.id ? near : tied;
+    const hitOf = (e: Unit) => computeDamage(state, e, e.pos, { ...mover, pos: hex(7, 3), facing: facingToward(hex(7, 3), e.pos) }, 'physical').amount;
+    if (hitOf(near) === hitOf(tied)) expect(autoFacing(state, mover, hex(7, 3))).toBe(facingTowardTarget(hex(7, 3), first.pos, facingToward(hex(6, 3), hex(7, 3))));
+    const hard = tied;
+    hard.empowered = 3; // now it hits harder
+    expect(hitOf(hard)).toBeGreaterThan(hitOf(near));
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingTowardTarget(hex(7, 3), hard.pos, facingToward(hex(6, 3), hex(7, 3))));
+  });
+
+  it('ignores allies', () => {
+    const { state, mover } = setup();
+    place(state, 'imp', 0, 7, 5);
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingToward(hex(6, 3), hex(7, 3)));
   });
 });
 

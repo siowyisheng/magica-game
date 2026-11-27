@@ -629,6 +629,7 @@ function UnitView({
   ghost = false,
   mark,
   clickThrough = false,
+  showFacing = false,
 }: {
   unit: Unit;
   displayPos: Hex;
@@ -643,6 +644,8 @@ function UnitView({
   mark?: TargetMark;
   /** Let clicks pass through to the tiles (e.g. while choosing the hex to summon onto). */
   clickThrough?: boolean;
+  /** Draw its facing arrow (only while its player chooses a Wait facing). */
+  showFacing?: boolean;
 }) {
   const outline = useRef<THREE.Sprite>(null);
   const outlineMat = useRef<THREE.SpriteMaterial>(null);
@@ -679,9 +682,11 @@ function UnitView({
     const mk = (dy: number) => () => (group.current ? group.current.getWorldPosition(v).add(new THREE.Vector3(0, dy, 0)) : null);
     anchorSources.set(`unit:${unit.id}`, mk(scale + 0.3));
     anchorSources.set(`tag:${unit.id}`, mk(scale + 0.55));
+    anchorSources.set(`mark:${unit.id}`, mk(scale + 0.85));
     return () => {
       anchorSources.delete(`unit:${unit.id}`);
       anchorSources.delete(`tag:${unit.id}`);
+      anchorSources.delete(`mark:${unit.id}`);
     };
   }, [unit.id, scale, ghost]);
 
@@ -813,9 +818,11 @@ function UnitView({
       <mesh ref={shadow} geometry={shadowGeo} visible={false} raycast={() => null} renderOrder={4}>
         <meshBasicMaterial ref={shadowMat} color="#000000" transparent opacity={0.4} depthWrite={false} />
       </mesh>
-      <mesh ref={arrow} geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
-        <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
-      </mesh>
+      {showFacing && (
+        <mesh ref={arrow} geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
+          <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
+        </mesh>
+      )}
       {!ghost && (hovered || isActive || inspected) && (
         <mesh ref={ring} geometry={ringGeo} position={[0, 0.04, 0]} raycast={() => null}>
           <meshBasicMaterial color={hovered ? '#ffe066' : inspected ? '#9fd0ff' : '#ffffff'} transparent opacity={0.9} />
@@ -922,6 +929,7 @@ function Units() {
             inspected={inspected.includes(u.id)}
             mark={marks.get(u.id)}
             clickThrough={phase.kind === 'summonDir'}
+            showFacing={!anim && active?.id === u.id && phase.kind === 'menu'}
           />
         );
       })}
