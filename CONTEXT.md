@@ -243,7 +243,7 @@ _Avoid_: Procedural map, generated level
 The look of a map: two visual variants each for Plain and Rough, and one Obstacle design for each Defense value (2, 4, 6). Each hex's variant is picked from its position unless the map sets it. Water looks the same in every Theme. A Theme changes only appearance, never rules.
 
 **Zone of Control (ZOC)**:
-The hexes next to a Unit that the Unit itself could move into. An opposing Unit that enters a ZOC must stop there for that turn. Fly Units ignore ZOC. A Unit that starts its turn in a ZOC may leave it.
+The hexes next to a Unit that the Unit itself could move into and that are at most 1 Height above or below its own (water counts at the Water Level), so a flyer holds no cliff top or foot. An opposing Unit that enters a ZOC must stop there for that turn. Fly Units ignore ZOC. A Unit that starts its turn in a ZOC may leave it.
 
 ## Economy
 

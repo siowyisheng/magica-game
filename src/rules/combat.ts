@@ -233,6 +233,24 @@ function segmentDistance2(px: number, pz: number, ax: number, az: number, bx: nu
  */
 export function clearShot(state: MatchState, shooterId: number, from: Hex, target: Hex): boolean {
   if (hexEq(from, target)) return true;
+  const { sx, sz, tx, tz, px, pz, blockers } = shotGeometry(state, shooterId, from, target);
+  for (let k = 0; k <= 2 * AIM_SAMPLES; k++) {
+    // centre first, then outward alternately
+    const i = k === 0 ? 0 : (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2);
+    const off = (BODY_RADIUS * i) / AIM_SAMPLES;
+    const ax = tx + px * off;
+    const az = tz + pz * off;
+    if (blockers.every(({ x, z, room }) => segmentDistance2(x, z, sx, sz, ax, az) >= room - 1e-9)) return true;
+  }
+  return false;
+}
+
+/** What stands in a Direct shot's way: a Unit, an Obstacle or high ground (a hex 2+ Heights up). */
+export type ShotBlocker = { kind: 'unit' | 'obstacle'; id: number; hex: Hex } | { kind: 'terrain'; hex: Hex };
+
+type Body = { x: number; z: number; room: number; blocker: ShotBlocker };
+
+function shotGeometry(state: MatchState, shooterId: number, from: Hex, target: Hex) {
   const [sx, sz] = centre(from);
   const [tx, tz] = centre(target);
   const dx = tx - sx;
@@ -240,32 +258,51 @@ export function clearShot(state: MatchState, shooterId: number, from: Hex, targe
   const len = Math.sqrt(dx * dx + dz * dz);
   const px = -dz / len;
   const pz = dx / len;
-  const blockers: [number, number, number][] = [];
+  const blockers: Body[] = [];
   const unitRoom = (UNIT_BLOCK_RADIUS + SHOT_RADIUS) ** 2;
   const obstacleRoom = (BODY_RADIUS + SHOT_RADIUS) ** 2;
-  for (const u of state.units) if (u.hp > 0 && u.id !== shooterId && !hexEq(u.pos, target) && !hexEq(u.pos, from)) blockers.push([...centre(u.pos), unitRoom]);
-  for (const o of state.obstacles) if (o.hp > 0 && !hexEq(o.pos, target)) blockers.push([...centre(o.pos), obstacleRoom]);
+  for (const u of state.units)
+    if (u.hp > 0 && u.id !== shooterId && !hexEq(u.pos, target) && !hexEq(u.pos, from)) {
+      const [x, z] = centre(u.pos);
+      blockers.push({ x, z, room: unitRoom, blocker: { kind: 'unit', id: u.id, hex: u.pos } });
+    }
+  for (const o of state.obstacles)
+    if (o.hp > 0 && !hexEq(o.pos, target)) {
+      const [x, z] = centre(o.pos);
+      blockers.push({ x, z, room: obstacleRoom, blocker: { kind: 'obstacle', id: o.id, hex: o.pos } });
+    }
   // terrain: hexes 2+ Heights above the shooter's (water at the Water Level; Pits are empty)
   const fromHex = mapHexAt(state.map, from);
   if (fromHex) {
     const wall = surfaceHeight(fromHex, state.waterLevel) + TERRAIN_BLOCK_STEP;
     const hexRoom = (HEX_BLOCK_RADIUS + SHOT_RADIUS) ** 2;
-    const reach = Math.sqrt(dx * dx + dz * dz) + 2;
+    const reach = len + 2;
     for (const t of terrainTops(state)) {
       if (t.top < wall) break; // highest first
       if (Math.abs(t.x - sx) > reach || Math.abs(t.z - sz) > reach || hexEq(t.hex, target) || hexEq(t.hex, from)) continue;
-      blockers.push([t.x, t.z, hexRoom]);
+      blockers.push({ x: t.x, z: t.z, room: hexRoom, blocker: { kind: 'terrain', hex: t.hex } });
     }
   }
-  for (let k = 0; k <= 2 * AIM_SAMPLES; k++) {
-    // centre first, then outward alternately
-    const i = k === 0 ? 0 : (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2);
-    const off = (BODY_RADIUS * i) / AIM_SAMPLES;
-    const ax = tx + px * off;
-    const az = tz + pz * off;
-    if (blockers.every(([bx, bz, room]) => segmentDistance2(bx, bz, sx, sz, ax, az) >= room - 1e-9)) return true;
+  return { sx, sz, tx, tz, px, pz, blockers };
+}
+
+/**
+ * Why a Direct shot from `from` has no Clear Angle to `target`: the first thing in the
+ * way of the straight line between the hex centres (null when that line is clear).
+ */
+export function shotBlocker(state: MatchState, shooterId: number, from: Hex, target: Hex): ShotBlocker | null {
+  if (hexEq(from, target)) return null;
+  const { sx, sz, tx, tz, blockers } = shotGeometry(state, shooterId, from, target);
+  const dx = tx - sx;
+  const dz = tz - sz;
+  const len2 = dx * dx + dz * dz;
+  let best: { t: number; b: ShotBlocker } | null = null;
+  for (const { x, z, room, blocker } of blockers) {
+    if (segmentDistance2(x, z, sx, sz, tx, tz) >= room - 1e-9) continue;
+    const t = ((x - sx) * dx + (z - sz) * dz) / len2;
+    if (!best || t < best.t) best = { t, b: blocker };
   }
-  return false;
+  return best?.b ?? null;
 }
 
 /** Trajectory of a ranged ability, or null when it needs none (range 1, or not targeted). */

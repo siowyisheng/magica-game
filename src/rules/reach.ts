@@ -40,7 +40,8 @@ function reachFrom(
     const view = withUnitAt(state, unit.id, d);
     for (const h of hexesInRange(d, max + radius)) {
       const k = hexKey(h);
-      if (out.has(k) || !mapHexAt(state.map, h)) continue;
+      const mh = mapHexAt(state.map, h);
+      if (out.has(k) || !mh || mh.terrain === 'pit') continue; // nothing ever stands on a Pit
       // some aim hex within [min,max] of d covers h within `radius`
       const dist = hexDistance(d, h);
       if (dist > max + radius) continue;

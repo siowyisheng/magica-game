@@ -37,6 +37,7 @@ import {
   powerStat,
   atkHidden,
   autoFacing,
+  enemyZoc,
   facingToward,
   facingTowardTarget,
   type Hex,
@@ -331,6 +332,17 @@ describe('movement', () => {
     } finally {
       setLocalBalance(before);
     }
+  });
+
+  it('puts no ZOC on hexes 2 or more Heights above or below the Unit (a flyer by a cliff)', () => {
+    const state = createMatch(testMap(8, 3, (q) => ({ height: q <= 2 ? 3 : q === 4 ? 2 : 1 })));
+    state.units = [];
+    const flyer = place(state, 'wisp', 1, 3, 1); // Height 1, flies
+    const zoc = enemyZoc(state, 0);
+    expect(zoc.has(hexKey(hex(2, 1)))).toBe(false); // 2 above: no ZOC
+    expect(zoc.has(hexKey(hex(4, 1)))).toBe(true); // 1 above: ZOC
+    expect(zoc.has(hexKey(hex(3, 2)))).toBe(true); // level
+    expect(kindOf(flyer).moveTypes).toContain('fly');
   });
 
   it('stops ground units entering an enemy Zone of Control; flyers ignore it', () => {

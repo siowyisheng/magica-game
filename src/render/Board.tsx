@@ -256,7 +256,7 @@ function Tile({ mh, theme, owner, depth }: { mh: MapHex; theme: Theme; owner?: S
 // ---------- range outlines & target markers ----------
 
 export const LINE_COLORS = {
-  move: '#ffffff',
+  move: '#fff1a0',
   attack: '#ff4a3a',
   magic: '#4aa8ff',
   source: '#ffe066',
@@ -282,6 +282,17 @@ interface OutlineLayer {
   key: string;
   region: Map<string, Hex>;
   style: LineStyle;
+  /** A faint hatched fill over the tiles (`region` by default): Move Range and Reach. */
+  fill?: { color: string; opacity: number; flip?: boolean; region?: Map<string, Hex> };
+}
+
+/** How strongly the Move Range and Reach tiles are tinted. */
+const MOVE_FILL = 0.16;
+const REACH_FILL = 0.11;
+
+/** `a` without the hexes of `b`. */
+function minus(a: Map<string, Hex>, b: Map<string, Hex>): Map<string, Hex> {
+  return new Map([...a].filter(([k]) => !b.has(k)));
 }
 
 const dashed = (color: string, phase: number): LineStyle => ({ color, width: 0.07, dash: { period: 0.3, phase } });
@@ -309,11 +320,17 @@ function useOutlines(): OutlineLayer[] {
       if (!o) continue;
       const r = unitReach(match, o);
       layers.push({ key: `i${id}m`, region: r.move, style: { color: PALE_SIDE[o.side], width: 0.05, opacity: 0.9 } });
-      if (r.act.size) layers.push({ key: `i${id}a`, region: r.act, style: dashed(reachColor(kindOf(o)), 0) });
+      if (r.act.size)
+        layers.push({
+          key: `i${id}a`,
+          region: r.act,
+          style: dashed(reachColor(kindOf(o)), 0),
+          fill: { color: reachColor(kindOf(o)), opacity: REACH_FILL, flip: true, region: minus(r.act, r.move) },
+        });
     }
 
     if (phase.kind === 'move' && phase.selected) {
-      layers.push({ key: 'move', region: unitReach(match, u).move, style: { color: LINE_COLORS.move, width: 0.08 } });
+      layers.push({ key: 'move', region: unitReach(match, u).move, style: { color: LINE_COLORS.move, width: 0.08 }, fill: { color: LINE_COLORS.move, opacity: MOVE_FILL } });
       const q = hoverQuick({ match, phase, hoverHex, hoverUnitId });
       if (q) {
         const src = q.plan.sources;
@@ -326,8 +343,8 @@ function useOutlines(): OutlineLayer[] {
         const burst = ab.kind === 'damage' && !!ab.burst;
         const range = burst ? ab.radius : ab.range;
         const min = burst ? 1 : minAimDistance(ab);
-        const hexes = hexesInRange(phase.to, range).filter((h) => hexDistance(h, phase.to) >= min && mapHexAt(match.map, h));
-        layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(reachColor(kind), 0) });
+        const hexes = hexesInRange(phase.to, range).filter((h) => hexDistance(h, phase.to) >= min && mapHexAt(match.map, h) && mapHexAt(match.map, h)!.terrain !== 'pit');
+        layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(reachColor(kind), 0), fill: { color: reachColor(kind), opacity: REACH_FILL, flip: true } });
       }
     } else if (phase.kind === 'summonDir') {
       const sk = kindOf(phase.summonKind);
@@ -342,6 +359,67 @@ function useOutlines(): OutlineLayer[] {
     }
     return layers;
   }, [match, phase, hoverHex, hoverUnitId, inspected]);
+}
+
+/** A small diagonal-stripe tile, repeated over highlighted hexes (pixel-crisp). */
+let hatch: THREE.Texture | null = null;
+function hatchTexture(): THREE.Texture {
+  if (hatch) return hatch;
+  const n = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  const g = c.getContext('2d')!;
+  g.fillStyle = 'rgba(255,255,255,0.45)';
+  g.fillRect(0, 0, n, n);
+  g.fillStyle = '#ffffff';
+  // two-pixel stripes every 8 pixels, running corner to corner (seamless when tiled)
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y) % 8 < 2) g.fillRect(x, y, 1, 1);
+  hatch = new THREE.CanvasTexture(c);
+  hatch.wrapS = hatch.wrapT = THREE.RepeatWrapping;
+  hatch.magFilter = THREE.NearestFilter;
+  hatch.minFilter = THREE.NearestFilter;
+  hatch.colorSpace = THREE.SRGBColorSpace;
+  return hatch;
+}
+
+/** The faint hatched tint over a region's tiles (each hex's top, just above it). */
+function FillMesh({ region, color, opacity, flip }: { region: Map<string, Hex>; color: string; opacity: number; flip?: boolean }) {
+  const match = useGame((s) => s.match);
+  const geo = useMemo(() => {
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const r = 0.97;
+    const corners = [0, 1, 2, 3, 4, 5].map((k) => [Math.sin((Math.PI / 3) * k) * r, Math.cos((Math.PI / 3) * k) * r]);
+    // stripes about a third of a hex apart, the same way across every tile (UVs from world x/z)
+    const scale = 0.7;
+    const push = (x: number, y: number, z: number) => {
+      pos.push(x, y, z);
+      uv.push((flip ? -x : x) * scale, z * scale);
+    };
+    for (const h of region.values()) {
+      const mh = mapHexAt(match.map, h);
+      if (!mh || mh.terrain === 'pit') continue;
+      const [cx, cz] = hexToWorld(h);
+      const y = topY(match, h) + 0.025;
+      for (let k = 0; k < 6; k++) {
+        const [ax, az] = corners[k];
+        const [bx, bz] = corners[(k + 1) % 6];
+        push(cx, y, cz);
+        push(cx + bx, y, cz + bz);
+        push(cx + ax, y, cz + az);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    return g;
+  }, [match, region, flip]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} raycast={() => null} renderOrder={4}>
+      <meshBasicMaterial map={hatchTexture()} color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
+    </mesh>
+  );
 }
 
 /** A translucent fence along the region boundary with a bright band on top. */
@@ -403,6 +481,9 @@ function Highlights() {
   }
   return (
     <>
+      {layers.map((l) =>
+        l.fill ? <FillMesh key={`${l.key}f`} region={l.fill.region ?? l.region} color={l.fill.color} opacity={l.fill.opacity} flip={l.fill.flip} /> : null,
+      )}
       {layers.map((l) => (
         <OutlineMesh key={l.key} layer={l} />
       ))}
