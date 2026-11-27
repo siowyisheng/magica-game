@@ -1,7 +1,7 @@
 // Map library: built-in maps from the repo plus the player's own maps, kept
 // in this browser (localStorage) and exportable / importable as JSON files.
 
-import { SCAFFOLD_MAP, generateRandomMap, type MapDef, type ObstacleDefense, validateMap } from '../rules';
+import { generateRandomMap, type MapDef, type ObstacleDefense, validateMap } from '../rules';
 import { THEMES } from '../render/themes';
 
 export interface StoredMap {
