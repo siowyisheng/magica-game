@@ -4,7 +4,9 @@
       "moveTypes": [
         "walk",
         "wade"
-      ]
+      ],
+      "abilityName": "Trunk Smash",
+      "signatureStat": "mdf"
     },
     "imp": {
       "stats": {
@@ -95,18 +97,84 @@
       "signatureStat": "spd"
     },
     "harpy": {
-      "signatureStat": "def"
+      "signatureStat": "def",
+      "abilityName": "Hailstorm"
     },
     "muse": {
       "stats": {
         "atk": 0,
         "def": 4,
-        "mp": 2,
+        "mp": 3,
         "mdf": 5,
         "spd": 5,
         "mov": 5
       },
-      "abilityName": "Wind Hex"
+      "abilityName": "Wind Hex",
+      "signatureStat": "mdf"
+    },
+    "angel": {
+      "abilityName": "Miracle",
+      "signatureStat": "mov"
+    },
+    "giant": {
+      "moveTypes": [
+        "walk",
+        "wade"
+      ]
+    },
+    "griffin": {
+      "stats": {
+        "atk": 11,
+        "def": 6,
+        "mp": 0,
+        "mdf": 6,
+        "spd": 6,
+        "mov": 5
+      },
+      "abilityName": "Sky Strike"
+    },
+    "djinn": {
+      "stats": {
+        "atk": 0,
+        "def": 6,
+        "mp": 12,
+        "mdf": 7,
+        "spd": 7,
+        "mov": 4
+      },
+      "abilityName": "Lightning Bolt",
+      "signatureStat": "mov"
+    },
+    "clod": {
+      "abilityName": "Bash",
+      "signatureStat": "atk"
+    },
+    "thorn": {
+      "moveTypes": [
+        "walk",
+        "wade"
+      ],
+      "abilityName": "Leaf Mend",
+      "signatureStat": "mov"
+    },
+    "sling": {
+      "abilityName": "Add Entangle Here!",
+      "signatureStat": "def"
+    },
+    "beetle": {
+      "stats": {
+        "atk": 6,
+        "def": 5,
+        "mp": 0,
+        "mdf": 5,
+        "spd": 6,
+        "mov": 4
+      },
+      "abilityName": "Bite",
+      "abilityId": "strike"
+    },
+    "dryad": {
+      "abilityName": "Avalanche"
     }
   },
   "abilities": {
@@ -144,6 +212,15 @@
       "range": 5,
       "radius": 0,
       "trajectory": "high"
+    },
+    "lightning": {
+      "id": "lightning",
+      "name": "Lightning",
+      "kind": "damage",
+      "power": "mp",
+      "range": 5,
+      "radius": 0,
+      "trajectory": "direct"
     }
   }
 }
