@@ -822,7 +822,7 @@ function UnitView({
     const mk = (dy: number) => () => (group.current ? group.current.getWorldPosition(v).add(new THREE.Vector3(0, dy, 0)) : null);
     anchorSources.set(`unit:${unit.id}`, mk(scale + 0.3));
     anchorSources.set(`tag:${unit.id}`, mk(scale + 0.55));
-    anchorSources.set(`mark:${unit.id}`, mk(scale + 0.85));
+    anchorSources.set(`mark:${unit.id}`, mk(scale + 0.6));
     return () => {
       anchorSources.delete(`unit:${unit.id}`);
       anchorSources.delete(`tag:${unit.id}`);

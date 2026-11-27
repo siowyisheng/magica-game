@@ -36,12 +36,6 @@ export function armyValue(match: MatchState, side: SideId): number {
   return match.units.filter((u) => u.side === side && u.hp > 0 && !kindOf(u).isMaster).reduce((a, u) => a + kindOf(u).cost, 0);
 }
 
-/** Healthy green, injured yellow below 67%, critical orange below 33%. */
-export function hpColor(hp: number): 'healthy' | 'injured' | 'critical' {
-  const f = hp / MAX_HP;
-  return f < 1 / 3 ? 'critical' : f < 2 / 3 ? 'injured' : 'healthy';
-}
-
 /** A Master's HP as the board shows it: from each hit's impact on, before the turn ends. */
 function useShownMasterHp(side: SideId): number {
   const match = useGame((s) => s.match);
@@ -105,8 +99,11 @@ function ChunkView({ c, kind }: { c: Chunk; kind: 'hp' | 'mana' }) {
   );
 }
 
-/** One bar running out from the centre (`fill` as a fraction of its full length; above 1 wraps into laps). */
-function Bar({ className, fill, chunks, kind, title }: { className: string; fill: number; chunks?: Chunk[]; kind?: 'hp' | 'mana'; title?: string }) {
+/**
+ * One bar running out from the centre (`fill` as a fraction of its full length; above 1
+ * wraps into laps). `marks`: divider positions, as fractions of the full length.
+ */
+function Bar({ className, fill, chunks, kind, title, marks = [] }: { className: string; fill: number; chunks?: Chunk[]; kind?: 'hp' | 'mana'; title?: string; marks?: number[] }) {
   const lap1 = Math.min(1, Math.max(0, fill));
   const lap2 = Math.min(1, Math.max(0, fill - 1));
   const laps = Math.floor(Math.max(0, fill - 1e-9));
@@ -116,6 +113,9 @@ function Bar({ className, fill, chunks, kind, title }: { className: string; fill
       {lap2 > 0 && <div className="hud-fill lap2" style={{ ['--f' as string]: lap2 }} />}
       {laps >= 2 && <span className="hud-laps">×{laps + 1}</span>}
       {chunks?.map((c) => <ChunkView key={c.key} c={c} kind={kind!} />)}
+      {marks.map((m) => (
+        <div key={m} className="hud-mark" style={{ ['--at' as string]: m }} />
+      ))}
     </div>
   );
 }
@@ -152,26 +152,43 @@ function SideHud({ side }: { side: SideId }) {
   useEffect(() => {
     if (hpChunks.length) setShake(hpChunks[hpChunks.length - 1].key);
   }, [hpChunks]);
-  const incomeTip = `Income +${gross} (base ${STONE_BASE * mp} + ${stones} stone${stones === 1 ? '' : 's'} × ${mp}) · Upkeep −${up} · Net ${net >= 0 ? '+' : ''}${net}/h`;
+  const base = STONE_BASE * mp;
+  // where the base Income ends and each controlled Stone's share ends (on its lap of the bar)
+  const stoneMarks = Array.from({ length: stones }, (_, i) => ((base + i * mp) % MANA_MAX) / MANA_MAX).filter((m) => m > 0);
   return (
     <div className={`hud-side s${side}`} style={{ ['--side' as string]: SIDE_COLORS[side] }}>
       <div className="hud-portrait">
-        {master && <img src={unitIconUrl(master.kind, side)} alt="" />}
+        <div className="hud-face">{master && <img src={unitIconUrl(master.kind, side)} alt="" />}</div>
         <div className="hud-army" title="Army Value: the total Cost of this Side's Familiars on the map">
-          {armyValue(match, side)}
+          <span className="lbl">ARMY</span>
+          <span>{armyValue(match, side)}</span>
         </div>
       </div>
       <div className="hud-bars">
         <div key={shake} className={`hud-hp-wrap ${shake ? 'shake' : ''}`}>
-          <Bar className={`hp ${hpColor(hp)}`} fill={hp / MAX_HP} chunks={hpChunks} kind="hp" title={`${mk?.name ?? 'Master'}: ${hp}/${MAX_HP} HP`} />
+          <Bar
+            className="hp"
+            fill={hp / MAX_HP}
+            chunks={hpChunks}
+            kind="hp"
+            title={`${mk?.name ?? 'Master'}: ${hp}/${MAX_HP} HP`}
+            marks={Array.from({ length: MAX_HP - 1 }, (_, i) => (i + 1) / MAX_HP)}
+          />
           <span className="hud-num hp">{hp}</span>
         </div>
         <div className="hud-mana-wrap">
           <Bar className="mana" fill={mana / MANA_MAX} chunks={manaChunks} kind="mana" title={`Mana ${mana}/${MANA_MAX}`} />
           <span className="hud-num mana">{mana}</span>
         </div>
-        <Bar className="income" fill={gross / MANA_MAX} title={incomeTip} />
-        <Bar className="upkeep" fill={up / MANA_MAX} title={incomeTip} />
+        <div className="hud-econ">
+          <Bar className="income" fill={gross / MANA_MAX} marks={stoneMarks} />
+          <Bar className="upkeep" fill={up / MANA_MAX} />
+          <span className={`hud-num econ ${net < 0 ? 'neg' : ''}`}>{Math.abs(net)}</span>
+          <div className="hud-tip">
+            Income +{gross} (base {base} + {stones} stone{stones === 1 ? '' : 's'} × {mp}) · Upkeep −{up} · Net {net >= 0 ? '+' : ''}
+            {net}/h
+          </div>
+        </div>
         <div className="hud-names">
           <b>{mk?.name ?? ''}</b> <span>{playerName(match, side, online)}</span>
         </div>
