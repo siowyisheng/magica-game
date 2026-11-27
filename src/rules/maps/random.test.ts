@@ -131,6 +131,34 @@ describe('random maps', () => {
     for (const { seed, map } of maps) expect(Math.max(...map.hexes.map((h) => h.height)), `seed ${seed}`).toBeLessThanOrEqual(4);
   });
 
+  it('put at most 5% of the hexes that aren\'t Pits at Height 4', () => {
+    for (const { seed, map } of maps) {
+      const solid = map.hexes.filter((h) => h.terrain !== 'pit');
+      expect(solid.filter((h) => h.height === 4).length / solid.length, `seed ${seed}`).toBeLessThanOrEqual(0.05);
+    }
+  });
+
+  it('make every Water Body at least 2 hexes, and one holding a Stone at least 3', () => {
+    for (const { seed, map } of maps) {
+      const byKey = new Map(map.hexes.map((h) => [hexKey(h.hex), h]));
+      const isWet = (h: (typeof map.hexes)[number]) => h.terrain !== 'pit' && surfaceOf(h, map.waterLevel) !== 'land';
+      const seen = new Set<string>();
+      for (const start of map.hexes) {
+        if (!isWet(start) || seen.has(hexKey(start.hex))) continue;
+        const body = [start];
+        seen.add(hexKey(start.hex));
+        for (let i = 0; i < body.length; i++) {
+          for (const d of DIRS) {
+            const n = byKey.get(hexKey(neighbor(body[i].hex, d)));
+            if (n && isWet(n) && !seen.has(hexKey(n.hex))) (seen.add(hexKey(n.hex)), body.push(n));
+          }
+        }
+        const min = body.some((h) => h.terrain === 'stone') ? 3 : 2;
+        expect(body.length, `seed ${seed}: body at ${hexKey(start.hex)}`).toBeGreaterThanOrEqual(min);
+      }
+    }
+  });
+
   it('have cliffs (2-Height steps) that a walker can climb round, and rarely a pillar only Fly reaches', () => {
     const walker = { moveTypes: ['walk'] } as unknown as UnitKind;
     let withCliffs = 0;
