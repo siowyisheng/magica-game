@@ -11,6 +11,7 @@ import {
   type Unit,
   activeUnit,
   applyTurn,
+  autoFacing,
   abilityTargetHexes,
   createMatch,
   delayForAction,
@@ -37,6 +38,12 @@ import {
   activeBalance,
   applyTemporaryBalance,
   endTemporaryBalance,
+  affectedUnits,
+  clearShot,
+  shotBlocker,
+  targetedAbility,
+  trajectoryOf,
+  type ShotBlocker,
 } from './rules';
 import { autoLoadout, chooseAction } from './ai/ai';
 import { getLoadout, isPlayable } from './loadouts/library';
@@ -452,7 +459,7 @@ export const useGame = create<Store>((set, get) => {
           }
           if (hexEq(h, u.pos)) return set({ phase: { kind: 'menu', to: u.pos, facing: u.facing } });
           const n = reachable(match, u).get(hexKey(h));
-          if (n && n.canEnd) return set({ phase: { kind: 'menu', to: h, facing: u.facing } });
+          if (n && n.canEnd) return set({ phase: { kind: 'menu', to: h, facing: autoFacing(match, u, h) } }); // it turns as it arrives (Auto-Facing)
           return set({ phase: { kind: 'move', selected: false } }); // not in range: deselect
         }
         case 'menu': {
@@ -736,6 +743,53 @@ export function validSummonDirs(match: MatchState, masterId: number, to: Hex, ki
 export function blockedShot(match: MatchState, actor: Unit, target: Target): boolean {
   if (planAct(match, actor, target)) return false;
   return !!planAct(match, actor, target, true);
+}
+
+/** A Direct shot the player is pointing at that has no Clear Angle: from where, at what, and what's in the way. */
+export interface BlockedShotView {
+  from: Hex;
+  target: Target;
+  blocker: ShotBlocker | null;
+}
+
+/**
+ * The blocked Direct shot under the cursor, if any: while aiming (the hovered target is in
+ * range but there's no Clear Angle), or on a quick-attack hover when no hex in the Move
+ * Range has one (shown from the hex the shot would be tried from).
+ */
+export function blockedShotView(s: Pick<Store, 'match' | 'phase' | 'hoverHex' | 'hoverUnitId'>): BlockedShotView | null {
+  const { match, phase, hoverHex, hoverUnitId } = s;
+  const u = activeUnit(match);
+  if (!u) return null;
+  const ab = targetedAbility(u);
+  if (!ab || trajectoryOf(ab) !== 'direct' || (ab.kind === 'damage' && ab.burst)) return null;
+  if (phase.kind === 'target') {
+    const t = hoverHex ? targetAt(match, hoverHex) : undefined;
+    if (!t || t.id === u.id || hexDistance(phase.to, t.pos) > ab.range || hexDistance(phase.to, t.pos) <= 1) return null;
+    const view = { ...match, units: match.units.map((x) => (x.id === u.id ? { ...x, pos: phase.to } : x)) };
+    if (clearShot(view, u.id, phase.to, t.pos)) return null;
+    if (!affectedUnits(view, getUnit(view, u.id), ab, t.pos).some((x) => x.id === t.id)) return null;
+    return { from: phase.to, target: t, blocker: shotBlocker(view, u.id, phase.to, t.pos) };
+  }
+  if (phase.kind === 'move' && phase.selected && !hoverQuick(s)) {
+    const t = (hoverUnitId !== null ? targetById(match, hoverUnitId) : undefined) ?? (hoverHex ? targetAt(match, hoverHex) : undefined);
+    if (!t || t.id === u.id || !blockedShot(match, u, t)) return null;
+    const plan = planAct(match, u, t, true);
+    if (!plan) return null;
+    const view = { ...match, units: match.units.map((x) => (x.id === u.id ? { ...x, pos: plan.dest } : x)) };
+    return { from: plan.dest, target: t, blocker: shotBlocker(view, u.id, plan.dest, plan.aim) };
+  }
+  return null;
+}
+
+/** How a blocked shot's reason reads: "No Clear Angle: Cinder is in the way". */
+export function blockedShotText(match: MatchState, b: BlockedShotView): string {
+  const why = b.blocker;
+  if (!why) return 'No Clear Angle';
+  if (why.kind === 'terrain') return 'No Clear Angle: high ground in the way';
+  if (why.kind === 'obstacle') return 'No Clear Angle: an Obstacle in the way';
+  const u = match.units.find((x) => x.id === why.id);
+  return `No Clear Angle: ${u ? kindOf(u).name : 'a Unit'} in the way`;
 }
 
 /**

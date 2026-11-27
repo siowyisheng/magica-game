@@ -35,6 +35,12 @@ import {
   classOf,
   isPhysical,
   powerStat,
+  atkHidden,
+  autoFacing,
+  enemyZoc,
+  facingToward,
+  facingTowardTarget,
+  type Hex,
 } from './index';
 import { ELEMENTS } from './data/familiars';
 import * as matchModule from './match';
@@ -326,6 +332,17 @@ describe('movement', () => {
     } finally {
       setLocalBalance(before);
     }
+  });
+
+  it('puts no ZOC on hexes 2 or more Heights above or below the Unit (a flyer by a cliff)', () => {
+    const state = createMatch(testMap(8, 3, (q) => ({ height: q <= 2 ? 3 : q === 4 ? 2 : 1 })));
+    state.units = [];
+    const flyer = place(state, 'wisp', 1, 3, 1); // Height 1, flies
+    const zoc = enemyZoc(state, 0);
+    expect(zoc.has(hexKey(hex(2, 1)))).toBe(false); // 2 above: no ZOC
+    expect(zoc.has(hexKey(hex(4, 1)))).toBe(true); // 1 above: ZOC
+    expect(zoc.has(hexKey(hex(3, 2)))).toBe(true); // level
+    expect(kindOf(flyer).moveTypes).toContain('fly');
   });
 
   it('stops ground units entering an enemy Zone of Control; flyers ignore it', () => {
@@ -1064,16 +1081,75 @@ describe('Empower', () => {
     const r2 = applyTurn(s2, { unitId: a2.id, to: a2.pos, facing: 0, command: { type: 'act', target: hex(5, 3) } });
     expect(r2.events.find((e) => e.type === 'damage')).toMatchObject({ amount: before + 3 });
     expect(getUnit(r2.state, ally.id).empowered).toBeUndefined();
-    // the caster may Empower itself; a second Empower doesn't stack
+    // a second Empower doesn't stack
     const s3 = r2.state;
     activate(s3, getUnit(s3, kindle.id));
-    s3.sides[0].mana = 50;
-    const self = { unitId: kindle.id, to: getUnit(s3, kindle.id).pos, facing: 0 as const, command: { type: 'act' as const, target: getUnit(s3, kindle.id).pos } };
-    expect(validateTurn(s3, self)).toBeNull();
-    const r3 = applyTurn(s3, self);
-    expect(getUnit(r3.state, kindle.id).empowered).toBe(3);
+    const again = { unitId: kindle.id, to: getUnit(s3, kindle.id).pos, facing: 0 as const, command: { type: 'act' as const, target: getUnit(s3, ally.id).pos } };
+    const r3 = applyTurn(s3, again);
+    expect(getUnit(r3.state, ally.id).empowered).toBe(3);
     activate(r3.state, getUnit(r3.state, kindle.id));
-    expect(getUnit(applyTurn(r3.state, { ...self, to: getUnit(r3.state, kindle.id).pos }).state, kindle.id).empowered).toBe(3);
+    expect(getUnit(applyTurn(r3.state, { ...again, to: getUnit(r3.state, kindle.id).pos }).state, ally.id).empowered).toBe(3);
+  });
+
+  it('never goes to a Familiar whose ATK is hidden: not Kindle itself, nor an aligned Caster at its Time of Day', () => {
+    const state = createMatch(testMap(8, 8));
+    state.clock = 22 * 60; // Night
+    state.units = state.units.filter((u) => kindOf(u).isMaster);
+    for (const u of state.units) u.pos = u.side === 0 ? hex(3, 4) : hex(7, 0);
+    const kindle = place(state, 'wisp', 0, 3, 3);
+    const coral = place(state, 'crab', 0, 4, 3); // a Night Caster: ATK 0, lifted to 1 at Night
+    expect(atkHidden(kindOf(coral))).toBe(true);
+    activate(state, kindle);
+    const at = (h: Hex) => validateTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'act', target: h } });
+    expect(at(kindle.pos)).not.toBeNull();
+    expect(at(coral.pos)).not.toBeNull();
+    // a Master's ATK is never hidden
+    const master = state.units.find((u) => kindOf(u).isMaster && u.side === 0)!;
+    expect(at(master.pos)).toBeNull();
+  });
+});
+
+describe('Auto-Facing', () => {
+  const setup = () => {
+    const state = createMatch(testMap(20, 8));
+    state.units = state.units.filter((u) => kindOf(u).isMaster); // at (0,7) and (19,0): far from everything
+    const mover = place(state, 'hound', 0, 5, 3, 3);
+    activate(state, mover);
+    return { state, mover };
+  };
+
+  it('faces the way the last step went when no enemy is within 6 hexes', () => {
+    const { state, mover } = setup();
+    place(state, 'imp', 1, 14, 3); // 7 hexes from (7,3): too far
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingToward(hex(6, 3), hex(7, 3)));
+  });
+
+  it('keeps its Facing when it doesn\'t move', () => {
+    const { state, mover } = setup();
+    place(state, 'imp', 1, 8, 3);
+    expect(autoFacing(state, mover, mover.pos)).toBe(3);
+  });
+
+  it('faces the nearest enemy within 6; equally near, the one that would hit it hardest from the front', () => {
+    const { state, mover } = setup();
+    place(state, 'hound', 1, 12, 3); // 5 away
+    const near = place(state, 'hound', 1, 10, 3); // 3 away
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingTowardTarget(hex(7, 3), near.pos, facingToward(hex(6, 3), hex(7, 3))));
+    // equally near (3 away): the one that would hit harder from the front, else the lower id
+    const tied = place(state, 'hound', 1, 7, 6);
+    const first = near.id < tied.id ? near : tied;
+    const hitOf = (e: Unit) => computeDamage(state, e, e.pos, { ...mover, pos: hex(7, 3), facing: facingToward(hex(7, 3), e.pos) }, 'physical').amount;
+    if (hitOf(near) === hitOf(tied)) expect(autoFacing(state, mover, hex(7, 3))).toBe(facingTowardTarget(hex(7, 3), first.pos, facingToward(hex(6, 3), hex(7, 3))));
+    const hard = tied;
+    hard.empowered = 3; // now it hits harder
+    expect(hitOf(hard)).toBeGreaterThan(hitOf(near));
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingTowardTarget(hex(7, 3), hard.pos, facingToward(hex(6, 3), hex(7, 3))));
+  });
+
+  it('ignores allies', () => {
+    const { state, mover } = setup();
+    place(state, 'imp', 0, 7, 5);
+    expect(autoFacing(state, mover, hex(7, 3))).toBe(facingToward(hex(6, 3), hex(7, 3)));
   });
 });
 

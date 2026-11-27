@@ -19,6 +19,7 @@ import {
   previewEffects,
   MAX_HP,
   reachable,
+  resultingFacing,
   targetAt,
   trajectoryOf,
   isPhysical,
@@ -254,7 +255,8 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
     t += CAPTURE_MS;
   }
 
-  const facing = cmd.type === 'summon' ? cmd.dir : action.facing;
+  // the Facing it ends with, taken before it acts: it turns to its target, then swings
+  const facing = resultingFacing(before, action);
   // the next unit's turn starts: Stone Heal, when it actually heals
   const sh = turnEnd?.events.find((e) => e.type === 'heal' && e.source === 'stone');
   if (sh && sh.type === 'heal' && turnEnd) {

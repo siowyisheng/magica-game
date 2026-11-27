@@ -31,8 +31,8 @@ import {
   unitReach,
   facingTowardTarget,
 } from '../rules';
-import { hoverQuick, summonDirToward, useGame } from '../store';
-import { classIconName, iconPixels, type IconName } from '../ui/icons';
+import { blockedShotView, hoverQuick, summonDirToward, useGame } from '../store';
+import { classColor, classIconName, iconPixels, type IconName } from '../ui/icons';
 import { FENCE_HEIGHT, cornerPosts, fenceGeometry, regionSegments, ribbonGeometry, type LineStyle } from './outlines';
 import {
   ELEMENT_COLORS,
@@ -256,7 +256,7 @@ function Tile({ mh, theme, owner, depth }: { mh: MapHex; theme: Theme; owner?: S
 // ---------- range outlines & target markers ----------
 
 export const LINE_COLORS = {
-  move: '#ffffff',
+  move: '#fff1a0',
   attack: '#ff4a3a',
   magic: '#4aa8ff',
   source: '#ffe066',
@@ -282,6 +282,17 @@ interface OutlineLayer {
   key: string;
   region: Map<string, Hex>;
   style: LineStyle;
+  /** A faint hatched fill over the tiles (`region` by default): Move Range and Reach. */
+  fill?: { color: string; opacity: number; flip?: boolean; region?: Map<string, Hex> };
+}
+
+/** How strongly the Move Range and Reach tiles are tinted. */
+const MOVE_FILL = 0.42;
+const REACH_FILL = 0.34;
+
+/** `a` without the hexes of `b`. */
+function minus(a: Map<string, Hex>, b: Map<string, Hex>): Map<string, Hex> {
+  return new Map([...a].filter(([k]) => !b.has(k)));
 }
 
 const dashed = (color: string, phase: number): LineStyle => ({ color, width: 0.07, dash: { period: 0.3, phase } });
@@ -309,11 +320,17 @@ function useOutlines(): OutlineLayer[] {
       if (!o) continue;
       const r = unitReach(match, o);
       layers.push({ key: `i${id}m`, region: r.move, style: { color: PALE_SIDE[o.side], width: 0.05, opacity: 0.9 } });
-      if (r.act.size) layers.push({ key: `i${id}a`, region: r.act, style: dashed(reachColor(kindOf(o)), 0) });
+      if (r.act.size)
+        layers.push({
+          key: `i${id}a`,
+          region: r.act,
+          style: dashed(reachColor(kindOf(o)), 0),
+          fill: { color: reachColor(kindOf(o)), opacity: REACH_FILL, flip: true, region: minus(r.act, r.move) },
+        });
     }
 
     if (phase.kind === 'move' && phase.selected) {
-      layers.push({ key: 'move', region: unitReach(match, u).move, style: { color: LINE_COLORS.move, width: 0.08 } });
+      layers.push({ key: 'move', region: unitReach(match, u).move, style: { color: LINE_COLORS.move, width: 0.08 }, fill: { color: LINE_COLORS.move, opacity: MOVE_FILL } });
       const q = hoverQuick({ match, phase, hoverHex, hoverUnitId });
       if (q) {
         const src = q.plan.sources;
@@ -326,8 +343,8 @@ function useOutlines(): OutlineLayer[] {
         const burst = ab.kind === 'damage' && !!ab.burst;
         const range = burst ? ab.radius : ab.range;
         const min = burst ? 1 : minAimDistance(ab);
-        const hexes = hexesInRange(phase.to, range).filter((h) => hexDistance(h, phase.to) >= min && mapHexAt(match.map, h));
-        layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(reachColor(kind), 0) });
+        const hexes = hexesInRange(phase.to, range).filter((h) => hexDistance(h, phase.to) >= min && mapHexAt(match.map, h) && mapHexAt(match.map, h)!.terrain !== 'pit');
+        layers.push({ key: 'tgt', region: toMap(hexes), style: dashed(reachColor(kind), 0), fill: { color: reachColor(kind), opacity: REACH_FILL, flip: true } });
       }
     } else if (phase.kind === 'summonDir') {
       const sk = kindOf(phase.summonKind);
@@ -342,6 +359,67 @@ function useOutlines(): OutlineLayer[] {
     }
     return layers;
   }, [match, phase, hoverHex, hoverUnitId, inspected]);
+}
+
+/** A small diagonal-stripe tile, repeated over highlighted hexes (pixel-crisp). */
+let hatch: THREE.Texture | null = null;
+function hatchTexture(): THREE.Texture {
+  if (hatch) return hatch;
+  const n = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  const g = c.getContext('2d')!;
+  g.fillStyle = 'rgba(255,255,255,0.3)';
+  g.fillRect(0, 0, n, n);
+  g.fillStyle = '#ffffff';
+  // two-pixel stripes every 8 pixels, running corner to corner (seamless when tiled)
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y) % 8 < 2) g.fillRect(x, y, 1, 1);
+  hatch = new THREE.CanvasTexture(c);
+  hatch.wrapS = hatch.wrapT = THREE.RepeatWrapping;
+  hatch.magFilter = THREE.NearestFilter;
+  hatch.minFilter = THREE.NearestFilter;
+  hatch.colorSpace = THREE.SRGBColorSpace;
+  return hatch;
+}
+
+/** The faint hatched tint over a region's tiles (each hex's top, just above it). */
+function FillMesh({ region, color, opacity, flip }: { region: Map<string, Hex>; color: string; opacity: number; flip?: boolean }) {
+  const match = useGame((s) => s.match);
+  const geo = useMemo(() => {
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const r = 0.97;
+    const corners = [0, 1, 2, 3, 4, 5].map((k) => [Math.sin((Math.PI / 3) * k) * r, Math.cos((Math.PI / 3) * k) * r]);
+    // stripes about a third of a hex apart, the same way across every tile (UVs from world x/z)
+    const scale = 0.7;
+    const push = (x: number, y: number, z: number) => {
+      pos.push(x, y, z);
+      uv.push((flip ? -x : x) * scale, z * scale);
+    };
+    for (const h of region.values()) {
+      const mh = mapHexAt(match.map, h);
+      if (!mh || mh.terrain === 'pit') continue;
+      const [cx, cz] = hexToWorld(h);
+      const y = topY(match, h) + 0.025;
+      for (let k = 0; k < 6; k++) {
+        const [ax, az] = corners[k];
+        const [bx, bz] = corners[(k + 1) % 6];
+        push(cx, y, cz);
+        push(cx + bx, y, cz + bz);
+        push(cx + ax, y, cz + az);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    return g;
+  }, [match, region, flip]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} raycast={() => null} renderOrder={4}>
+      <meshBasicMaterial map={hatchTexture()} color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
+    </mesh>
+  );
 }
 
 /** A translucent fence along the region boundary with a bright band on top. */
@@ -389,6 +467,59 @@ function OutlineMesh({ layer }: { layer: OutlineLayer }) {
   );
 }
 
+/** A beam between two points (a thin box), for the blocked-shot line. */
+function Beam({ a, b, color, opacity, width = 0.05 }: { a: THREE.Vector3; b: THREE.Vector3; color: string; opacity: number; width?: number }) {
+  const len = a.distanceTo(b);
+  const mid = a.clone().add(b).multiplyScalar(0.5);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), b.clone().sub(a).normalize());
+  return (
+    <mesh position={mid} quaternion={q} raycast={() => null} renderOrder={12}>
+      <boxGeometry args={[width, width, len]} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} depthTest={false} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/** A pointed-at Direct shot with no Clear Angle: a red line to what's in the way, which is ringed and crossed. */
+function BlockedShotLine() {
+  const match = useGame((s) => s.match);
+  const phase = useGame((s) => s.phase);
+  const hoverHex = useGame((s) => s.hoverHex);
+  const hoverUnitId = useGame((s) => s.hoverUnitId);
+  const anim = useGame((s) => s.anim);
+  const b = useMemo(() => (anim ? null : blockedShotView({ match, phase, hoverHex, hoverUnitId })), [match, phase, hoverHex, hoverUnitId, anim]);
+  if (!b) return null;
+  const at = (h: Hex, dy: number) => {
+    const [x, z] = hexToWorld(h);
+    return new THREE.Vector3(x, topY(match, h) + dy, z);
+  };
+  const from = at(b.from, 0.55);
+  const to = at(b.target.pos, 0.55);
+  const stop = b.blocker ? at(b.blocker.hex, b.blocker.kind === 'terrain' ? 0.15 : 0.55) : to;
+  const blockHex = b.blocker?.hex;
+  const [bx, bz] = blockHex ? hexToWorld(blockHex) : [0, 0];
+  const by = blockHex ? topY(match, blockHex) + 0.05 : 0;
+  return (
+    <>
+      <Beam a={from} b={stop} color={LINE_COLORS.attack} opacity={0.95} />
+      {b.blocker && <Beam a={stop} b={to} color={LINE_COLORS.attack} opacity={0.25} width={0.03} />}
+      {blockHex && (
+        <group position={[bx, by, bz]}>
+          <mesh geometry={ringGeo} raycast={() => null} renderOrder={12}>
+            <meshBasicMaterial color={LINE_COLORS.attack} transparent opacity={0.95} depthTest={false} depthWrite={false} />
+          </mesh>
+          {[Math.PI / 4, -Math.PI / 4].map((r) => (
+            <mesh key={r} rotation={[0, r, 0]} position={[0, 0.02, 0]} raycast={() => null} renderOrder={12}>
+              <boxGeometry args={[1.0, 0.03, 0.12]} />
+              <meshBasicMaterial color={LINE_COLORS.attack} transparent opacity={0.9} depthTest={false} depthWrite={false} />
+            </mesh>
+          ))}
+        </group>
+      )}
+    </>
+  );
+}
+
 function Highlights() {
   const match = useGame((s) => s.match);
   const rawHover = useGame((s) => s.hoverHex);
@@ -403,9 +534,13 @@ function Highlights() {
   }
   return (
     <>
+      {layers.map((l) =>
+        l.fill ? <FillMesh key={`${l.key}f`} region={l.fill.region ?? l.region} color={l.fill.color} opacity={l.fill.opacity} flip={l.fill.flip} /> : null,
+      )}
       {layers.map((l) => (
         <OutlineMesh key={l.key} layer={l} />
       ))}
+      <BlockedShotLine />
       {hoverHex && mapHexAt(match.map, hoverHex) && (
         <mesh
           geometry={ringGeo}
@@ -457,26 +592,31 @@ function useTargetMarks(): Map<number, TargetMark> {
 
 const badgeCache = new Map<string, THREE.Texture>();
 /** A Class icon on a small badge in the Side's colour (11×11 pixels, drawn crisp). */
-function classBadgeTexture(name: IconName, side: SideId): THREE.Texture {
-  const key = `${name}|${side}`;
+function classBadgeTexture(name: IconName, side: SideId, fill: string): THREE.Texture {
+  const key = `${name}|${side}|${fill}`;
   let t = badgeCache.get(key);
   if (t) return t;
-  const n = 11;
+  const n = 13;
   const cv = document.createElement('canvas');
   cv.width = cv.height = n;
   const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = '#10121a';
-  ctx.fillRect(1, 0, n - 2, n);
-  ctx.fillRect(0, 1, n, n - 2);
-  ctx.fillStyle = SIDE_COLORS[side];
-  ctx.fillRect(1, 1, n - 2, n - 2);
+  // a rounded square: dark rim, a 1-pixel ring in the Side colour, the Class colour inside
+  const square = (inset: number, color: string) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(inset + 1, inset, n - 2 * inset - 2, n - 2 * inset);
+    ctx.fillRect(inset, inset + 1, n - 2 * inset, n - 2 * inset - 2);
+  };
+  square(0, '#10121a');
+  square(1, SIDE_COLORS[side]);
+  square(2, fill);
+  // the icon's shape, drawn dark on the Class colour
   const { grid, palette } = iconPixels(name);
   grid.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const c = palette[row[x]];
-      if (!c) continue;
-      ctx.fillStyle = c;
-      ctx.fillRect(x + 1, y + 1, 1, 1);
+      if (!c || row[x] === 'o') continue;
+      ctx.fillStyle = '#1a1420';
+      ctx.fillRect(x + 2, y + 2, 1, 1);
     }
   });
   t = new THREE.CanvasTexture(cv);
@@ -629,6 +769,7 @@ function UnitView({
   ghost = false,
   mark,
   clickThrough = false,
+  showFacing = false,
 }: {
   unit: Unit;
   displayPos: Hex;
@@ -643,6 +784,8 @@ function UnitView({
   mark?: TargetMark;
   /** Let clicks pass through to the tiles (e.g. while choosing the hex to summon onto). */
   clickThrough?: boolean;
+  /** Draw its facing arrow (only while its player chooses a Wait facing). */
+  showFacing?: boolean;
 }) {
   const outline = useRef<THREE.Sprite>(null);
   const outlineMat = useRef<THREE.SpriteMaterial>(null);
@@ -679,9 +822,11 @@ function UnitView({
     const mk = (dy: number) => () => (group.current ? group.current.getWorldPosition(v).add(new THREE.Vector3(0, dy, 0)) : null);
     anchorSources.set(`unit:${unit.id}`, mk(scale + 0.3));
     anchorSources.set(`tag:${unit.id}`, mk(scale + 0.55));
+    anchorSources.set(`mark:${unit.id}`, mk(scale + 0.85));
     return () => {
       anchorSources.delete(`unit:${unit.id}`);
       anchorSources.delete(`tag:${unit.id}`);
+      anchorSources.delete(`mark:${unit.id}`);
     };
   }, [unit.id, scale, ghost]);
 
@@ -813,9 +958,11 @@ function UnitView({
       <mesh ref={shadow} geometry={shadowGeo} visible={false} raycast={() => null} renderOrder={4}>
         <meshBasicMaterial ref={shadowMat} color="#000000" transparent opacity={0.4} depthWrite={false} />
       </mesh>
-      <mesh ref={arrow} geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
-        <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
-      </mesh>
+      {showFacing && (
+        <mesh ref={arrow} geometry={arrowGeo} rotation={[0, dirAngle(facing), 0]} position={[0, 0.03, 0]} raycast={() => null}>
+          <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
+        </mesh>
+      )}
       {!ghost && (hovered || isActive || inspected) && (
         <mesh ref={ring} geometry={ringGeo} position={[0, 0.04, 0]} raycast={() => null}>
           <meshBasicMaterial color={hovered ? '#ffe066' : inspected ? '#9fd0ff' : '#ffffff'} transparent opacity={0.9} />
@@ -854,10 +1001,10 @@ function UnitView({
       >
         <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={ghost ? 0.2 : 0.5} color={baseColor} opacity={ghost ? 0.45 : 1} depthWrite={!ghost} />
       </sprite>
-      {!ghost && !kindOf(unit).isMaster && (
-        // the Familiar's Class, always shown by its feet
-        <sprite scale={[0.3, 0.3, 1]} position={[0.36, 0.2, 0.2]} renderOrder={11} raycast={() => null}>
-          <spriteMaterial map={classBadgeTexture(classIconName(kindOf(unit)), unit.side)} transparent depthTest={false} />
+      {!ghost && (
+        // the Unit's Class (a Master's gold star), always shown by its feet
+        <sprite scale={[0.34, 0.34, 1]} position={[0.36, 0.2, 0.2]} renderOrder={11} raycast={() => null}>
+          <spriteMaterial map={classBadgeTexture(classIconName(kindOf(unit)), unit.side, classColor(kindOf(unit)))} transparent depthTest={false} />
         </sprite>
       )}
     </group>
@@ -922,6 +1069,7 @@ function Units() {
             inspected={inspected.includes(u.id)}
             mark={marks.get(u.id)}
             clickThrough={phase.kind === 'summonDir'}
+            showFacing={!anim && active?.id === u.id && phase.kind === 'menu'}
           />
         );
       })}

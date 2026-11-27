@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MAX_HP, activeUnit, type Command, type Target, type Unit, previewEffects, targetById, targetAt, hexDistance, kindOf, trajectoryOf, targetedAbility, meleeReach, abilityDisplayName, isPhysical, isSignature, isBurst } from '../rules';
-import { blockedShot, hoverQuick, useGame } from '../store';
+import { blockedShot, blockedShotText, blockedShotView, hoverQuick, useGame } from '../store';
 import { anchorPositions } from '../render/anchors';
 import { CommandMenu } from './CommandMenu';
 import { DamageNumber, DamageTag } from './DamageTag';
@@ -10,6 +10,7 @@ import { animElapsed, type Impact } from '../anim';
 const POP_MS = 800;
 import { FamiliarDetail } from './FamiliarCard';
 import { ClassIcon, Icon } from './icons';
+import { TurnMarker } from './TurnMarker';
 
 /** DOM layer over the canvas; children with data-anchor follow 3D anchors. */
 export function Overlay() {
@@ -112,6 +113,7 @@ export function Overlay() {
   type Tag = { unit: Target; effect?: ReturnType<typeof previewEffects>[number]; label?: string; note?: string };
   const tags: Tag[] = [];
   const quick = hoverQuick({ match, phase, hoverHex, hoverUnitId });
+  const blocked = blockedShotView({ match, phase, hoverHex, hoverUnitId });
   if (u && quick) {
     const { plan } = quick;
     const e = previewEffects(match, { unitId: u.id, to: plan.dest, facing: u.facing, command: { type: 'act', target: plan.aim } });
@@ -132,7 +134,7 @@ export function Overlay() {
       const k = kindOf(u);
       const ab = k.ability;
       if (ab && 'range' in ab && trajectoryOf(ab) === 'direct' && hexDistance(phase.to, hoverHex) <= ab.range) {
-        tags.push({ unit: t, note: 'No clear shot' });
+        tags.push({ unit: t, note: blocked ? blockedShotText(match, blocked) : 'No Clear Angle' });
       } else if (ab && 'range' in ab && trajectoryOf(ab) === null && hexDistance(phase.to, hoverHex) === 1 && !meleeReach(match, phase.to, hoverHex)) {
         tags.push({ unit: t, note: 'Too high or low' });
       }
@@ -144,7 +146,7 @@ export function Overlay() {
     if (t && t.id !== u.id && blockedShot(match, u, t)) {
       // a range-1 user is stopped by Height, a ranged one by a blocked Direct shot
       const melee = (targetedAbility(u)?.range ?? 2) <= 1;
-      tags.push({ unit: t, note: melee ? 'Too high or low' : 'No clear shot' });
+      tags.push({ unit: t, note: melee ? 'Too high or low' : blocked ? blockedShotText(match, blocked) : 'No Clear Angle' });
     }
   }
 
@@ -202,6 +204,7 @@ export function Overlay() {
           </div>
         </div>
       )}
+      <TurnMarker />
       {phase.kind === 'menu' && phase.sub === 'summon' && hoverSummon && u && (
         <div className="summon-card-float">
           <FamiliarDetail kindId={hoverSummon} side={u.side} signature={isSignature(match, u.side, hoverSummon)} />

@@ -20,7 +20,7 @@ import {
 } from '../rules';
 import { useGame, setLocalSuspended, setOnlineHooks } from '../store';
 import { createGame, ensureIdentity, history, loadIdentity, submitReport, wake, type Identity } from './api';
-import { banksAfter, clockFace, PAUSE_MAX_MS, PAUSES_PER_PLAYER, PLANNING_MS, TIMEOUT_GRACE_MS, turnAllowance, ABANDON_MS, type Banks, startBanks } from './clock';
+import { banksAfter, clockFace, DEFAULT_TIME, PAUSE_MAX_MS, PAUSES_PER_PLAYER, PLANNING_MS, TIMEOUT_GRACE_MS, turnAllowance, ABANDON_MS, type Banks, startBanks, type TimeSettings, validTime } from './clock';
 import { commitPick, randomHex, rulesFingerprint, verifyPick } from './fingerprint';
 import { Link } from './link';
 import { PROTOCOL_VERSION, type PeerMsg, type Pick } from './protocol';
@@ -55,6 +55,8 @@ interface OnlineState {
   creator: boolean;
   opponent: { id: string; name: string } | null;
   map: MapDef | null;
+  /** The Turn Timer and Time Bank, picked by the creator (the joiner learns them from its hello). */
+  time: TimeSettings;
   /** My pick once locked, and the other's once revealed (by Side). */
   picks: [Pick | null, Pick | null];
   locked: [boolean, boolean];
@@ -85,6 +87,7 @@ const initial: OnlineState = {
   creator: false,
   opponent: null,
   map: null,
+  time: DEFAULT_TIME,
   picks: [null, null],
   locked: [false, false],
   planningEndsAt: null,
@@ -131,10 +134,10 @@ function fail(error: string) {
 }
 
 /** Start an Online Match: make a new game (creator) or join one by its Game ID. */
-export async function startOnline(opts: { name: string; map?: MapDef; gameId?: string }) {
+export async function startOnline(opts: { name: string; map?: MapDef; time?: TimeSettings; gameId?: string }) {
   leaveOnline();
   setLocalSuspended(true);
-  set({ ...initial, stage: 'connecting', creator: !opts.gameId, map: opts.map ?? null });
+  set({ ...initial, stage: 'connecting', creator: !opts.gameId, map: opts.map ?? null, time: opts.time ?? DEFAULT_TIME });
   const keep = currentGame();
   if (!(await wake())) return fail("Can't reach the server. It may be starting up: try again in a minute.");
   let me: Identity;
@@ -148,10 +151,11 @@ export async function startOnline(opts: { name: string; map?: MapDef; gameId?: s
   applyTemporaryBalance(getRepoBalance());
   rules = await rulesFingerprint();
   set({ me, gameId, stage: 'waiting' });
-  // remembered for a rejoin (a rejoining joiner keeps the map it was sent)
+  // remembered for a rejoin (a rejoining joiner keeps the map and time settings it was sent)
   const map = opts.map ?? (keep?.gameId === gameId ? keep.map : null);
-  set({ map });
-  localStorage.setItem(CURRENT_KEY, JSON.stringify({ gameId, map, creator: !opts.gameId || !!keep?.creator }));
+  const time = opts.time ?? (keep?.gameId === gameId ? validTime(keep.time) : null) ?? DEFAULT_TIME;
+  set({ map, time });
+  localStorage.setItem(CURRENT_KEY, JSON.stringify({ gameId, map, time, creator: !opts.gameId || !!keep?.creator }));
   connect(me, gameId);
 }
 
@@ -159,11 +163,11 @@ export async function startOnline(opts: { name: string; map?: MapDef; gameId?: s
 export async function rejoinOnline(name: string): Promise<boolean> {
   const cur = currentGame();
   if (!cur) return false;
-  await startOnline({ name, gameId: cur.gameId, map: cur.map ?? undefined });
+  await startOnline({ name, gameId: cur.gameId, map: cur.map ?? undefined, time: validTime(cur.time) ?? undefined });
   return true;
 }
 
-export function currentGame(): { gameId: string; map: MapDef | null; creator: boolean } | null {
+export function currentGame(): { gameId: string; map: MapDef | null; time?: TimeSettings; creator: boolean } | null {
   try {
     return JSON.parse(localStorage.getItem(CURRENT_KEY) ?? 'null');
   } catch {
@@ -182,7 +186,7 @@ function connect(me: Identity, gameId: string) {
     open: () => {
       set({ connected: true, goneSince: null });
       lastHeard = performance.now();
-      send({ t: 'hello', protocol: PROTOCOL_VERSION, rules, playerId: me.playerId, name: me.name, ...(get().creator && get().map ? { map: get().map! } : {}) });
+      send({ t: 'hello', protocol: PROTOCOL_VERSION, rules, playerId: me.playerId, name: me.name, ...(get().creator && get().map ? { map: get().map!, time: get().time } : {}) });
     },
     message: (m) => {
       lastHeard = performance.now();
@@ -258,9 +262,10 @@ async function receive(m: PeerMsg) {
     case 'hello': {
       if (m.protocol !== PROTOCOL_VERSION || m.rules !== rules) return fail('You and the other player are on different versions of the game. Both refresh the page and try again.');
       if (m.map && !s.creator) {
-        set({ map: m.map });
+        const time = validTime(m.time) ?? DEFAULT_TIME;
+        set({ map: m.map, time });
         const cur = currentGame();
-        if (cur) localStorage.setItem(CURRENT_KEY, JSON.stringify({ ...cur, map: m.map }));
+        if (cur) localStorage.setItem(CURRENT_KEY, JSON.stringify({ ...cur, map: m.map, time }));
       }
       // after a rejoin, share what has been played; the one who knows more wins
       if (s.stage === 'linking' || s.stage === 'waiting') set({ stage: 'picking' });
@@ -334,7 +339,7 @@ function beginPlanning(alreadyStarted = false) {
   });
   setOnlineHooks({ side: get().mySide!, onLocalTurn: localTurn, onPause: togglePauseOnline, canAct: () => get().stage === 'playing' && !get().pause });
   useGame.getState().startOnlineMatch(start, `Online vs ${get().opponent?.name ?? 'opponent'}`);
-  set({ stage: 'planning', planningEndsAt: Date.now() + PLANNING_MS, ready: [false, false], turns: [], banks: startBanks(), elapsed: 0 });
+  set({ stage: 'planning', planningEndsAt: Date.now() + PLANNING_MS, ready: [false, false], turns: [], banks: startBanks(get().time), elapsed: 0 });
   if (alreadyStarted) startPlaying();
 }
 
@@ -378,7 +383,7 @@ function localTurn(action: TurnAction, timeout = false) {
 function addTurn(turn: Turn, side: SideId) {
   const turns = [...get().turns, turn];
   const banks = [...get().banks] as Banks;
-  banks[side] = clockFace(banks[side], turn.ms).bank;
+  banks[side] = clockFace(banks[side], turn.ms, get().time).bank;
   set({ turns, banks, elapsed: 0 });
 }
 
@@ -417,7 +422,7 @@ function rebuild(turns: Turn[]) {
     ok.push(t);
   }
   const times = ok.map((t, i) => ({ side: sideOfTurn(i, ok), ms: t.ms }));
-  set({ turns: ok, banks: banksAfter(times), elapsed: 0 });
+  set({ turns: ok, banks: banksAfter(times, get().time), elapsed: 0 });
   useGame.getState().loadOnlinePosition(st, start, ok.map((t) => t.action));
 }
 
@@ -460,7 +465,7 @@ function tick() {
   if (g.anim || s.pause) return;
   const elapsed = s.elapsed + dt;
   set({ elapsed });
-  const allowance = turnAllowance(s.banks[mover]);
+  const allowance = turnAllowance(s.banks[mover], s.time);
   if (mover === s.mySide && elapsed >= allowance) {
     // my clock ran out: my Unit Waits (a Timeout)
     const a = timeoutAction();
@@ -583,7 +588,7 @@ async function report() {
     playerId: s.me.playerId,
     players,
     result: s.result,
-    replay: { initial: start, actions: s.turns.map((t) => t.action), times: s.turns.map((t) => t.ms), timeouts: s.turns.flatMap((t, i) => (t.timeout ? [i] : [])) },
+    replay: { initial: start, actions: s.turns.map((t) => t.action), times: s.turns.map((t) => t.ms), timeouts: s.turns.flatMap((t, i) => (t.timeout ? [i] : [])), time: s.time },
     rules,
   };
   set({ report: 'sending' });

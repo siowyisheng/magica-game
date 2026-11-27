@@ -1,4 +1,4 @@
-import { powerStat, statusesOf, type Ability, type Stats, type UnitKind } from '../rules';
+import { atkHidden, statusesOf, type Ability, type Stats, type UnitKind } from '../rules';
 import { Icon } from './icons';
 
 const ORDER: { key: keyof Stats; icon: 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'mov'; aligned: boolean }[] = [
@@ -42,7 +42,7 @@ export function StatGrid({ stats, align = 0, size = 14, atkBonus = 0, hide, boos
 /** The stat a Familiar's grid leaves out: the one its Ability doesn't use (Masters show both: MP sets Mana Income). */
 export function hiddenStat(k: UnitKind): keyof Stats | undefined {
   if (k.isMaster) return undefined;
-  return powerStat(k) === 'atk' ? 'mp' : 'atk';
+  return atkHidden(k) ? 'atk' : 'mp';
 }
 
 /** Short rules text for an Ability (no power: that comes from the user's ATK or MP). */

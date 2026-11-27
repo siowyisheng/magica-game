@@ -42,15 +42,18 @@ const EDGE_FOR_DIR: [number, number][] = DIRS.map((d) => {
   return best;
 });
 
-/** Add enclosed holes to a region so only its outer boundary remains. */
+/**
+ * Add enclosed holes to a region so only its outer boundary remains. Pits are never
+ * filled: the boundary runs round them, as it does round the map's edge.
+ */
 export function fillHoles(match: MatchState, region: Map<string, Hex>): Map<string, Hex> {
   const outside = new Set<string>();
   const queue: Hex[] = [];
   for (const mh of match.map.hexes) {
     const k = hexKey(mh.hex);
     if (region.has(k)) continue;
-    // touches the map edge → connected to the outside
-    if (DIRS.some((d) => !mapHexAt(match.map, neighbor(mh.hex, d)))) {
+    // touches the map edge, or is a Pit → connected to the outside
+    if (mh.terrain === 'pit' || DIRS.some((d) => !mapHexAt(match.map, neighbor(mh.hex, d)))) {
       outside.add(k);
       queue.push(mh.hex);
     }

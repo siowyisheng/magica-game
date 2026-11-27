@@ -1,5 +1,7 @@
 import { abilityDisplayName, alignmentBonus, classOf, CLASS_NAME, isSignature, kindOf, SIGNATURE_LIMIT, signatureStatOf, type SideId } from '../rules';
+import { useEffect, useRef } from 'react';
 import { useGame } from '../store';
+import { anchorPositions } from '../render/anchors';
 import { SIDE_COLORS } from '../render/sprites';
 import { AnimatedSprite } from './AnimatedSprite';
 import { AlignmentIcon, ClassIcon, ElementIcon } from './icons';
@@ -46,14 +48,32 @@ export function FamiliarDetail({ kindId, side, signature = false }: { kindId: st
   );
 }
 
-/** While placing a chosen summon, keep its card visible at the top-left of the board. */
+/**
+ * While placing a chosen summon, keep its card visible at the board's left or right
+ * edge, whichever is away from the summoner, so it never covers the hexes to summon onto.
+ */
 export function FamiliarCard() {
   const match = useGame((s) => s.match);
   const phase = useGame((s) => s.phase);
   const active = match.units.find((u) => u.id === match.activeUnitId);
+  const ref = useRef<HTMLDivElement>(null);
+  const placing = phase.kind === 'summonDir' && !!active;
+  useEffect(() => {
+    if (!placing || !active) return;
+    let raf = 0;
+    const loop = () => {
+      const el = ref.current;
+      const p = anchorPositions.get(`unit:${active.id}`);
+      const w = el?.parentElement?.clientWidth ?? 0;
+      if (el && p && w) el.classList.toggle('right', p.x < w / 2);
+      raf = requestAnimationFrame(loop);
+    };
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, [placing, active?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (phase.kind !== 'summonDir' || !active) return null;
   return (
-    <div className="placing-card">
+    <div className="placing-card" ref={ref}>
       <FamiliarDetail kindId={phase.summonKind} side={active.side} signature={isSignature(match, active.side, phase.summonKind)} />
     </div>
   );

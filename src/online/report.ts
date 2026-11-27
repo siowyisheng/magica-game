@@ -2,6 +2,7 @@
 // and how the server judges a pair of them. Shared by the client and the server.
 
 import type { MatchState, SideId, TurnAction } from '../rules/types';
+import type { TimeSettings } from './clock';
 
 /** How an Online Match ended. */
 export type EndReason = 'master' | 'timeLimit' | 'resign' | 'abandon';
@@ -19,6 +20,8 @@ export interface ReportReplay {
   times: number[];
   /** Turns that were a Timeout (indexes into `actions`). */
   timeouts: number[];
+  /** The Turn Timer and Time Bank the creator picked (absent: before they could be picked, 10 s and 60 s). */
+  time?: TimeSettings;
 }
 
 export interface MatchReport {
@@ -55,7 +58,7 @@ export function canonical(x: unknown): string {
  * (and who played which Side). Turn times aren't compared: lag makes them differ a little.
  */
 export function comparisonKey(r: Pick<MatchReport, 'gameId' | 'players' | 'result' | 'replay' | 'rules'>): string {
-  return canonical({ gameId: r.gameId, players: r.players, result: r.result, initial: r.replay.initial, actions: r.replay.actions, timeouts: r.replay.timeouts, rules: r.rules });
+  return canonical({ gameId: r.gameId, players: r.players, result: r.result, initial: r.replay.initial, actions: r.replay.actions, timeouts: r.replay.timeouts, time: r.replay.time, rules: r.rules });
 }
 
 /**

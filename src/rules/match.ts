@@ -1,4 +1,4 @@
-import { type Dir, type Hex, facingTowardTarget, hexDistance, hexEq, hexKey, neighbor } from './hex';
+import { type Dir, type Hex, facingToward, facingTowardTarget, hexDistance, hexEq, hexKey, neighbor } from './hex';
 import {
   BASE_DELAY_BY_SPEED,
   INCOME_MULTIPLIER,
@@ -13,7 +13,7 @@ import { DEFAULT_MASTER, FAMILIARS, kindOf } from './kinds';
 import { affectedUnits, computeDamage, computeEmpower, computeHeal, computeStatus, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
 import { alignmentBonus } from './time';
 import { isPhysical, powerOf, statusesOf } from './ability';
-import { canPlace, canSummonAt, isStranded, mapHexAt, reachable, surfaceOf } from './terrain';
+import { canPlace, canSummonAt, isStranded, mapHexAt, pathTo, reachable, surfaceOf } from './terrain';
 import { isObstacle, type GameEvent, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
 
 // ---------- delays ----------
@@ -281,6 +281,45 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
 }
 
 // ---------- facing ----------
+
+/** How near an enemy must be for a moving Unit to turn toward it (Auto-Facing). */
+export const AUTO_FACING_RANGE = 6;
+
+/**
+ * The way a Unit's move to `to` last went: the direction of the final step of its
+ * path (a flyer glides straight, so from where it started); null if it doesn't move.
+ */
+export function lastMoveDir(state: MatchState, unit: Unit, to: Hex): Dir | null {
+  if (hexEq(unit.pos, to)) return null;
+  if (kindOf(unit).moveTypes.includes('fly')) return facingToward(unit.pos, to);
+  const path = pathTo(reachable(state, unit), to);
+  if (path.length < 2) return facingToward(unit.pos, to);
+  return facingToward(path[path.length - 2], path[path.length - 1]);
+}
+
+/**
+ * Auto-Facing: the Facing a Unit takes as it ends a move on `to` (where a Wait starts
+ * from). It faces the nearest enemy Unit within AUTO_FACING_RANGE hexes; equally near
+ * ones are decided by the most damage each could deal it from the front, then the
+ * lowest id, and a target exactly between two directions by the one nearer its last
+ * step. With no enemy that near, the way its last step went. Not moving: unchanged.
+ */
+export function autoFacing(state: MatchState, unit: Unit, to: Hex): Dir {
+  const last = lastMoveDir(state, unit, to);
+  if (last === null) return unit.facing;
+  const frontHit = (e: Unit): number => {
+    const ab = kindOf(e).ability;
+    if (ab.kind !== 'damage') return 0;
+    const me: Unit = { ...unit, pos: to, facing: facingToward(to, e.pos) };
+    return computeDamage(state, e, e.pos, me, isPhysical(ab) ? 'physical' : 'magic').amount;
+  };
+  const near = state.units
+    .filter((e) => e.hp > 0 && e.side !== unit.side && e.id !== unit.id && hexDistance(e.pos, to) <= AUTO_FACING_RANGE)
+    .map((e) => ({ e, d: hexDistance(e.pos, to), hit: frontHit(e) }))
+    .sort((a, b) => a.d - b.d || b.hit - a.hit || a.e.id - b.e.id);
+  if (!near.length) return last;
+  return facingTowardTarget(to, near[0].e.pos, last);
+}
 
 /**
  * The Facing a Unit ends its turn with: the chosen Facing for Wait, toward

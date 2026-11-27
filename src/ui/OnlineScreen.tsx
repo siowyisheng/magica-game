@@ -8,6 +8,7 @@ import { useGame } from '../store';
 import { fetchReport, history, loadIdentity, wake, SERVER_URL, type HistoryEntry } from '../online/api';
 import { currentGame, rejoinOnline, startOnline, useOnline } from '../online/session';
 import { newReplay, storeReplay } from '../replay/replay';
+import { DEFAULT_TIME, formatSeconds, TIME_BANK_CHOICES_MS, TURN_TIMER_CHOICES_MS } from '../online/clock';
 
 const NAME_KEY = 'magica.online.name';
 const STATUS_TEXT = { confirmed: 'Confirmed', unconfirmed: 'Unconfirmed', contested: 'Contested', pending: 'Waiting for reports' } as const;
@@ -24,6 +25,8 @@ export function OnlineScreen() {
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? loadIdentity()?.name ?? '');
   const [code, setCode] = useState(() => joinCodeFromUrl() ?? '');
   const [mapId, setMapId] = useState(RANDOM_MAP_ID);
+  const [turnMs, setTurnMs] = useState(DEFAULT_TIME.turnMs);
+  const [bankMs, setBankMs] = useState(DEFAULT_TIME.bankMs);
   const [server, setServer] = useState<'waking' | 'up' | 'down'>('waking');
   const [past, setPast] = useState<HistoryEntry[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -93,7 +96,27 @@ export function OnlineScreen() {
               <option value={RANDOM_MAP_ID}>Random map</option>
             </select>
           </label>
-          <button disabled={!ready} onClick={() => go(() => startOnline({ name, map: mapFor(mapId) }))}>
+          <label className="dev-field">
+            <span>Turn Timer</span>
+            <select value={turnMs} onChange={(e) => setTurnMs(Number(e.target.value))}>
+              {TURN_TIMER_CHOICES_MS.map((ms) => (
+                <option key={ms} value={ms}>
+                  {ms / 1000} s a turn
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="dev-field">
+            <span>Time Bank</span>
+            <select value={bankMs} onChange={(e) => setBankMs(Number(e.target.value))}>
+              {TIME_BANK_CHOICES_MS.map((ms) => (
+                <option key={ms} value={ms}>
+                  {ms ? formatSeconds(ms) : 'None'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button disabled={!ready} onClick={() => go(() => startOnline({ name, map: mapFor(mapId), time: { turnMs, bankMs } }))}>
             Create
           </button>
           <div className="muted small">You’ll get a Game ID to send to the other player.</div>

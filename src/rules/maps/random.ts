@@ -12,10 +12,13 @@
 //   middle with fords, or thin streams; sometimes a second, smaller kind as well.
 // - Pits bite into the edges (and sometimes the middle), so each map has its own shape.
 //   Every tile touches at least 3 other tiles: no stray hexes or thin spurs.
-// - Heights run from 1 (Shallow Water) to 4. Plateaus at 4 with part of the ground
+// - Heights run from 1 (Shallow Water) to 4, with at most 5% of the hexes that aren't
+//   Pits at 4 (hills, plateaus and pillars share that budget). Plateaus at 4 with part of the ground
 //   around them dropped to 2, so most edges are 2-Height cliffs and the rest steps:
 //   a walking Unit can reach every dry hex but a pillar. About a quarter of maps have
 //   a pair of pillars (1–2 hexes) that only Fly reaches.
+// - Every Water Body (water hexes joined edge to edge) is at least 2 hexes; one holding
+//   a Stone at least 3.
 // - At least half of every body of water's shore is Wade Entries (beaches).
 // - 7–12 Magic Stones, mostly 4–7 hexes apart (rarely 2–3), never on the map's edge (every
 //   neighbour is a hex that isn't a Pit). About 2/3 of maps have an odd count; those
@@ -69,6 +72,13 @@ const SHALLOW = 1;
 const LOW = 2;
 /** The highest ground: hilltops, plateaus and pillars. */
 const HIGH = 4;
+/** Most of the hexes that aren't Pits that may be at Height 4 (pillars included). */
+export const RANDOM_MAP_MAX_HIGH_SHARE = 0.05;
+/** The share of the Height-4 budget hills may take; plateaus and pillars get the rest. */
+const HILL_SHARE_OF_HIGH = 0.4;
+/** Fewest water hexes in a Water Body, and in one holding a Stone. */
+export const RANDOM_MAP_MIN_WATER_BODY = 2;
+export const RANDOM_MAP_MIN_STONE_WATER_BODY = 3;
 /** Fewest other tiles (not Pits) every tile must touch. */
 export const MIN_TILE_NEIGHBOURS = 3;
 /** Most of the map Pits may take in the end. */
@@ -232,10 +242,18 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   /** How far off the symmetry line (0: as far from one Master as from the other). */
   const offLine = (c: Cell) => Math.abs(d0(c) - d1(c));
 
-  // ---- relief: hills, low ground, Rough
+  // ---- relief: hills, low ground, Rough. Height 4 is scarce (RANDOM_MAP_MAX_HIGH_SHARE of
+  // the hexes that aren't Pits): hills take part of it, plateaus and pillars the rest.
+  const high = () => b.cells.filter((c) => c.terrain !== 'pit' && c.height === HIGH).length;
+  const solidCount = () => b.cells.filter((c) => c.terrain !== 'pit').length;
+  /** Pits aren't carved yet: budget as if they took the most they may. */
+  const highBudget = Math.floor(RANDOM_MAP_MAX_HIGH_SHARE * b.cells.length * (1 - MAX_PIT_SHARE_AFTER_CLEANUP));
   for (let i = int(2, 5); i > 0; i--) {
-    const radius = int(1, 2);
-    b.blob(anyCell(), radius, (c) => {
+    const at = anyCell();
+    const radius = int(0, 1);
+    const adds = b.cells.filter((c) => c.height !== HIGH && hexDistance(c.hex, at.hex) <= radius).length * 2;
+    if (high() + adds > highBudget * HILL_SHARE_OF_HIGH) continue;
+    b.blob(at, radius, (c) => {
       c.height = Math.max(c.height, HIGH);
     });
   }
@@ -368,7 +386,11 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   for (let i = int(1, 3); i > 0; i--) {
     const roots = b.cells.filter((c) => solid(c) && away(c, 5) && !raised.has(c) && hexDistance(c.hex, b.mirror(c).hex) > 6);
     if (!roots.length) break;
-    const plateau = grow(pick(roots), int(3, 10)).filter((c) => solid(c) && away(c, 4) && !raised.has(c) && hexDistance(c.hex, b.mirror(c).hex) > 3);
+    // what's left of the Height-4 budget, a pillar's share held back, in mirrored pairs
+    const room = Math.floor((Math.floor(RANDOM_MAP_MAX_HIGH_SHARE * solidCount()) - high() - 4) / 2);
+    const plateau = grow(pick(roots), int(3, 10))
+      .filter((c) => solid(c) && away(c, 4) && !raised.has(c) && hexDistance(c.hex, b.mirror(c).hex) > 3)
+      .slice(0, Math.max(0, room));
     if (plateau.length < 2) continue;
     const ring = ringOf(plateau).filter(droppable);
     raise(plateau);
@@ -388,7 +410,7 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
       const c = pick(roots);
       const cells = r() < 0.5 ? [c] : [c, ...nbrs(c).filter((n) => roots.includes(n)).slice(0, 1)];
       const ring = ringOf(cells);
-      if (ring.every(droppable)) {
+      if (ring.every(droppable) && high() + cells.length * 2 <= Math.floor(RANDOM_MAP_MAX_HIGH_SHARE * solidCount())) {
         raise(cells);
         for (const n of ring) setH(n, LOW);
         for (const x of cells) (pillars.add(x), pillars.add(b.mirror(x)));
@@ -412,6 +434,7 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
     }
   }
   if (pits() > MAX_PIT_SHARE_AFTER_CLEANUP) return null;
+  if (high() > RANDOM_MAP_MAX_HIGH_SHARE * solidCount()) return null;
 
   // ---- Magic Stones
   const n = oddStones ? pick([7, 9, 11]) : pick([8, 10, 12]);
@@ -493,6 +516,41 @@ function attempt(r: () => number, seed: number, themes: string[], oddStones: boo
   let laid = false;
   for (let i = 0; i < STONE_LAYOUT_TRIES && !laid; i++) laid = layStones();
   if (!laid) return null;
+
+  // ---- Water Bodies: none of a single hex (filled in as low ground), and one holding a
+  // Stone at least 3 hexes (grown into the land around it, or the layout is given up).
+  {
+    const isWet = (c: Cell) => c.terrain !== 'pit' && c.height < WATER_LEVEL;
+    const bodyOf = (start: Cell): Cell[] => {
+      const body = [start];
+      const seen = new Set(body);
+      for (let i = 0; i < body.length; i++) for (const n of nbrs(body[i])) if (isWet(n) && !seen.has(n)) (seen.add(n), body.push(n));
+      return body;
+    };
+    /** Land a pool may grow into: open ground at Plain or below, clear of the Masters' corners. */
+    const growable = (c: Cell) => isLand(c) && c.terrain !== 'stone' && c.height <= PLAIN && !pillars.has(c) && d0(c) >= 3 && d1(c) >= 3;
+    for (let changed = true; changed; ) {
+      changed = false;
+      const done = new Set<Cell>();
+      for (const start of b.cells) {
+        if (!isWet(start) || done.has(start)) continue;
+        const body = bodyOf(start);
+        for (const c of body) done.add(c);
+        const min = body.some((c) => c.terrain === 'stone') ? RANDOM_MAP_MIN_STONE_WATER_BODY : RANDOM_MAP_MIN_WATER_BODY;
+        if (body.length >= min) continue;
+        if (min === RANDOM_MAP_MIN_WATER_BODY) {
+          for (const c of body) for (const x of [c, b.mirror(c)]) ((x.height = LOW), (x.terrain = 'plain'));
+        } else {
+          const options = [...new Set(body.flatMap(nbrs))].filter(growable);
+          if (!options.length) return null;
+          const c = pick(options);
+          for (const x of [c, b.mirror(c)]) ((x.height = SHALLOW), (x.terrain = 'plain'));
+        }
+        changed = true;
+        break;
+      }
+    }
+  }
 
   // ---- Wade Entries: in every body of water, at least half (50–90%) of the edges to the
   // land around it are beaches, land exactly 1 above the water hex, where wading Units

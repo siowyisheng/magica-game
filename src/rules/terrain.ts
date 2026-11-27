@@ -152,6 +152,9 @@ export function canSummonAt(state: MatchState, kind: UnitKind, from: Hex, h: Hex
   return !!a && Math.abs(surfaceHeight(b, state.waterLevel) - surfaceHeight(a, state.waterLevel)) <= SUMMON_MAX_STEP;
 }
 
+/** Most Heights a ZOC hex may be above or below the Unit exerting it. */
+export const ZOC_MAX_STEP = 1;
+
 /** Hexes in the Zone of Control of `side`'s enemies. */
 export function enemyZoc(state: MatchState, side: number): Set<string> {
   const zoc = new Set<string>();
@@ -163,6 +166,8 @@ export function enemyZoc(state: MatchState, side: number): Set<string> {
     for (const n of neighbors(e.pos)) {
       const to = mapHexAt(state.map, n);
       if (!to || obstacleAt(state, n)) continue;
+      // only hexes within 1 Height of its own (water at the Water Level): a flyer doesn't hold a cliff top or foot
+      if (Math.abs(surfaceHeight(to, state.waterLevel) - surfaceHeight(from, state.waterLevel)) > ZOC_MAX_STEP) continue;
       const c = stepCost(ek, from, to, state.waterLevel);
       if (c && c.canStand) zoc.add(hexKey(n));
     }

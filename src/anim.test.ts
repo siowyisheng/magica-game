@@ -1,7 +1,7 @@
 import { withAbility } from './testing/spells';
 import { onTestFinished, describe, expect, it } from 'vitest';
 import { planTurnAnim } from './anim';
-import { createMatch, getUnit, hex, type MapDef, type MapHex } from './rules';
+import { createMatch, getUnit, hex, hexEq, neighbor, type MapDef, type MapHex } from './rules';
 
 function flatMap(w: number, h: number): MapDef {
   const hexes: MapHex[] = [];
@@ -122,9 +122,12 @@ describe('Empower animation', () => {
     const me = getUnit(s, s.activeUnitId!);
     s.units = s.units.map((u) => (u.id === me.id ? { ...u, kind: 'wisp' } : u));
     s.sides[me.side].mana = 50;
-    const a = planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: me.pos } }, 0, true);
+    // Kindle can't Empower itself (its ATK is hidden): an ally next to it
+    const ally = { id: 900, kind: 'hound', side: me.side, pos: neighbor(me.pos, ([0, 1, 2, 3, 4, 5] as const).find((d) => !s.units.some((u) => hexEq(u.pos, neighbor(me.pos, d))) && !!s.map.hexes.find((h) => hexEq(h.hex, neighbor(me.pos, d))))!), facing: 0 as const, hp: 10, av: 50, stranded: false };
+    s.units.push(ally);
+    const a = planTurnAnim(s, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: ally.pos } }, 0, true);
     expect(a.steps.map((x) => x.kind)).toEqual(['empower']);
-    expect(a.impacts).toEqual([{ unitId: me.id, t: EMPOWER_MS * EMPOWER_PEAK, kind: 'empower', amount: 3, hpAfter: me.hp, lethal: false }]);
+    expect(a.impacts).toEqual([{ unitId: ally.id, t: EMPOWER_MS * EMPOWER_PEAK, kind: 'empower', amount: 3, hpAfter: ally.hp, lethal: false }]);
   });
 });
 
