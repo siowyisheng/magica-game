@@ -13,7 +13,7 @@ export interface StoredMap {
 
 const KEY = 'magica.maps';
 
-export const BUILTIN_MAPS: StoredMap[] = [{ id: 'builtin:scaffold-ford', builtin: true, map: SCAFFOLD_MAP }];
+export const BUILTIN_MAPS: StoredMap[] = [];
 
 function readUser(): StoredMap[] {
   try {
