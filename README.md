@@ -20,7 +20,7 @@ npm run server   # the Online Match server, http://localhost:8787 (docs/online.m
 | --- | --- |
 | `src/rules/` | Pure TypeScript rules core: no React, three.js or DOM, integer math only. Hex math, terrain and movement (Move Types, Height, Water Level, ZOC), combat (damage = ATK − DEF (MP − MDF for Magic) + Element Bonus + hex-ring Facing Bonus − terrain cover, with Alignment shifting the stats; abilities have only a maximum range and no power), AV / Turn Delay, Mana, Summoning, Capture, Stranded, Stone Heal, timeline projection. |
 | `src/rules/data/` | Tuning tables (Base Delay by Speed, Mana and cover constants), the 30 Masters and the 40 Familiars. |
-| `src/rules/maps/scaffold.ts` | The fixed 15×13 map with 7 Magic Stones and a river (Water Level 2). |
+| `src/rules/maps/random.ts` | The Random Map generator: every match is played on a random map by default (or one of your own from the editor). |
 | `src/ai/ai.ts` | One-ply, timeline-aware AI. It scores every reachable hex × Command × target, including the threat from enemies who act before its next turn. Weights live in `AI_WEIGHTS`. |
 | `src/store.ts` | UI state machine (move → command menu with facing → target). It produces one `TurnAction` for the rules. |
 | `src/render/` | three.js scene: orthographic camera, themed hex columns (`themes.ts`, `Terrain.tsx`), Pits, Obstacles, water, stones, highlights, and the unit sprites, rendered from small 3D part models into cel-shaded pixel art (`spritegen/`). |

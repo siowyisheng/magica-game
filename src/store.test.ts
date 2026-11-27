@@ -1,7 +1,11 @@
 import { withAbility } from './testing/spells';
 import { onTestFinished, describe, expect, it, beforeEach, vi } from 'vitest';
 import { closestFacing, useGame } from './store';
-import { activeUnit, getUnit, hex, planAct } from './rules';
+import { activeUnit, generateRandomMap, getUnit, hex, mapHexAt, planAct } from './rules';
+
+/** A fixed random map, so these tests see the same board every run. */
+const TEST_MAP = generateRandomMap(20261127);
+const newTestMatch = () => useGame.getState().startMatch(TEST_MAP);
 
 describe('closestFacing', () => {
   it('picks the hex direction with the closest angle', () => {
@@ -16,8 +20,8 @@ describe('closestFacing', () => {
 
 describe('facing is set while the command menu is open', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
-    useGame.getState().newMatch();
+    useGame.setState({ animate: false, setup: { mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    newTestMatch();
   });
 
   it('left-click on the map sets facing; Wait commits immediately with it', () => {
@@ -53,8 +57,8 @@ describe('facing is set while the command menu is open', () => {
 
 describe('selection, quick actions and range toggles', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
-    useGame.getState().newMatch();
+    useGame.setState({ animate: false, setup: { mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    newTestMatch();
   });
 
   const placeFoe = (dq: number, dr: number) => {
@@ -71,6 +75,8 @@ describe('selection, quick actions and range toggles', () => {
     onTestFinished(withAbility(['regent'], 'bolt'));
     let found: ReturnType<typeof placeFoe> | null = null;
     for (const [dq, dr] of [[0, -6], [1, -6], [2, -6], [0, -5], [3, -6], [-1, -5], [2, -7]]) {
+      const me0 = activeUnit(useGame.getState().match)!;
+      if (!mapHexAt(useGame.getState().match.map, hex(me0.pos.q + dq, me0.pos.r + dr))) continue;
       const c = placeFoe(dq, dr);
       if (planAct(useGame.getState().match, c.me, c.foe)) {
         found = c;
@@ -126,8 +132,8 @@ describe('selection, quick actions and range toggles', () => {
 describe('choosing a summon hex', () => {
   it('selects the valid adjacent hex closest in angle to the cursor, even through crowded hexes', async () => {
     const { summonDirToward, validSummonDirs } = await import('./store');
-    useGame.setState({ animate: false, setup: { mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
-    useGame.getState().newMatch();
+    useGame.setState({ animate: false, setup: { mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    newTestMatch();
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
     // block the NE neighbour's lower neighbours (SW and SE of it) and the E neighbour
@@ -146,7 +152,7 @@ describe('choosing a summon hex', () => {
 describe('quick action animation', () => {
   it('slides the unit from its own hex (the move is animated, not skipped)', () => {
     useGame.setState({ animate: true });
-    useGame.getState().newMatch();
+    newTestMatch();
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
     const foe = m.units.find((x) => x.side !== me.side)!;
@@ -168,7 +174,7 @@ describe('handing a Side to a person', () => {
     vi.useFakeTimers();
     try {
       useGame.setState({ animate: true, anim: null, aiThinking: false });
-      useGame.getState().startFromSetup({ mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, true] });
+      useGame.getState().startFromSetup({ mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, true] });
       for (let i = 0; i < 40 && !useGame.getState().anim; i++) {
         useGame.getState().tickAi();
         vi.advanceTimersByTime(500);

@@ -20,7 +20,6 @@ import {
   projectTimeline,
   reachable,
   ringPosition,
-  SCAFFOLD_MAP,
   FAMILIARS,
   turnDelay,
   validateTurn,
@@ -40,6 +39,10 @@ import {
 import { ELEMENTS } from './data/familiars';
 import * as matchModule from './match';
 import { MANA_START } from './data/tuning';
+import { generateRandomMap as makeTestMap } from './index';
+
+/** A fixed random map (the same every run): Scaffold Ford is gone. */
+const TEST_MAP = makeTestMap(20261127);
 
 // ---------- helpers ----------
 
@@ -359,7 +362,7 @@ describe('movement', () => {
 
 describe('match flow', () => {
   it('starts both masters with Base Delay; human first on ties', () => {
-    const s = createMatch(SCAFFOLD_MAP);
+    const s = createMatch(TEST_MAP);
     expect(s.clock).toBe(6 * 60 + 25); // Regent, SPD 13
     expect(getUnit(s, s.activeUnitId!).side).toBe(0);
   });
@@ -461,7 +464,7 @@ describe('match flow', () => {
   });
 
   it('projects a timeline with previewed delay for the active unit', () => {
-    const s = createMatch(SCAFFOLD_MAP);
+    const s = createMatch(TEST_MAP);
     const tl = projectTimeline(s, 12, 28);
     expect(tl).toHaveLength(12);
     expect(tl[0].unitId).not.toBe(s.activeUnitId); // other master acts at 06:28 too, before our new 28
@@ -470,7 +473,7 @@ describe('match flow', () => {
 
   it('is deterministic: replaying the same actions yields the same state', () => {
     const play = () => {
-      let st = createMatch(SCAFFOLD_MAP);
+      let st = createMatch(TEST_MAP);
       for (let i = 0; i < 6; i++) {
         const u = getUnit(st, st.activeUnitId!);
         st = applyTurn(st, { unitId: u.id, to: u.pos, facing: u.facing, command: { type: 'wait' } }).state;
@@ -549,12 +552,12 @@ describe('targeting without minimum range', () => {
 });
 
 describe('water level bounds and map water rules', () => {
-  it('Ebb goes at most 1 below the start; the scaffold map keeps Deep Water and floods ≤ 40% on Rise', async () => {
+  it('Ebb goes at most 1 below the start, Rise at most 1 above; a Random Map passes the water rules', async () => {
     const { validateMapWater } = await import('./index');
-    const s = createMatch(SCAFFOLD_MAP);
-    expect(s.minWaterLevel).toBe(SCAFFOLD_MAP.waterLevel - 1);
-    expect(s.maxWaterLevel).toBe(SCAFFOLD_MAP.waterLevel + 1);
-    expect(validateMapWater(SCAFFOLD_MAP)).toEqual([]);
+    const s = createMatch(TEST_MAP);
+    expect(s.minWaterLevel).toBe(TEST_MAP.waterLevel - 1);
+    expect(s.maxWaterLevel).toBe(TEST_MAP.waterLevel + 1);
+    expect(validateMapWater(TEST_MAP)).toEqual([]);
   });
 
   it('a map with only Shallow Water is valid; one with Deep must keep some after an Ebb', async () => {
@@ -837,7 +840,7 @@ describe('masters', () => {
   });
 
   it('lets each Side start with its chosen Master', () => {
-    const s = createMatch(SCAFFOLD_MAP, { masters: ['efreet', 'lich'] });
+    const s = createMatch(TEST_MAP, { masters: ['efreet', 'lich'] });
     expect(s.units.map((u) => u.kind)).toEqual(['efreet', 'lich']);
   });
 
@@ -872,7 +875,7 @@ describe('loadouts', () => {
   it('only lets a Side Summon what is in its Loadout; no Loadout means all', async () => {
     const { activeUnit } = await import('./index');
     const swarm = FAMILIARS.filter((k) => k.cost <= 56).map((k) => k.id).slice(0, 20);
-    const s = createMatch(SCAFFOLD_MAP, { rosters: [swarm, null] });
+    const s = createMatch(TEST_MAP, { rosters: [swarm, null] });
     const me = activeUnit(s)!;
     s.sides[me.side].mana = 120;
     const dir = ([0, 1, 2, 3, 4, 5] as const).find((d) => validateTurn(s, { unitId: me.id, to: me.pos, facing: d, command: { type: 'summon', kind: 'imp', dir: d } }) === null)!;
@@ -890,7 +893,7 @@ describe('loadouts', () => {
 describe('summon limits and Signatures', () => {
   const setup = (signature: string | null) => {
     const roster = FAMILIARS.filter((k) => k.cost <= 56).map((k) => k.id).slice(0, 20);
-    const s = createMatch(SCAFFOLD_MAP, { rosters: [roster, roster], signatures: [signature, signature] });
+    const s = createMatch(TEST_MAP, { rosters: [roster, roster], signatures: [signature, signature] });
     const me = getUnit(s, s.activeUnitId!);
     s.sides[me.side].mana = 120;
     return { s, me };
@@ -928,7 +931,7 @@ describe('summon limits and Signatures', () => {
   });
 
   it('has no limits and no Signature in a Test Match', () => {
-    const s = createMatch(SCAFFOLD_MAP, { signatures: ['imp', 'imp'] });
+    const s = createMatch(TEST_MAP, { signatures: ['imp', 'imp'] });
     expect(summonLimit(s, 0, 'imp')).toBe(Infinity);
     expect(isSignature(s, 0, 'imp')).toBe(false);
   });
@@ -938,7 +941,7 @@ describe('time limit', () => {
   it('ends the match 72 hours in: more Stones wins, then more HP, else a draw', async () => {
     const { advanceForTest } = await import('./match');
     const mk = () => {
-      const s = createMatch(SCAFFOLD_MAP);
+      const s = createMatch(TEST_MAP);
       s.clock = s.timeLimit - 5;
       for (const u of s.units) u.av = 10;
       return s;

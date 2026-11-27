@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { TRACKS, composeTrack, degreeMidi, pickNextTrack, trackScore, clashes } from './tracks';
 import { turnCues, battleTension } from './cues';
-import { createMatch, SCAFFOLD_MAP, activeUnit, applyTurn, type TurnAction } from '../rules';
+import { createMatch, activeUnit, applyTurn, type TurnAction } from '../rules';
 import { planTurnAnim } from '../anim';
+import { generateRandomMap as makeTestMap } from '../rules';
+
+/** A fixed random map (the same every run): Scaffold Ford is gone. */
+const TEST_MAP = makeTestMap(20261127);
 
 describe('music tracks', () => {
   it('has five tracks with distinct ids', () => {
@@ -72,7 +76,7 @@ describe('smart shuffle', () => {
 
 describe('turn sound cues', () => {
   it('plays a step per hex moved and nothing before the move', () => {
-    const m = createMatch(SCAFFOLD_MAP, { ai: [false, true], seed: 1 });
+    const m = createMatch(TEST_MAP, { ai: [false, true], seed: 1 });
     const u = activeUnit(m)!;
     const to = { q: u.pos.q, r: u.pos.r - 2 };
     const action: TurnAction = { unitId: u.id, to, facing: u.facing, command: { type: 'wait' } };
@@ -85,7 +89,7 @@ describe('turn sound cues', () => {
   });
 
   it('rates a fresh match as calm', () => {
-    const m = createMatch(SCAFFOLD_MAP, { ai: [false, true], seed: 1 });
+    const m = createMatch(TEST_MAP, { ai: [false, true], seed: 1 });
     expect(battleTension(m)).toBeLessThan(0.4);
   });
 });

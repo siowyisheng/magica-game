@@ -1,17 +1,22 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { SCAFFOLD_MAP, hexKey, validateMap } from '../rules';
+import { hexKey, validateMap } from '../rules';
 import { blankDraft, fromMapDef, toMapDef, useEditor } from './editorStore';
+import { generateRandomMap as makeTestMap } from '../rules';
+
+/** A fixed random map (the same every run): Scaffold Ford is gone. */
+const TEST_MAP = makeTestMap(20261127);
 
 describe('map editor', () => {
   beforeEach(() => useEditor.getState().load(blankDraft()));
 
-  it('round-trips the built-in map through a draft', () => {
-    const d = fromMapDef(SCAFFOLD_MAP, 'builtin:scaffold-ford', true);
+  it('round-trips a map through a draft', () => {
+    const d = fromMapDef(TEST_MAP, 'test-map', true);
     const m = toMapDef(d);
     const key = (h: { hex: { q: number; r: number }; height: number; terrain: string }) => `${hexKey(h.hex)}|${h.height}|${h.terrain}`;
-    expect(m.hexes.map(key).sort()).toEqual(SCAFFOLD_MAP.hexes.map(key).sort());
-    expect(m.spawns).toEqual(SCAFFOLD_MAP.spawns);
-    expect(validateMap(SCAFFOLD_MAP)).toEqual([]);
+    const solid = (hs: typeof TEST_MAP.hexes) => hs.filter((h) => h.terrain !== 'pit').map(key).sort(); // a Pit and a missing hex are the same
+    expect(solid(m.hexes)).toEqual(solid(TEST_MAP.hexes));
+    expect(m.spawns).toEqual(TEST_MAP.spawns);
+    expect(validateMap(TEST_MAP)).toEqual([]);
   });
 
   it('starts from a valid blank map', () => {

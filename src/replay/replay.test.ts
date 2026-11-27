@@ -12,7 +12,7 @@ const mem = new Map<string, string>();
 const { useGame } = await import('../store');
 const lib = await import('./replay');
 
-const SETUP = { mapId: 'builtin:scaffold-ford', test: true, masters: ['regent', 'regent'] as [string, string], loadouts: ['random', 'random'] as [string, string] };
+const SETUP = { mapId: 'random', test: true, masters: ['regent', 'regent'] as [string, string], loadouts: ['random', 'random'] as [string, string] };
 
 /** Play `n` AI turns of a fresh AI vs AI match (no animation). */
 function playAi(n: number) {

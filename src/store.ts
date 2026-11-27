@@ -20,7 +20,6 @@ import {
   kindOf,
   planAct,
   reachable,
-  SCAFFOLD_MAP,
   validateTurn,
   formatClock,
   unitAt,
@@ -41,7 +40,7 @@ import {
 } from './rules';
 import { autoLoadout, chooseAction } from './ai/ai';
 import { getLoadout, isPlayable } from './loadouts/library';
-import { mapFor } from './maps/library';
+import { mapFor, randomMap, RANDOM_MAP_ID } from './maps/library';
 import { animWallMs, planTurnAnim, type TurnAnim } from './anim';
 import { ReplayCursor, loadReplay, newReplay, replayProblem, storeReplay, type Replay } from './replay/replay';
 
@@ -63,7 +62,7 @@ export interface MatchSetup {
 const SETUP_KEY = 'magica.setup';
 function loadSetup(): MatchSetup {
   const d: MatchSetup = {
-    mapId: 'builtin:scaffold-ford',
+    mapId: RANDOM_MAP_ID,
     test: false,
     masters: ['regent', 'random'],
     loadouts: ['random', 'random'],
@@ -74,6 +73,7 @@ function loadSetup(): MatchSetup {
     // setups saved before the rename keep their Masters under `summoners`
     if (!saved.masters && Array.isArray(saved.summoners)) saved.masters = saved.summoners;
     delete saved.summoners;
+    if (saved.mapId && saved.mapId !== RANDOM_MAP_ID && !mapFor(saved.mapId)) saved.mapId = RANDOM_MAP_ID;
     return { ...d, ...saved };
   } catch {
     return d;
@@ -383,7 +383,8 @@ export const useGame = create<Store>((set, get) => {
   };
 
   const initialSetup = loadSetup();
-  const initial = createMatch(mapFor(initialSetup.mapId) ?? SCAFFOLD_MAP, { ai: initialSetup.ai, seed: Date.now() & 0xffff, ...resolveSetup(initialSetup) });
+  // a map that no longer exists (Scaffold Ford, a deleted one): a random map instead
+  const initial = createMatch(mapFor(initialSetup.mapId) ?? randomMap(), { ai: initialSetup.ai, seed: Date.now() & 0xffff, ...resolveSetup(initialSetup) });
 
   return {
     match: initial,

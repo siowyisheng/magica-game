@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { applyTurn, createMatch, facingToward, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex, type MatchState } from '../rules';
+import { applyTurn, createMatch, facingToward, hex, validateTurn, type MapDef, type MapHex, type MatchState } from '../rules';
 import { autoLoadout, chooseAction } from './ai';
 import { loadoutProblems, kindOf, randomLoadout, mulberry32, FAMILIARS } from '../rules';
+import { generateRandomMap as makeTestMap } from '../rules';
+
+/** A fixed random map (the same every run): Scaffold Ford is gone. */
+const TEST_MAP = makeTestMap(20261127);
 
 describe('AI', () => {
   it('plays legal turns in a headless AI-vs-AI match', () => {
-    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 7 });
+    let st = createMatch(TEST_MAP, { ai: [true, true], seed: 7 });
     let turns = 0;
     const t0 = Date.now();
     while (st.winner === null && turns < 300) {
@@ -20,9 +24,9 @@ describe('AI', () => {
   }, 120000);
 
   it('plays legal turns on a map with Pits and Obstacles', () => {
-    const hexes: MapHex[] = SCAFFOLD_MAP.hexes.map((h, i) => (i % 23 === 5 && h.terrain === 'plain' && h.height >= 3 ? { ...h, terrain: 'pit' } : h));
-    const free = hexes.filter((h) => h.terrain === 'plain' && h.height >= 3 && !SCAFFOLD_MAP.spawns.some((s) => s.q === h.hex.q && s.r === h.hex.r));
-    const map: MapDef = { ...SCAFFOLD_MAP, hexes, obstacles: free.filter((_, i) => i % 9 === 4).map((h, i) => ({ hex: h.hex, def: ([2, 4, 6] as const)[i % 3] })) };
+    const hexes: MapHex[] = TEST_MAP.hexes.map((h, i) => (i % 23 === 5 && h.terrain === 'plain' && h.height >= 3 ? { ...h, terrain: 'pit' } : h));
+    const free = hexes.filter((h) => h.terrain === 'plain' && h.height >= 3 && !TEST_MAP.spawns.some((s) => s.q === h.hex.q && s.r === h.hex.r));
+    const map: MapDef = { ...TEST_MAP, hexes, obstacles: free.filter((_, i) => i % 9 === 4).map((h, i) => ({ hex: h.hex, def: ([2, 4, 6] as const)[i % 3] })) };
     let st = createMatch(map, { ai: [true, true], seed: 3 });
     expect(st.obstacles.length).toBeGreaterThan(3);
     for (let turns = 0; st.winner === null && turns < 120; turns++) {
@@ -57,7 +61,7 @@ describe('AI', () => {
     const heavy = randomLoadout(mulberry32(3));
     // a cheap Signature, so the AI wants several (applyTurn would throw on an illegal summon)
     const sig = [...heavy].sort((x, y) => kindOf(x).cost - kindOf(y).cost)[0];
-    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy], signatures: [sig, sig] });
+    let st = createMatch(TEST_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy], signatures: [sig, sig] });
     for (let i = 0; i < 80 && st.winner === null; i++) {
       const a = chooseAction(st);
       if (a.command.type === 'summon') expect(heavy).toContain(a.command.kind);
@@ -71,8 +75,8 @@ describe('AI', () => {
 describe('never playing for time', () => {
   it('values a position the same whatever the hour: Stones count for their Mana, not the Time Limit', async () => {
     const { evaluate } = await import('./ai');
-    const { createMatch, SCAFFOLD_MAP } = await import('../rules');
-    const s = createMatch(SCAFFOLD_MAP);
+    const { createMatch } = await import('../rules');
+    const s = createMatch(TEST_MAP);
     s.stones = s.stones.map((st, i) => ({ ...st, owner: i % 3 === 0 ? 1 : 0 }));
     const early = evaluate(s, 0);
     const late = evaluate({ ...s, clock: s.timeLimit - 30 }, 0);
@@ -107,7 +111,7 @@ describe('healers', () => {
 
 describe('Stones and pointless hits', () => {
   it('never deals damage that deals 0', () => {
-    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 11 });
+    let st = createMatch(TEST_MAP, { ai: [true, true], seed: 11 });
     for (let turns = 0; st.winner === null && turns < 200; turns++) {
       const me = st.units.find((u) => u.id === st.activeUnitId)!;
       const a = chooseAction(st);
@@ -432,7 +436,7 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
 describe('the light scorer (for Hard\'s playouts)', () => {
   it('scores the same moves, cheaper, and Hard plays a legal move with it', async () => {
     const { rankCandidates, AI_WEIGHTS, LOOKAHEAD } = await import('./ai');
-    const st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 3, masters: ['regent', 'lich'], rosters: [randomLoadout(mulberry32(1)), randomLoadout(mulberry32(2))] });
+    const st = createMatch(TEST_MAP, { ai: [true, true], seed: 3, masters: ['regent', 'lich'], rosters: [randomLoadout(mulberry32(1)), randomLoadout(mulberry32(2))] });
     let s = st;
     for (let i = 0; i < 12 && s.winner === null; i++) s = applyTurn(s, chooseAction(s, undefined, 'normal')).state;
     const full = rankCandidates(s, AI_WEIGHTS).candidates;

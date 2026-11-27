@@ -116,7 +116,7 @@ _Avoid_: Weakness, advantage
 ## Turns and time
 
 **Game Clock**:
-The match's 24-hour in-game time. One minute of Game Clock equals one point of Action Value. In the scaffold it starts at 06:00.
+The match's 24-hour in-game time. One minute of Game Clock equals one point of Action Value. A match starts at 06:00.
 
 **Action Value (AV)**:
 How many Game Clock minutes are left before a Unit acts next. The Unit with the lowest AV acts. Masters start a match with their Base Delay, as if they had just Waited.
