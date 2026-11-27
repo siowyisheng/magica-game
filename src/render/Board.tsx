@@ -32,7 +32,7 @@ import {
   facingTowardTarget,
 } from '../rules';
 import { blockedShotView, hoverQuick, summonDirToward, useGame } from '../store';
-import { classIconName, iconPixels, type IconName } from '../ui/icons';
+import { classColor, classIconName, iconPixels, type IconName } from '../ui/icons';
 import { FENCE_HEIGHT, cornerPosts, fenceGeometry, regionSegments, ribbonGeometry, type LineStyle } from './outlines';
 import {
   ELEMENT_COLORS,
@@ -287,8 +287,8 @@ interface OutlineLayer {
 }
 
 /** How strongly the Move Range and Reach tiles are tinted. */
-const MOVE_FILL = 0.16;
-const REACH_FILL = 0.11;
+const MOVE_FILL = 0.42;
+const REACH_FILL = 0.34;
 
 /** `a` without the hexes of `b`. */
 function minus(a: Map<string, Hex>, b: Map<string, Hex>): Map<string, Hex> {
@@ -369,7 +369,7 @@ function hatchTexture(): THREE.Texture {
   const c = document.createElement('canvas');
   c.width = c.height = n;
   const g = c.getContext('2d')!;
-  g.fillStyle = 'rgba(255,255,255,0.45)';
+  g.fillStyle = 'rgba(255,255,255,0.3)';
   g.fillRect(0, 0, n, n);
   g.fillStyle = '#ffffff';
   // two-pixel stripes every 8 pixels, running corner to corner (seamless when tiled)
@@ -592,26 +592,31 @@ function useTargetMarks(): Map<number, TargetMark> {
 
 const badgeCache = new Map<string, THREE.Texture>();
 /** A Class icon on a small badge in the Side's colour (11×11 pixels, drawn crisp). */
-function classBadgeTexture(name: IconName, side: SideId): THREE.Texture {
-  const key = `${name}|${side}`;
+function classBadgeTexture(name: IconName, side: SideId, fill: string): THREE.Texture {
+  const key = `${name}|${side}|${fill}`;
   let t = badgeCache.get(key);
   if (t) return t;
-  const n = 11;
+  const n = 13;
   const cv = document.createElement('canvas');
   cv.width = cv.height = n;
   const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = '#10121a';
-  ctx.fillRect(1, 0, n - 2, n);
-  ctx.fillRect(0, 1, n, n - 2);
-  ctx.fillStyle = SIDE_COLORS[side];
-  ctx.fillRect(1, 1, n - 2, n - 2);
+  // a rounded square: dark rim, a 1-pixel ring in the Side colour, the Class colour inside
+  const square = (inset: number, color: string) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(inset + 1, inset, n - 2 * inset - 2, n - 2 * inset);
+    ctx.fillRect(inset, inset + 1, n - 2 * inset, n - 2 * inset - 2);
+  };
+  square(0, '#10121a');
+  square(1, SIDE_COLORS[side]);
+  square(2, fill);
+  // the icon's shape, drawn dark on the Class colour
   const { grid, palette } = iconPixels(name);
   grid.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const c = palette[row[x]];
-      if (!c) continue;
-      ctx.fillStyle = c;
-      ctx.fillRect(x + 1, y + 1, 1, 1);
+      if (!c || row[x] === 'o') continue;
+      ctx.fillStyle = '#1a1420';
+      ctx.fillRect(x + 2, y + 2, 1, 1);
     }
   });
   t = new THREE.CanvasTexture(cv);
@@ -996,10 +1001,10 @@ function UnitView({
       >
         <spriteMaterial ref={bodyMat} map={tex} transparent alphaTest={ghost ? 0.2 : 0.5} color={baseColor} opacity={ghost ? 0.45 : 1} depthWrite={!ghost} />
       </sprite>
-      {!ghost && !kindOf(unit).isMaster && (
-        // the Familiar's Class, always shown by its feet
-        <sprite scale={[0.3, 0.3, 1]} position={[0.36, 0.2, 0.2]} renderOrder={11} raycast={() => null}>
-          <spriteMaterial map={classBadgeTexture(classIconName(kindOf(unit)), unit.side)} transparent depthTest={false} />
+      {!ghost && (
+        // the Unit's Class (a Master's gold star), always shown by its feet
+        <sprite scale={[0.34, 0.34, 1]} position={[0.36, 0.2, 0.2]} renderOrder={11} raycast={() => null}>
+          <spriteMaterial map={classBadgeTexture(classIconName(kindOf(unit)), unit.side, classColor(kindOf(unit)))} transparent depthTest={false} />
         </sprite>
       )}
     </group>

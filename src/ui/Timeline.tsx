@@ -110,11 +110,9 @@ export function Timeline() {
             title={`${kindOf(s).name}${s.ghost ? ' (would be summoned)' : ''} — ${formatClock(s.clock)}`}
           >
             <img src={unitIconUrl(s.kind, s.side)} alt="" />
-            {!kindOf(s).isMaster && (
-              <span className="cls">
-                <ClassIcon kind={kindOf(s)} size={10} />
-              </span>
-            )}
+            <span className="cls">
+              <ClassIcon kind={kindOf(s)} size={10} />
+            </span>
             <span className={`t ${tod}`}>{s.now ? 'NOW' : formatClock(s.clock)}</span>
           </div>
         );

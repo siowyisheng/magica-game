@@ -214,8 +214,8 @@ const ICONS = {
   // Class icons (what a Familiar does when it Acts)
   classFighter: {
     title: 'Fighter',
-    // a sword, like ATK's, in steel
-    palette: { o: O, w: '#ffffff', b: '#b8c2d8', g: '#e8a23a', h: '#7a4a2a' },
+    // a sword, like ATK's, in the Fighter's orange
+    palette: { o: O, w: '#fff0dc', b: '#ff9a3c', g: '#ffd08a', h: '#8a4a1a' },
     grid: [
       '......owo',
       '.....owbo',
@@ -231,7 +231,7 @@ const ICONS = {
   classCaster: {
     title: 'Caster',
     // a four-point star with sparkles
-    palette: { o: O, y: '#c890ff', w: '#f4e8ff' },
+    palette: { o: O, y: '#b07cff', w: '#f4e8ff' },
     grid: [
       '....o....',
       '...oyo...',
@@ -246,7 +246,7 @@ const ICONS = {
   },
   classHealer: {
     title: 'Healer',
-    palette: { o: O, r: '#ff5a7a', l: '#ffb0c0' },
+    palette: { o: O, r: '#ff7fb8', l: '#ffd0e6' },
     grid: [
       '.........',
       '.oo...oo.',
@@ -259,10 +259,26 @@ const ICONS = {
       '....o....',
     ],
   },
+  classMaster: {
+    title: 'Master',
+    // a five-point star in gold
+    palette: { o: O, y: '#ffd23f', w: '#fff6c2' },
+    grid: [
+      '....o....',
+      '...owo...',
+      'ooooyoooo',
+      'oyywyyyyo',
+      '.oyyyyyo.',
+      '..oyyyo..',
+      '.oyyoyyo.',
+      '.oyo.oyo.',
+      '.oo...oo.',
+    ],
+  },
   classBuff: {
     title: 'Support (buff)',
     // a double chevron, up
-    palette: { o: O, g: '#6ad06a', l: '#c0f0a0' },
+    palette: { o: O, g: '#4fd8e8', l: '#c8f6fc' },
     grid: [
       '....o....',
       '...ogo...',
@@ -278,7 +294,7 @@ const ICONS = {
   classDebuff: {
     title: 'Support (debuff)',
     // a double chevron, down
-    palette: { o: O, p: '#c070e8', l: '#e8c8ff' },
+    palette: { o: O, p: '#4fd8e8', l: '#c8f6fc' },
     grid: [
       'oo.....oo',
       '.opo.opo.',
@@ -378,8 +394,16 @@ export function AlignmentIcon({ alignment, size }: { alignment: 'day' | 'night';
   return <Icon name={alignment} size={size} title={alignment === 'day' ? 'Day-aligned' : 'Night-aligned'} />;
 }
 
-/** The icon for a Unit's Class (a Support's shows whether it buffs or debuffs). */
+/** Each Class's own colour (a Master's star is gold); the Side shows only as an outline. */
+export const CLASS_COLORS = { fighter: '#ff9a3c', caster: '#b07cff', healer: '#ff7fb8', support: '#4fd8e8', master: '#ffd23f' } as const;
+
+export function classColor(k: UnitKind): string {
+  return k.isMaster ? CLASS_COLORS.master : CLASS_COLORS[classOf(k)];
+}
+
+/** The icon for a Unit's Class (a Support's shows whether it buffs or debuffs; a Master's is a gold star). */
 export function classIconName(k: UnitKind): IconName {
+  if (k.isMaster) return 'classMaster';
   const c = classOf(k);
   if (c === 'support') return abilityLabel(k.ability) === 'debuff' ? 'classDebuff' : 'classBuff';
   return c === 'fighter' ? 'classFighter' : c === 'caster' ? 'classCaster' : 'classHealer';
@@ -387,7 +411,7 @@ export function classIconName(k: UnitKind): IconName {
 
 /** The Class icon for a kind; hover shows the Class. */
 export function ClassIcon({ kind, size }: { kind: UnitKind; size?: number }) {
-  return <Icon name={classIconName(kind)} size={size} title={CLASS_NAME[classOf(kind)]} />;
+  return <Icon name={classIconName(kind)} size={size} title={kind.isMaster ? 'Master' : CLASS_NAME[classOf(kind)]} />;
 }
 
 /** An icon's pixel grid and colours (for drawing it on the board). */

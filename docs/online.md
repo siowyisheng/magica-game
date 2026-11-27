@@ -15,7 +15,7 @@ browser A ──── moves (WebRTC data channel) ──── browser B
 
 | Path | What |
 | --- | --- |
-| `src/online/clock.ts` | Turn Timer (10 s), Time Bank (60 s), Planning Phase (30 s), Pause and Abandon limits. Pure. |
+| `src/online/clock.ts` | Turn Timer and Time Bank (the creator picks them: 5–30 s, 0–5 min; default 10 s and 60 s; sent in the creator's hello), Planning Phase (30 s), Pause and Abandon limits. Pure. |
 | `src/online/report.ts` | The Match Report, what two reports must agree on, and the result status (Confirmed / Contested / Unconfirmed). Shared with the server. |
 | `src/online/protocol.ts` | Messages between the two games and between a game and the server. |
 | `src/online/fingerprint.ts` | Hash commitments for the hidden picks, and the rules fingerprint both games must share. |
@@ -32,7 +32,7 @@ browser A ──── moves (WebRTC data channel) ──── browser B
 3. **Hidden picks.** Each player locks a Master and Loadout by sending only a SHA-256 commitment of the pick plus a random salt. When both are locked, both reveal, and each checks the other's reveal against its commitment.
 4. **Planning Phase.** 30 s (no clock), ends early when both are Ready.
 5. **Turns.** Each turn travels as `{n, action, ms}`: its index, the `TurnAction`, and the time it took. Both games apply it with the same deterministic rules.
-   - **Clock rules:** a turn's clock runs only while no animation plays and the match isn't Paused. The first 10 s are free; after that the Time Bank drains.
+   - **Clock rules:** a turn's clock runs only while no animation plays and the match isn't Paused. The Turn Timer's seconds are free; after that the Time Bank drains.
    - **Timeouts:** when both run out, the mover's own game plays a Wait (a **Timeout**). If the mover is silent 5 s past their clock, the other game plays the Timeout for them. If that Timeout crosses a late move from the mover, the Timeout stands, and the mover's game rebuilds its position from the move list.
 6. **Pause.** Either player may Pause (3 each), either may resume, and a Pause ends by itself after 2 minutes.
 7. **Disconnects.** The games ping every 2 s; 8 s of silence counts as a drop, and the games keep asking the server to pair them again.

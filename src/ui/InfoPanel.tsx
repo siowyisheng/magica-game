@@ -9,17 +9,10 @@ import {
   dayOf,
   formatClock,
   kindOf,
-  manaIncome,
-  nextIncomeAt,
   signatureStatOf,
   mapHexAt,
-  stonesControlled,
   surfaceOf,
   timeOfDay,
-  upkeep,
-  INCOME_MULTIPLIER,
-  MANA_MAX,
-  STONE_BASE,
   type SideId,
 } from '../rules';
 import { type HpBarsMode, useGame } from '../store';
@@ -65,9 +58,8 @@ export function InfoPanel() {
     <div className="info">
       <div className="window">
         <div className="title">Battle</div>
-        <div className="clock">
-          <Icon name={tod} size={18} /> {formatClock(match.clock)}
-          <span className="muted"> day {dayOf(match.clock)} · {tod}</span>
+        <div className="muted">
+          Day {dayOf(match.clock)} · {tod}
         </div>
         <div className="muted">Water Level {match.waterLevel} (range {match.minWaterLevel}–{match.maxWaterLevel})</div>
         <div className="muted small" title="At the Time Limit the Side with more Magic Stones wins; if level, more total HP; else a draw">
@@ -81,7 +73,6 @@ export function InfoPanel() {
                 {!match.sides[side].roster && <span className="muted small"> · Test match</span>}
                 {aiThinking && activeUnit(match)?.side === side && <span className="muted"> thinking…</span>}
               </div>
-              <ManaBars side={side} />
               {showPlans && match.sides[side].ai && match.winner === null && <AiPlanLine side={side} />}
             </div>
           );
@@ -220,61 +211,10 @@ function UnitCard({ unitId }: { unitId: number }) {
         </div>
       )}
       <div className="muted small">
-        {!k.isMaster && (
-          <>
-            <ClassIcon kind={k} size={12} /> {CLASS_NAME[classOf(k)]} ·{' '}
-          </>
-        )}
+        <ClassIcon kind={k} size={12} /> {k.isMaster ? 'Master' : CLASS_NAME[classOf(k)]} ·{' '}
         {abilityDisplayName(k)}: {abilityText(k.ability)}
       </div>
       {!k.isMaster && <div className="muted small">Cost {k.cost}◆ · Upkeep {k.cost / 8}</div>}
-    </div>
-  );
-}
-
-/**
- * Mana, gross income and upkeep as stacked bars on one Mana scale (0–120).
- * The income bar is marked at base income and at each stone; numbers appear on hover.
- */
-function ManaBars({ side }: { side: SideId }) {
-  const match = useGame((s) => s.match);
-  const master = match.units.find((u) => u.side === side && kindOf(u).isMaster);
-  const mk = master ? kindOf(master) : null;
-  // Mana per Stone-hour, with the Master's Alignment at the next hour mark
-  const mp = mk ? INCOME_MULTIPLIER * Math.max(0, mk.stats.mp + alignmentBonus(mk.alignment, nextIncomeAt(match.clock))) : 0;
-  const stones = stonesControlled(match, side);
-  const base = STONE_BASE * mp;
-  const gross = (STONE_BASE + stones) * mp;
-  const up = upkeep(match, side);
-  const net = manaIncome(match, side);
-  const pct = (v: number) => `${Math.min(100, (v / MANA_MAX) * 100)}%`;
-  const marks: number[] = [];
-  for (let i = 0; i < stones; i++) if (base + i * mp < MANA_MAX) marks.push(base + i * mp);
-  return (
-    <div className="mana-stack">
-      <div className="mana">
-        <div className="mana-bar">
-          <div style={{ width: pct(match.sides[side].mana) }} />
-        </div>
-        <span>
-          {match.sides[side].mana}/{MANA_MAX}
-        </span>
-      </div>
-      <div className="sub-bar income">
-        <div className="fill" style={{ width: pct(gross) }} />
-        {marks.map((m) => (
-          <div key={m} className="mark" style={{ left: pct(m) }} />
-        ))}
-        {gross > MANA_MAX && <span className="over">»</span>}
-      </div>
-      <div className="sub-bar upkeep">
-        <div className="fill" style={{ width: pct(up) }} />
-        {up > MANA_MAX && <span className="over">»</span>}
-      </div>
-      <div className="mana-tip">
-        Income +{gross} (base {base} + {stones} stone{stones === 1 ? '' : 's'} × {mp}) · Upkeep −{up} · Net {net >= 0 ? '+' : ''}
-        {net}/h
-      </div>
     </div>
   );
 }

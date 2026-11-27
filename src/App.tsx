@@ -3,6 +3,7 @@ import { Board } from './render/Board';
 import { Timeline } from './ui/Timeline';
 import { InfoPanel } from './ui/InfoPanel';
 import { FamiliarCard } from './ui/FamiliarCard';
+import { Hud } from './ui/Hud';
 import { useGame } from './store';
 import { activeUnit, isBurst, kindOf } from './rules';
 import { MapEditor } from './editor/MapEditor';
@@ -29,7 +30,7 @@ function PhaseHint() {
     move:
       phase.kind === 'move' && !phase.selected
         ? `${who} deselected: click anywhere (or right-click) to select it again`
-        : `${who}${u.stranded ? ' (Stranded: move to act)' : ''}: click inside the white outline to move, the unit to stay, or a unit in range to act · right-click a unit to show its ranges`,
+        : `${who}${u.stranded ? ' (Stranded: move to act)' : ''}: click inside the yellow outline to move, the unit to stay, or a unit in range to act · right-click a unit to show its ranges`,
     menu: u.stranded && phase.kind === 'menu' && phase.to.q === u.pos.q && phase.to.r === u.pos.r
       ? `${who} is Stranded: staying put allows only Wait (right-click to move instead)`
       : `${who}: left-click the map to set facing, then choose a command (right-click cancels the move)`,
@@ -115,6 +116,7 @@ export function App() {
       <div className="main">
         <div className="board">
           <Board />
+          <Hud />
           <Timeline />
           <FamiliarCard />
           <PhaseHint />
