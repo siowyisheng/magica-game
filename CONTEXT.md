@@ -32,7 +32,7 @@ Stopping a match in place: no turn starts and no Command can be given until it i
 ## Online play
 
 **Online Match**:
-A match between two people on different machines, connected directly to each other. A player creates one and shares its **Game ID** (as a code or link); the other joins with it. Each picks a Master and Loadout unseen by the other; both are revealed together, and a coin flip decides who is Green (who moves first). The map is chosen by the creator (a Random Map comes from a seed both share). Online Matches always use the stats the game ships with, and both players must be on the same version. Each player's moves travel straight to the other; the server only introduces the two and receives Match Reports.
+A match between two people on different machines, connected directly to each other. A player creates one and shares its **Game ID** (as a code or link); the other joins with it. Each picks a Master and Loadout unseen by the other; both are revealed together, and a coin flip decides who is Green (who moves first). The map and the **time settings** (Turn Timer and Time Bank) are chosen by the creator (a Random Map comes from a seed both share); the joining player sees them before joining, and they are kept in the Match Report and the Replay. Online Matches always use the stats the game ships with, and both players must be on the same version. Each player's moves travel straight to the other; the server only introduces the two and receives Match Reports.
 _Avoid_: Multiplayer game, lobby, room (as player-facing terms)
 
 **Player ID**:
@@ -42,14 +42,14 @@ Who a player is online: an identity made once in their browser and kept there, w
 The first 30 seconds of an Online Match, before any turn: both players see the map, both Masters with their stats, and both Loadouts with their Signatures. Nothing can be changed. It ends early when both players are **Ready**. No time is used from either Time Bank.
 
 **Turn Timer**:
-The 10 seconds each turn of an Online Match is given for free. Unused seconds are lost; once they run out, the Time Bank drains. The timer stops while a turn's animation plays.
+The free thinking time each turn of an Online Match is given: 5, 10 (the default), 20 or 30 seconds, picked by the creator. Unused seconds are lost; once they run out, the Time Bank drains. The timer stops while a turn's animation plays.
 
 **Time Bank**:
-Each player's pool of extra thinking time in an Online Match: 60 seconds at the start, drained only once a turn's Turn Timer has run out, never refilled.
+Each player's pool of extra thinking time in an Online Match: 0, 30, 60 (the default), 120 or 300 seconds at the start, picked by the creator, drained only once a turn's Turn Timer has run out, never refilled.
 _Avoid_: Reserve (the AI's Mana held back), Time Limit (the 72 Game Clock hours a match lasts), Game Clock
 
 **Timeout**:
-What happens when both the Turn Timer and the Time Bank run out: the Unit Waits where it stands, as if its player had chosen Wait. The match goes on; every later turn of that player Times Out after its 10 seconds.
+What happens when both the Turn Timer and the Time Bank run out: the Unit Waits where it stands, as if its player had chosen Wait. The match goes on; every later turn of that player Times Out once its Turn Timer runs out.
 
 **Resign**:
 Giving up an Online Match: the other player wins at once.
@@ -70,7 +70,7 @@ A Unit that a Master brings onto a hex next to it, at most 1 Height above or bel
 _Avoid_: Summon (as a noun; "Summon" is the Command), monster, minion, creature
 
 **Class**:
-What a Familiar does when it Acts, worked out from its Ability and shown by an icon wherever it appears (the word only in detailed views): **Fighter** (an Ability labelled Attack that hits with ATK against DEF), **Caster** (labelled Attack, hitting with MP against MDF), **Healer** (labelled Heal) or **Support** (labelled Buff, such as Empower, or Debuff). A Familiar uses ATK or MP, never both; the stat it doesn't use is 0 and isn't shown.
+What a Familiar does when it Acts, worked out from its Ability and shown by an icon wherever it appears (the word only in detailed views): **Fighter** (an Ability labelled Attack that hits with ATK against DEF), **Caster** (labelled Attack, hitting with MP against MDF), **Healer** (labelled Heal) or **Support** (labelled Buff, such as Empower, or Debuff). Each Class has its own icon colour (Fighter orange, Caster violet, Healer pink, Support cyan), outlined in the Side Colour. A Master shows the **Master icon**, a gold star, in the same places. A Familiar uses ATK or MP, never both; the stat it doesn't use is 0 and isn't shown.
 _Avoid_: Role, archetype, type (Move Type is something else)
 
 **Side**:
@@ -98,7 +98,7 @@ _Avoid_: Movement class
 The hexes a Unit can end its move on this turn.
 
 **Reach**:
-Every hex a Unit's Ability could reach from some hex in its Move Range: drawn in red for a physical Ability, in blue for a magical one.
+Every hex a Unit's Ability could reach from some hex in its Move Range: drawn in red for a physical Ability, in blue for a magical one. Pits are never shown as part of it.
 _Avoid_: Threat range, attack range (when meaning after moving)
 
 ## Elements
@@ -131,6 +131,10 @@ The AV a Unit gets after its turn: the Base Delay, plus half the Base Delay for 
 **Action Timeline**:
 The UI list of upcoming turns in the order the AV system gives. While a Command is hovered but not yet confirmed, the acting Unit's icon is shown where that Command's Turn Delay would place it.
 _Avoid_: Turn order bar, queue
+
+**Turn Marker**:
+The floating marker over the Unit whose turn it is: gold when a person at this screen plays it, grey for the AI, the online opponent and in Replays.
+_Avoid_: Cursor, selection ring
 
 **Time of Day**:
 Day runs 08:00–16:00 and Night 20:00–04:00. The hours between are Neutral.
@@ -174,6 +178,9 @@ A Unit that starts its turn on a hex none of its Move Types may enter. It takes 
 **Facing**:
 One of the six hex directions a Unit faces.
 
+**Auto-Facing**:
+The Facing a Unit takes as it ends a move, which is where a Wait starts from (the player may still change it; the AI chooses its own). With an enemy Unit within 6 hexes it faces the nearest one; equally near enemies are decided by the most damage each could deal it from the front, then the lowest unit id, and a target exactly between two directions by the one closer to its last step. With no enemy that near it faces the way its last step went. A Unit that doesn't move keeps its Facing. A move's steps follow one fixed shortest path, the one its animation shows.
+
 **Facing Bonus**:
 A flat amount added to damage by the angle between a defender's Facing and the direction the hit comes from: under 90° (Front) +0, 90° up to 150° (Flank) +1, 150° and more (Back) +2. So an adjacent hit from the front or a front side adds 0, from a rear side +1, and from directly behind +2. It applies to both Attack and Magic.
 _Avoid_: Backstab bonus, flanking
@@ -188,7 +195,7 @@ An effect (an Ability of its own, or a rider on damage) that lowers each enemy U
 An effect (an Ability of its own, or a rider on damage) that sets each enemy Unit it hits's MOV to 0 until the end of its next turn: on that turn it can't move, but can still act. An **Entangled** Unit shows a vine.
 
 **Empower**:
-A Buff Ability (Kindle's) that targets one friendly Unit within range 1, the user included, and gives it +3 ATK until its next physical hit. The Unit is then **Empowered**, and shows a golden aura: the bonus counts in the damage previews of its hits, and its next physical hit uses it up. A second Empower before then doesn't stack. It helps only Units that hit with ATK.
+A Buff Ability (Kindle's) that targets one friendly Unit within range 1, the user included, and gives it +3 ATK until its next physical hit. The Unit is then **Empowered**, and shows a golden aura: the bonus counts in the damage previews of its hits, and its next physical hit uses it up. A second Empower before then doesn't stack. It helps only Units that hit with ATK, and can't be given to a Familiar whose ATK is hidden (a Caster, Healer or Support, even when Alignment lifts that ATK to 1), so Kindle can't Empower itself.
 
 **Damage Preview**:
 The exact result of a Command against a target, shown before the Command is confirmed, as a Damage Number over each target.
@@ -229,7 +236,7 @@ A neutral map object placed on dry Plain or Rough at the start of a match. No Un
 _Avoid_: Wall, prop, blocker
 
 **Random Map**:
-A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting opposite each other (near the SW and NE corners on 40% of maps, at 8 and 2 o'clock on 30%, at 9 and 3 o'clock on 30%, on maps at least 18 wide, as seen from the centre) and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. Every tile touches at least 3 other tiles that aren't Pits, so there are no stray hexes or thin spurs. Its Heights run from 1 (Shallow Water) to 4. It has plateaus at Height 4 with 2-Height cliffs on most sides and steps up on the rest, and on about a quarter of maps a pair of **pillars**: one or two hexes 2 above everything around them, which only Fly reaches. It has 7–12 Magic Stones, each 2–9 hexes from its nearest other Stone, most often 4 or 5 (about a third at 4, a quarter at 5, then fewer the further out, and a few as close as 2 or 3), never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About one Stone in five (the centre one included) sits in Shallow Water, at most a third of them, so only Units that Wade, Swim or Fly can take it; every Master can. About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, all Shallow, in varying amounts and shapes: one large lake, a few lakes, many small pools, a thin river through the middle with fords, or thin streams, sometimes with a second, smaller kind as well. A walking Unit can always reach the other Master, every dry Stone and every dry hex but the pillars; a wading one can reach every Stone.
+A map generated from a seed, the same map for the same seed. 16–21 hexes wide and 13–21 tall, with the Masters starting opposite each other (near the SW and NE corners on 40% of maps, at 8 and 2 o'clock on 30%, at 9 and 3 o'clock on 30%, on maps at least 18 wide, as seen from the centre) and everything mirrored through the centre point, so both Sides get the same map. Pits bite into its edges (and sometimes its middle), so each map has its own outline. Every tile touches at least 3 other tiles that aren't Pits, so there are no stray hexes or thin spurs. Its Heights run from 1 (Shallow Water) to 4, with at most 5% of its hexes that aren't Pits at Height 4 (pillars included). It has plateaus at Height 4 with 2-Height cliffs on most sides and steps up on the rest, and on about a quarter of maps a pair of **pillars**: one or two hexes 2 above everything around them, which only Fly reaches. It has 7–12 Magic Stones, each 2–9 hexes from its nearest other Stone, most often 4 or 5 (about a third at 4, a quarter at 5, then fewer the further out, and a few as close as 2 or 3), never on the map's edge (next to a missing hex or a Pit), with at least a third of them on or near the symmetry line (about as far from one Master as from the other). About one Stone in five (the centre one included) sits in Shallow Water, at most a third of them, so only Units that Wade, Swim or Fly can take it; every Master can. About two maps in three have an odd number of Stones; those have 1, 3 or 5 exactly on the symmetry line, one of them on the centre hex. It also has 3–10 Obstacles per Side, a random Theme, and always some water, all Shallow, in varying amounts and shapes: one large lake, a few lakes, many small pools, a thin river through the middle with fords, or thin streams, sometimes with a second, smaller kind as well. Every **Water Body** (water hexes joined edge to edge; a ford is land and splits them) is at least 2 hexes, and one holding a Stone at least 3. A walking Unit can always reach the other Master, every dry Stone and every dry hex but the pillars; a wading one can reach every Stone.
 _Avoid_: Procedural map, generated level
 
 **Theme**:
@@ -251,6 +258,10 @@ The Mana needed to Summon a Familiar: a multiple of 8, from 16 to 88; each Eleme
 
 **Upkeep**:
 A Familiar's hourly drain on its Side's Mana Income. It is always its Cost ÷ 8.
+
+**Army Value**:
+The total Cost of a Side's Familiars on the map, each Signature copy counted in full; the Master doesn't count. Shown under each Master's portrait.
+_Avoid_: Army size, board value
 
 ## AI
 
