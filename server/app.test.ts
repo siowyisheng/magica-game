@@ -3,9 +3,13 @@ import type { AddressInfo } from 'node:net';
 import WebSocket from 'ws';
 import { openDb } from './db';
 import { createApp } from './app';
-import { createMatch, SCAFFOLD_MAP } from '../src/rules';
+import { createMatch } from '../src/rules';
 import { SECOND_REPORT_WAIT_MS, type MatchReport } from '../src/online/report';
 import type { ServerMsg } from '../src/online/protocol';
+import { generateRandomMap as makeTestMap } from '../src/rules';
+
+/** A fixed random map (the same every run): Scaffold Ford is gone. */
+const TEST_MAP = makeTestMap(20261127);
 
 let close: (() => void) | null = null;
 afterEach(() => close?.());
@@ -75,7 +79,7 @@ describe('online server', () => {
       playerId: by.playerId,
       players: [green.playerId, red.playerId],
       result: { winner, reason: 'resign' },
-      replay: { initial: createMatch(SCAFFOLD_MAP), actions: [], times: [], timeouts: [] },
+      replay: { initial: createMatch(TEST_MAP), actions: [], times: [], timeouts: [] },
       rules: 'r',
     });
     expect((await api('/api/reports', { ...c, report: report(c, 0) })).status).toBe(403);
@@ -100,7 +104,7 @@ describe('online server', () => {
     const pa = await sa.next();
     if (pa.t !== 'paired') throw new Error('not paired');
     const players: [string, string] = pa.side === 0 ? [a.playerId, b.playerId] : [b.playerId, a.playerId];
-    const rep = (p: typeof a, winner: 0 | 1): MatchReport => ({ gameId, playerId: p.playerId, players, result: { winner, reason: 'master' }, replay: { initial: createMatch(SCAFFOLD_MAP), actions: [], times: [], timeouts: [] }, rules: 'r' });
+    const rep = (p: typeof a, winner: 0 | 1): MatchReport => ({ gameId, playerId: p.playerId, players, result: { winner, reason: 'master' }, replay: { initial: createMatch(TEST_MAP), actions: [], times: [], timeouts: [] }, rules: 'r' });
     await api('/api/reports', { ...a, report: rep(a, 0) });
     expect((await api('/api/reports', { ...b, report: rep(b, 1) })).data.status).toBe('contested');
     sa.ws.close();

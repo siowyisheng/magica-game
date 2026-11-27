@@ -134,6 +134,10 @@ export const AI_WEIGHTS = {
    * value: look-ahead lines are compared on the position, not on which one fit a summon in.
    */
   evalMana: 2,
+  /** A Hex: HP of damage per point of MDF it takes away, per magical attacker that can reach the target (up to 2). */
+  hexHit: 0.8,
+  /** Entangle: what keeping an enemy from moving for a turn is worth, in HP of damage. */
+  entangle: 2.5,
 };
 
 type W = typeof AI_WEIGHTS;
@@ -571,6 +575,29 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
   // the threat a Defend summon answers (F2, F3)
   const mainThreat = kind.isMaster && plan.threats[0] && plan.threats[0].urgency > 0 ? plan.threats[0] : null;
 
+  /**
+   * What a Hex or Entangle on an enemy is worth, in HP of damage (× w.damage × its value):
+   * a Hex is the extra damage my magical attackers that can reach it will deal before it
+   * wears off (−MDF per hit, up to two hits, scaled by how long it lasts); Entangle keeps it
+   * out of the fight for a turn. Nothing for what it already has.
+   */
+  const statusValue = (e: { unitId: number; hex?: { amount: number; minutes: number }; entangle?: boolean }): number => {
+    const t = state.units.find((u) => u.id === e.unitId);
+    if (!t || t.side === me.side) return 0;
+    let v = 0;
+    if (e.hex) {
+      const extra = Math.max(0, e.hex.amount - (t.hex && t.hex.until >= state.clock + e.hex.minutes ? t.hex.amount : 0));
+      const casters = state.units.filter((u) => {
+        if (u.side !== me.side) return false;
+        const a = kindOf(u).ability;
+        return a.kind === 'damage' && powerOf(a) === 'mp' && hexDistance(u.pos, t.pos) <= kindOf(u).stats.mov + a.range + a.radius + 1;
+      }).length;
+      v += extra * Math.min(2, casters) * Math.min(1, e.hex.minutes / 180) * w.hexHit;
+    }
+    if (e.entangle && !t.entangled) v += w.entangle;
+    return v;
+  };
+
   const nodes = reachable(state, me);
   const dests: Hex[] = [];
   for (const n of nodes.values()) if (n.canEnd) dests.push(n.hex);
@@ -690,6 +717,8 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
           const ally = (id: number) => state.units.find((u) => u.id === id && u.side === me.side);
           if (ab.kind === 'heal' && !effects.some((e) => e.kind === 'heal' && e.amount > 0 && ally(e.unitId))) continue;
           if (ab.kind === 'empower' && !effects.some((e) => e.kind === 'empower' && (ally(e.unitId)?.empowered ?? 0) < e.amount)) continue;
+          // nor Hex or Entangle for nothing: some enemy must get one it doesn't have yet
+          if ((ab.kind === 'hex' || ab.kind === 'entangle') && !effects.some((e) => statusValue(e) > 0)) continue;
           for (const e of effects) {
             if (e.obstacle) {
               if (!light) score += obstacleValue(state, me, dest, e.unitId, Math.min(e.amount, e.hpBefore), e.lethal, w);
@@ -697,6 +726,9 @@ export function rankCandidates(state: MatchState, weights: W, opts: ScoreOptions
             }
             const t = state.units.find((u) => u.id === e.unitId)!;
             const v = t.side === me.side ? unitValue(t) : targetValue(t);
+            // a Hex or Entangle on an enemy (standalone, or riding on damage that doesn't kill it)
+            if (!e.lethal) score += statusValue(e) * w.damage * v;
+            if (e.kind === 'hex' || e.kind === 'entangle') continue;
             if (e.kind === 'damage') {
               // only the HP it can actually take counts: overkill is worth nothing
               const dealt = Math.min(e.amount, t.hp);

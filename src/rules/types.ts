@@ -29,6 +29,12 @@ export type Power = 'atk' | 'mp';
 export type AbilityLabel = 'attack' | 'heal' | 'buff' | 'debuff';
 
 /**
+ * An effect a damaging Ability can carry on top of its damage, on every enemy Unit
+ * it hits: a Hex (MDF lowered for a while) or Entangle (no movement on its next turn).
+ */
+export type Rider = { kind: 'hex'; amount?: number; minutes?: number } | { kind: 'entangle' };
+
+/**
  * Ability: what a Unit does when it Acts. Every Unit has exactly one. Damage
  * hits enemies (and Obstacles) with ATK or MP (`power`); heals and Empower
  * help allies (caster included): heals restore MP, Empower gives a fixed ATK
@@ -38,11 +44,19 @@ export type Ability =
   | {
       id: string;
       name: string;
-      kind: 'damage' | 'heal' | 'empower';
+      /**
+       * damage, heal and empower as before; hex lowers enemies' MDF for a while;
+       * entangle stops enemies moving on their next turn.
+       */
+      kind: 'damage' | 'heal' | 'empower' | 'hex' | 'entangle';
       /** Damage only: ATK against DEF ('atk') or MP against MDF ('mp'). Absent means 'mp'. */
       power?: Power;
-      /** Empower only: ATK added to the target until its next physical hit. */
+      /** Empower: ATK added to the target until its next physical hit. Hex: MDF taken away (default 3). */
       amount?: number;
+      /** Hex only: how long it lasts, in Game Clock minutes (default 180). */
+      minutes?: number;
+      /** Damage only: a Hex and/or Entangle on every enemy Unit it hits. */
+      riders?: Rider[];
       /** Maximum distance to the aimed hex. */
       range: number;
       /** 0 = single hex, 1 = aimed hex and its neighbours, 2 = two rings (Burst only). */
@@ -137,6 +151,10 @@ export interface Unit {
   empowered?: number;
   /** Summoned as its Side's Signature: has the Signature Bonus. */
   signature?: boolean;
+  /** Hexed: MDF lowered by `amount` until the Game Clock reaches `until`. */
+  hex?: { amount: number; until: number };
+  /** Entangled: MOV 0 until the end of its next turn. */
+  entangled?: boolean;
 }
 
 /** A neutral map object with HP; ids share the Unit id space. */
@@ -211,6 +229,9 @@ export type GameEvent =
   | { type: 'damage'; unitId: number; amount: number; source: number }
   | { type: 'heal'; unitId: number; amount: number; source: number | 'stone' }
   | { type: 'empower'; unitId: number; amount: number; source: number }
+  | { type: 'hex'; unitId: number; amount: number; until: number; source: number }
+  | { type: 'entangle'; unitId: number; source: number }
+  | { type: 'hexEnd'; unitId: number }
   | { type: 'stranded'; unitId: number }
   | { type: 'summon'; unitId: number; kind: string; by: number }
   | { type: 'capture'; side: SideId; hex: Hex }

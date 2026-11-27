@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { applyTurn, createMatch, facingToward, hex, SCAFFOLD_MAP, validateTurn, type MapDef, type MapHex, type MatchState } from '../rules';
+import { applyTurn, createMatch, facingToward, hex, validateTurn, type MapDef, type MapHex, type MatchState } from '../rules';
 import { autoLoadout, chooseAction } from './ai';
 import { loadoutProblems, kindOf, randomLoadout, mulberry32, FAMILIARS } from '../rules';
+import { generateRandomMap as makeTestMap } from '../rules';
+
+/** A fixed random map (the same every run): Scaffold Ford is gone. */
+const TEST_MAP = makeTestMap(20261127);
 
 describe('AI', () => {
   it('plays legal turns in a headless AI-vs-AI match', () => {
-    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 7 });
+    let st = createMatch(TEST_MAP, { ai: [true, true], seed: 7 });
     let turns = 0;
     const t0 = Date.now();
     while (st.winner === null && turns < 300) {
@@ -20,9 +24,9 @@ describe('AI', () => {
   }, 120000);
 
   it('plays legal turns on a map with Pits and Obstacles', () => {
-    const hexes: MapHex[] = SCAFFOLD_MAP.hexes.map((h, i) => (i % 23 === 5 && h.terrain === 'plain' && h.height >= 3 ? { ...h, terrain: 'pit' } : h));
-    const free = hexes.filter((h) => h.terrain === 'plain' && h.height >= 3 && !SCAFFOLD_MAP.spawns.some((s) => s.q === h.hex.q && s.r === h.hex.r));
-    const map: MapDef = { ...SCAFFOLD_MAP, hexes, obstacles: free.filter((_, i) => i % 9 === 4).map((h, i) => ({ hex: h.hex, def: ([2, 4, 6] as const)[i % 3] })) };
+    const hexes: MapHex[] = TEST_MAP.hexes.map((h, i) => (i % 23 === 5 && h.terrain === 'plain' && h.height >= 3 ? { ...h, terrain: 'pit' } : h));
+    const free = hexes.filter((h) => h.terrain === 'plain' && h.height >= 3 && !TEST_MAP.spawns.some((s) => s.q === h.hex.q && s.r === h.hex.r));
+    const map: MapDef = { ...TEST_MAP, hexes, obstacles: free.filter((_, i) => i % 9 === 4).map((h, i) => ({ hex: h.hex, def: ([2, 4, 6] as const)[i % 3] })) };
     let st = createMatch(map, { ai: [true, true], seed: 3 });
     expect(st.obstacles.length).toBeGreaterThan(3);
     for (let turns = 0; st.winner === null && turns < 120; turns++) {
@@ -57,7 +61,7 @@ describe('AI', () => {
     const heavy = randomLoadout(mulberry32(3));
     // a cheap Signature, so the AI wants several (applyTurn would throw on an illegal summon)
     const sig = [...heavy].sort((x, y) => kindOf(x).cost - kindOf(y).cost)[0];
-    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy], signatures: [sig, sig] });
+    let st = createMatch(TEST_MAP, { ai: [true, true], seed: 5, rosters: [heavy, heavy], signatures: [sig, sig] });
     for (let i = 0; i < 80 && st.winner === null; i++) {
       const a = chooseAction(st);
       if (a.command.type === 'summon') expect(heavy).toContain(a.command.kind);
@@ -71,8 +75,8 @@ describe('AI', () => {
 describe('never playing for time', () => {
   it('values a position the same whatever the hour: Stones count for their Mana, not the Time Limit', async () => {
     const { evaluate } = await import('./ai');
-    const { createMatch, SCAFFOLD_MAP } = await import('../rules');
-    const s = createMatch(SCAFFOLD_MAP);
+    const { createMatch } = await import('../rules');
+    const s = createMatch(TEST_MAP);
     s.stones = s.stones.map((st, i) => ({ ...st, owner: i % 3 === 0 ? 1 : 0 }));
     const early = evaluate(s, 0);
     const late = evaluate({ ...s, clock: s.timeLimit - 30 }, 0);
@@ -107,7 +111,7 @@ describe('healers', () => {
 
 describe('Stones and pointless hits', () => {
   it('never deals damage that deals 0', () => {
-    let st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 11 });
+    let st = createMatch(TEST_MAP, { ai: [true, true], seed: 11 });
     for (let turns = 0; st.winner === null && turns < 200; turns++) {
       const me = st.units.find((u) => u.id === st.activeUnitId)!;
       const a = chooseAction(st);
@@ -432,7 +436,7 @@ describe('vacated hexes, turn-order ties and Stone holders (Hermit vs Lich)', ()
 describe('the light scorer (for Hard\'s playouts)', () => {
   it('scores the same moves, cheaper, and Hard plays a legal move with it', async () => {
     const { rankCandidates, AI_WEIGHTS, LOOKAHEAD } = await import('./ai');
-    const st = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 3, masters: ['regent', 'lich'], rosters: [randomLoadout(mulberry32(1)), randomLoadout(mulberry32(2))] });
+    const st = createMatch(TEST_MAP, { ai: [true, true], seed: 3, masters: ['regent', 'lich'], rosters: [randomLoadout(mulberry32(1)), randomLoadout(mulberry32(2))] });
     let s = st;
     for (let i = 0; i < 12 && s.winner === null; i++) s = applyTurn(s, chooseAction(s, undefined, 'normal')).state;
     const full = rankCandidates(s, AI_WEIGHTS).candidates;
@@ -442,5 +446,55 @@ describe('the light scorer (for Hard\'s playouts)', () => {
     expect(LOOKAHEAD.light).toBe(true);
     const a = chooseAction(s, undefined, 'hard');
     expect(validateTurn(s, a)).toBeNull();
+  });
+});
+
+describe('Hex and Entangle', () => {
+  const withAbility = async (ability: Record<string, unknown>, fn: () => void) => {
+    const { getLocalBalance, setLocalBalance } = await import('../rules');
+    const before = getLocalBalance();
+    setLocalBalance({ kinds: { imp: { abilityId: 'test-status' } }, abilities: { 'test-status': { id: 'test-status', name: 'Test', range: 3, radius: 0, trajectory: 'high', ...ability } as never } });
+    try {
+      fn();
+    } finally {
+      setLocalBalance(before);
+    }
+  };
+  const setup = () => {
+    const hexes: MapHex[] = [];
+    for (let r = 0; r < 9; r++) for (let q = 0; q < 9; q++) hexes.push({ hex: hex(q, r), height: 2, terrain: 'plain' });
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(0, 8), hex(8, 0)], spawnFacing: [0, 3] };
+    const st = createMatch(map, { ai: [true, true], masters: ['regent', 'hermit'] });
+    st.units.push({ id: 60, kind: 'imp', side: 0, pos: hex(3, 5), facing: 0, hp: 10, av: 0, stranded: false });
+    // a caster of mine that can use a Hex, and an enemy fighter coming
+    st.units.push({ id: 61, kind: 'pyromancer', side: 0, pos: hex(2, 5), facing: 0, hp: 10, av: 30, stranded: false });
+    st.units.push({ id: 62, kind: 'minotaur', side: 1, pos: hex(5, 3), facing: 3, hp: 10, av: 20, stranded: false });
+    st.units.forEach((u) => { if (u.id !== 60) u.av = Math.max(u.av, 20); });
+    st.activeUnitId = 60;
+    return st;
+  };
+
+  const enemyAt = (st: ReturnType<typeof setup>, h: { q: number; r: number }) => st.units.find((u) => u.side === 1 && u.pos.q === h.q && u.pos.r === h.r);
+
+  it('Entangles an enemy, and not once every enemy already is', async () => {
+    await withAbility({ kind: 'entangle' }, () => {
+      const st = setup();
+      const a = chooseAction(st, undefined, 'normal');
+      expect(a.command.type).toBe('act');
+      if (a.command.type === 'act') expect(enemyAt(st, a.command.target)).toBeDefined();
+      for (const u of st.units) if (u.side === 1) u.entangled = true;
+      expect(chooseAction(st, undefined, 'normal').command.type).not.toBe('act');
+    });
+  });
+
+  it('Hexes an enemy its casters can reach, and not once every enemy is Hexed as hard', async () => {
+    await withAbility({ kind: 'hex', amount: 3, minutes: 180 }, () => {
+      const st = setup();
+      const a = chooseAction(st, undefined, 'normal');
+      expect(a.command.type).toBe('act');
+      if (a.command.type === 'act') expect(enemyAt(st, a.command.target)).toBeDefined();
+      for (const u of st.units) if (u.side === 1) u.hex = { amount: 3, until: st.clock + 300 };
+      expect(chooseAction(st, undefined, 'normal').command.type).not.toBe('act');
+    });
   });
 });

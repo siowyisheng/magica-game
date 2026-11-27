@@ -128,6 +128,7 @@ export function planAct(state: MatchState, unit: Unit, target: Target, ignoreCle
   const aimFrom = (h: Hex) => (ab.burst || target.id === unit.id ? h : target.pos);
   const sources = actionSources(state, unit).filter((h) => {
     const aim = aimFrom(h);
+    if (!mapHexAt(state.map, aim)) return false;
     const d = hexDistance(h, aim);
     if (d < minAimDistance(ab) || d > ab.range) return false;
     const view = withUnitAt(state, unit.id, h);

@@ -35,6 +35,8 @@ import {
   signatureStatOf,
   SIGNATURE_STATS,
   type SignatureStat,
+  HEX_AMOUNT,
+  HEX_MINUTES,
 } from '../rules';
 import { useGame } from '../store';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
@@ -450,11 +452,49 @@ function KindForm({ kind, edit, openAbility }: { kind: UnitKind; edit: (f: (k: U
   );
 }
 
+/** A damage Ability's riders: a Hex (with its −MDF and minutes) and/or Entangle on every enemy Unit it hits. */
+function RidersForm({ m, onChange }: { m: Extract<Ability, { kind: 'damage' | 'heal' | 'empower' | 'hex' | 'entangle' }>; onChange: (f: (m: Ability) => void) => void }) {
+  const hex = m.riders?.find((r) => r.kind === 'hex');
+  const entangle = m.riders?.some((r) => r.kind === 'entangle');
+  const setRider = (kind: 'hex' | 'entangle', on: boolean) =>
+    onChange((x) => {
+      if (x.kind !== 'damage') return;
+      const rest = (x.riders ?? []).filter((r) => r.kind !== kind);
+      x.riders = on ? [...rest, kind === 'hex' ? { kind: 'hex', amount: HEX_AMOUNT, minutes: HEX_MINUTES } : { kind: 'entangle' }] : rest;
+      if (!x.riders.length) delete x.riders;
+    });
+  const setHex = (f: (r: { amount?: number; minutes?: number }) => void) =>
+    onChange((x) => {
+      const r = x.kind === 'damage' ? x.riders?.find((y) => y.kind === 'hex') : undefined;
+      if (r && r.kind === 'hex') f(r);
+    });
+  return (
+    <div className="dev-riders" title="Riders land on every enemy Unit the damage hits (not Obstacles)">
+      <span className="muted small">Riders</span>
+      <label className="dev-check">
+        <input type="checkbox" checked={!!hex} onChange={(e) => setRider('hex', e.target.checked)} /> Hex
+      </label>
+      {hex && hex.kind === 'hex' && (
+        <>
+          <Num label="−MDF" value={hex.amount ?? HEX_AMOUNT} min={1} max={9} onChange={(v) => setHex((r) => (r.amount = v))} />
+          <Num label="Minutes" value={hex.minutes ?? HEX_MINUTES} min={10} max={1440} step={10} onChange={(v) => setHex((r) => (r.minutes = v))} />
+        </>
+      )}
+      <label className="dev-check">
+        <input type="checkbox" checked={!!entangle} onChange={(e) => setRider('entangle', e.target.checked)} /> Entangle
+      </label>
+    </div>
+  );
+}
+
 function abilitySummary(m: Ability): string {
   if (m.kind === 'water') return `${m.delta > 0 ? 'raises' : 'lowers'} the Water Level`;
+  const riders = m.kind === 'damage' && m.riders?.length ? ` + ${m.riders.map((r) => (r.kind === 'hex' ? `Hex −${r.amount ?? HEX_AMOUNT} MDF ${r.minutes ?? HEX_MINUTES} min` : 'Entangle')).join(' + ')}` : '';
+  if (m.kind === 'hex') return `Hex −${m.amount ?? HEX_AMOUNT} MDF for ${m.minutes ?? HEX_MINUTES} min, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}`;
+  if (m.kind === 'entangle') return `Entangle (no movement next turn), range ${m.range}${m.radius ? `, area ${m.radius}` : ''}`;
   const power = m.kind === 'damage' ? (m.power === 'atk' ? 'physical ' : 'magic ') : '';
-  if (m.kind === 'damage' && m.burst) return `${power}Burst, radius ${m.radius} around the user (hits allies)`;
-  return `${power}${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}`;
+  if (m.kind === 'damage' && m.burst) return `${power}Burst, radius ${m.radius} around the user (hits allies)${riders}`;
+  return `${power}${m.kind}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${m.range > 1 ? `, ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : ''}${riders}`;
 }
 
 /** A shared Ability, with the units that use it. */
@@ -496,12 +536,32 @@ function MagicForm({ m, shipped, onChange }: { m: Ability; shipped?: Ability; on
         <>
           <label className="dev-field">
             <span>Effect</span>
-            <select value={m.kind} onChange={(e) => onChange((x) => void (x.kind === 'water' || (x.kind = e.target.value as 'damage' | 'heal' | 'empower')))}>
+            <select
+              value={m.kind}
+              onChange={(e) =>
+                onChange((x) => {
+                  if (x.kind === 'water') return;
+                  x.kind = e.target.value as typeof x.kind;
+                  if (x.kind !== 'damage') delete x.riders;
+                  if (x.kind !== 'hex') delete x.minutes;
+                  if (x.kind === 'hex') x.amount = x.amount ?? HEX_AMOUNT;
+                })
+              }
+            >
               <option value="damage">Damage</option>
               <option value="heal">Heal</option>
               <option value="empower">Empower (+ATK until the next physical hit)</option>
+              <option value="hex">Hex (−MDF for a while)</option>
+              <option value="entangle">Entangle (no movement next turn)</option>
             </select>
           </label>
+          {m.kind === 'hex' && (
+            <>
+              <Num label="−MDF" value={m.amount ?? HEX_AMOUNT} min={1} max={9} onChange={(v) => onChange((x) => void (x.kind === 'hex' && (x.amount = v)))} />
+              <Num label="Minutes" value={m.minutes ?? HEX_MINUTES} min={10} max={1440} step={10} onChange={(v) => onChange((x) => void (x.kind === 'hex' && (x.minutes = v)))} />
+            </>
+          )}
+          {m.kind === 'damage' && <RidersForm m={m} onChange={onChange} />}
           {m.kind === 'damage' && (
             <label className="dev-field" title="Physical hits use ATK against DEF (Empower adds to them); magic ones MP against MDF">
               <span>Power</span>

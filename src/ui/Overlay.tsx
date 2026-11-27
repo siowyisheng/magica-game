@@ -9,7 +9,7 @@ import { animElapsed, type Impact } from '../anim';
 /** How long a Damage Number stays up after impact (fade in, hold, fade out). */
 const POP_MS = 800;
 import { FamiliarDetail } from './FamiliarCard';
-import { ClassIcon } from './icons';
+import { ClassIcon, Icon } from './icons';
 
 /** DOM layer over the canvas; children with data-anchor follow 3D anchors. */
 export function Overlay() {
@@ -190,7 +190,7 @@ export function Overlay() {
         <div key={`pop${key}`} className="anchor top" data-anchor={`tag:${impact.unitId}`} data-sticky="">
           <div className="center-bottom">
             <div className="dmg-pop" style={{ animationDuration: `${POP_MS}ms` }}>
-              <DamageNumber kind={impact.kind} amount={impact.amount} lethal={impact.lethal && !impact.obstacle} />
+              <DamageNumber kind={impact.kind} amount={impact.amount} lethal={impact.lethal && !impact.obstacle} hex={impact.hex} entangle={impact.entangle} />
             </div>
           </div>
         </div>
@@ -230,6 +230,12 @@ function UnitBars({ unit, hp, showHp }: { unit: Unit; hp: number; showHp: boolea
   const over = Math.min(Math.max(av - 60, 0), 60) / 60;
   return (
     <div className="unit-bars">
+      {(unit.hex || unit.entangled) && (
+        <div className="unit-status">
+          {unit.hex && <Icon name="hex" size={10} title={`Hexed: −${unit.hex.amount} MDF`} />}
+          {unit.entangled && <Icon name="entangle" size={10} title="Entangled" />}
+        </div>
+      )}
       {showHp && (
         <div className="hp-bar">
           {Array.from({ length: 10 }, (_, i) => (

@@ -77,8 +77,11 @@ export interface TurnAnim {
 export interface Impact {
   unitId: number;
   t: number;
-  kind: 'damage' | 'heal' | 'empower';
+  kind: 'damage' | 'heal' | 'empower' | 'hex' | 'entangle';
   amount: number;
+  /** A Hex and/or Entangle landing with it. */
+  hex?: { amount: number };
+  entangle?: boolean;
   /** HP shown from the impact on. */
   hpAfter: number;
   lethal: boolean;
@@ -213,8 +216,18 @@ export function planTurnAnim(before: MatchState, action: TurnAction, start: numb
   const impacts: Impact[] = [];
   if (impactT !== null) {
     for (const e of previewEffects(before, action)) {
-      const hpAfter = e.kind === 'heal' ? Math.min(MAX_HP, e.hpBefore + e.amount) : e.kind === 'empower' ? e.hpBefore : Math.max(0, e.hpBefore - e.amount);
-      impacts.push({ unitId: e.unitId, t: impactT, kind: e.kind, amount: e.amount, hpAfter, lethal: e.lethal, ...(e.obstacle ? { obstacle: true } : {}) });
+      const hpAfter = e.kind === 'heal' ? Math.min(MAX_HP, e.hpBefore + e.amount) : e.kind === 'damage' ? Math.max(0, e.hpBefore - e.amount) : e.hpBefore;
+      impacts.push({
+        unitId: e.unitId,
+        t: impactT,
+        kind: e.kind,
+        amount: e.amount,
+        hpAfter,
+        lethal: e.lethal,
+        ...(e.obstacle ? { obstacle: true } : {}),
+        ...(e.hex ? { hex: { amount: e.hex.amount } } : {}),
+        ...(e.entangle ? { entangle: true } : {}),
+      });
       if (e.lethal) t = Math.max(t, impactT + KO_FADE_MS); // let the fade finish
     }
   }

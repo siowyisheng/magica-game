@@ -356,3 +356,13 @@ button:disabled { opacity: 0.4; cursor: default; }
 .online-clocks .low { color: #ff7070; }
 .online-result { border-top: 1px solid #ffffff22; padding-top: 4px; }
 .online-banner { position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%); z-index: 47; }
+
+/* Hex and Entangle */
+.status-chips { display: flex; gap: 3px; justify-content: center; margin-top: 1px; }
+.status-chips .chip { display: inline-flex; align-items: center; gap: 1px; font-size: 13px; font-weight: bold; padding: 0 3px; border-radius: 3px; background: #120a14cc; line-height: 15px; }
+.status-chips .chip.hex { color: #d8b0ff; }
+.status-chips .chip.entangle { color: #9fe07a; }
+.unit-status { display: flex; gap: 2px; justify-content: center; }
+.dev-riders { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px dashed #ffffff22; }
+.hexed { color: #d8b0ff; display: flex; align-items: center; gap: 4px; }
+.entangled { color: #9fe07a; display: flex; align-items: center; gap: 4px; }

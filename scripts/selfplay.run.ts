@@ -6,8 +6,7 @@
 import { it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import {
-  SCAFFOLD_MAP,
-  randomLoadout,
+  generateRandomMap, randomLoadout,
   MASTERS,
   applyTurn,
   createMatch,
@@ -100,7 +99,7 @@ it('self-play', () => {
     };
     const l0 = lo(0);
     const l1 = lo(1);
-    let st: MatchState = createMatch(SCAFFOLD_MAP, { ai: [true, true], seed: 42 + g, masters, rosters: [l0.familiars, l1.familiars], signatures: [l0.familiars[g % 20], l1.familiars[(g + 7) % 20]] });
+    let st: MatchState = createMatch(generateRandomMap(42 + g), { ai: [true, true], seed: 42 + g, masters, rosters: [l0.familiars, l1.familiars], signatures: [l0.familiars[g % 20], l1.familiars[(g + 7) % 20]] });
     const stats: [SideStats, SideStats] = [blank(masters[0], l0.name), blank(masters[1], l1.name)];
     const timeline: { turn: number; clock: number; units: [number, number]; mana: [number, number]; hp: [number, number]; stones: [number, number] }[] = [];
     const kindById = new Map<number, { kind: string; side: SideId }>();

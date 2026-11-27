@@ -14,9 +14,8 @@ behind Stockfish's tuning). Each iteration:
 1. Every tuned weight is nudged up or down at random by the same relative
    step (±15% at the start, shrinking slowly): a "+" set and a "−" set.
 2. The two sets play each other on random matchups (random Masters, Loadouts
-   half auto and half random; by default half on Scaffold Ford and half on
-   random maps, `--maps`), each setup twice with sides swapped. Tuning on
-   many maps keeps the weights from fitting one map.
+   half auto and half random, each on a new random map), each setup twice
+   with sides swapped. Tuning on many maps keeps the weights from fitting one map.
 3. Every weight moves a little toward the set that won.
 
 Weights are tuned as multipliers on their defaults, so they all move in
@@ -134,7 +133,6 @@ gain, and get checked with the usual arena run and tests.
 | `--params a,b` | all | tune only these weights; the rest stay fixed |
 | `--start FILE` | none | begin from a previous `tuned-weights.json` |
 | `--seed N` | 1 | different seeds give different matchups |
-| `--maps M` | mixed | `scaffold`, `random` (a new random map per setup) or `mixed` (half each) |
 | `--c F` | 0.15 | starting size of the random nudge (relative) |
 | `--a F` | 0.03 | starting size of the update step |
 | `--max-turns N` | 1000 | a game this long counts as a draw |

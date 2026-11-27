@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { banksAfter, clockFace, spend, TIME_BANK_MS, TURN_TIMER_MS, turnAllowance } from './clock';
 import { canonical, comparisonKey, resultStatus, SECOND_REPORT_WAIT_MS, type MatchReport } from './report';
 import { commitPick, rulesFingerprint, verifyPick } from './fingerprint';
-import { createMatch, SCAFFOLD_MAP } from '../rules';
+import { createMatch } from '../rules';
+import { generateRandomMap as makeTestMap } from '../rules';
+
+/** A fixed random map (the same every run): Scaffold Ford is gone. */
+const TEST_MAP = makeTestMap(20261127);
 
 describe('Online clock', () => {
   it('drains the Time Bank only past the free Turn Timer', () => {
@@ -26,7 +30,7 @@ describe('Match Reports', () => {
     playerId: 'a',
     players: ['a', 'b'],
     result: { winner: 0, reason: 'master' },
-    replay: { initial: createMatch(SCAFFOLD_MAP), actions: [], times: [1200], timeouts: [] },
+    replay: { initial: createMatch(TEST_MAP), actions: [], times: [1200], timeouts: [] },
     rules: 'r',
     ...over,
   });

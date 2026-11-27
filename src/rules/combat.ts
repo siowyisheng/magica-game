@@ -1,6 +1,7 @@
 import { type Hex, hexDistance, hexesInRange, hexSub, ringPosition, hexEq } from './hex';
 import { COVER, ELEMENT_BONUS, FACING_BONUS, MAX_HP } from './data/tuning';
 import { kindOf } from './kinds';
+import { isHostile, statusesOf } from './ability';
 import { mapHexAt, surfaceHeight, surfaceOf, targetAt } from './terrain';
 import { alignmentBonus } from './time';
 import { isObstacle, type Element, type UnitKind, type Ability, type MatchState, type Target, type Trajectory, type Unit } from './types';
@@ -83,11 +84,16 @@ export interface Effect {
   unitId: number;
   /** True when the target is an Obstacle. */
   obstacle?: boolean;
-  kind: 'damage' | 'heal' | 'empower';
+  /** hex / entangle: a standalone Hex or Entangle (amount: the MDF a Hex takes away, else 0). */
+  kind: 'damage' | 'heal' | 'empower' | 'hex' | 'entangle';
   amount: number;
   hpBefore: number;
   lethal: boolean;
   breakdown?: Breakdown;
+  /** The Hex this puts on the Unit (standalone, or riding on damage). */
+  hex?: { amount: number; minutes: number };
+  /** It Entangles the Unit (standalone, or riding on damage). */
+  entangle?: boolean;
 }
 
 export type HitKind = 'physical' | 'magic';
@@ -291,16 +297,22 @@ export function shotAllowed(state: MatchState, shooterId: number, trajectory: Tr
 
 export type AreaAbility = Exclude<Ability, { kind: 'water' }>;
 
-/** Damage hits enemies and Obstacles; heals hit allies (the caster included). */
+/** Damage hits enemies and Obstacles; Hex and Entangle enemy Units; heals and Empower allies (the caster included). */
 function matchesTargets(ability: AreaAbility, caster: Unit, t: Target): boolean {
   if (isObstacle(t)) return ability.kind === 'damage';
   if (ability.kind === 'damage' && ability.burst) return t.id !== caster.id; // a Burst spares only its caster
-  return ability.kind === 'damage' ? t.side !== caster.side : t.side === caster.side;
+  return isHostile(ability) ? t.side !== caster.side : t.side === caster.side;
 }
 
-/** Closest hex an Ability may be aimed at: damage never at the user's own hex. */
+/** Closest hex an Ability may be aimed at: hostile ones never at the user's own hex. */
 export function minAimDistance(ability: AreaAbility): number {
-  return ability.kind === 'damage' && !ability.burst ? 1 : 0;
+  return isHostile(ability) && !ability.burst ? 1 : 0;
+}
+
+/** A standalone Hex or Entangle on `target`. */
+export function computeStatus(ability: AreaAbility, target: Unit): Effect {
+  const st = statusesOf(ability);
+  return { unitId: target.id, kind: ability.kind === 'hex' ? 'hex' : 'entangle', amount: st.hex?.amount ?? 0, hpBefore: target.hp, lethal: false, ...st };
 }
 
 /** Units and Obstacles affected by an area/single ability centred on `target`. */
