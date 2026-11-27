@@ -31,7 +31,7 @@ import {
   unitReach,
   facingTowardTarget,
 } from '../rules';
-import { hoverQuick, summonDirToward, useGame } from '../store';
+import { blockedShotView, hoverQuick, summonDirToward, useGame } from '../store';
 import { classIconName, iconPixels, type IconName } from '../ui/icons';
 import { FENCE_HEIGHT, cornerPosts, fenceGeometry, regionSegments, ribbonGeometry, type LineStyle } from './outlines';
 import {
@@ -467,6 +467,59 @@ function OutlineMesh({ layer }: { layer: OutlineLayer }) {
   );
 }
 
+/** A beam between two points (a thin box), for the blocked-shot line. */
+function Beam({ a, b, color, opacity, width = 0.05 }: { a: THREE.Vector3; b: THREE.Vector3; color: string; opacity: number; width?: number }) {
+  const len = a.distanceTo(b);
+  const mid = a.clone().add(b).multiplyScalar(0.5);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), b.clone().sub(a).normalize());
+  return (
+    <mesh position={mid} quaternion={q} raycast={() => null} renderOrder={12}>
+      <boxGeometry args={[width, width, len]} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} depthTest={false} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/** A pointed-at Direct shot with no Clear Angle: a red line to what's in the way, which is ringed and crossed. */
+function BlockedShotLine() {
+  const match = useGame((s) => s.match);
+  const phase = useGame((s) => s.phase);
+  const hoverHex = useGame((s) => s.hoverHex);
+  const hoverUnitId = useGame((s) => s.hoverUnitId);
+  const anim = useGame((s) => s.anim);
+  const b = useMemo(() => (anim ? null : blockedShotView({ match, phase, hoverHex, hoverUnitId })), [match, phase, hoverHex, hoverUnitId, anim]);
+  if (!b) return null;
+  const at = (h: Hex, dy: number) => {
+    const [x, z] = hexToWorld(h);
+    return new THREE.Vector3(x, topY(match, h) + dy, z);
+  };
+  const from = at(b.from, 0.55);
+  const to = at(b.target.pos, 0.55);
+  const stop = b.blocker ? at(b.blocker.hex, b.blocker.kind === 'terrain' ? 0.15 : 0.55) : to;
+  const blockHex = b.blocker?.hex;
+  const [bx, bz] = blockHex ? hexToWorld(blockHex) : [0, 0];
+  const by = blockHex ? topY(match, blockHex) + 0.05 : 0;
+  return (
+    <>
+      <Beam a={from} b={stop} color={LINE_COLORS.attack} opacity={0.95} />
+      {b.blocker && <Beam a={stop} b={to} color={LINE_COLORS.attack} opacity={0.25} width={0.03} />}
+      {blockHex && (
+        <group position={[bx, by, bz]}>
+          <mesh geometry={ringGeo} raycast={() => null} renderOrder={12}>
+            <meshBasicMaterial color={LINE_COLORS.attack} transparent opacity={0.95} depthTest={false} depthWrite={false} />
+          </mesh>
+          {[Math.PI / 4, -Math.PI / 4].map((r) => (
+            <mesh key={r} rotation={[0, r, 0]} position={[0, 0.02, 0]} raycast={() => null} renderOrder={12}>
+              <boxGeometry args={[1.0, 0.03, 0.12]} />
+              <meshBasicMaterial color={LINE_COLORS.attack} transparent opacity={0.9} depthTest={false} depthWrite={false} />
+            </mesh>
+          ))}
+        </group>
+      )}
+    </>
+  );
+}
+
 function Highlights() {
   const match = useGame((s) => s.match);
   const rawHover = useGame((s) => s.hoverHex);
@@ -487,6 +540,7 @@ function Highlights() {
       {layers.map((l) => (
         <OutlineMesh key={l.key} layer={l} />
       ))}
+      <BlockedShotLine />
       {hoverHex && mapHexAt(match.map, hoverHex) && (
         <mesh
           geometry={ringGeo}
