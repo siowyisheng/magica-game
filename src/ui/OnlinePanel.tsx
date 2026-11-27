@@ -7,7 +7,7 @@ import { MASTERS, type SideId } from '../rules';
 import { isPlayable, listLoadouts } from '../loadouts/library';
 import { resolveLoadout, useGame } from '../store';
 import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
-import { ABANDON_MS, clockFace, formatSeconds, PAUSES_PER_PLAYER, PAUSE_MAX_MS } from '../online/clock';
+import { ABANDON_MS, clockFace, describeTime, formatSeconds, PAUSES_PER_PLAYER, PAUSE_MAX_MS } from '../online/clock';
 import { canClaimAbandon, claimAbandon, leaveOnline, lockPick, readyUp, resign, useOnline } from '../online/session';
 import { HideOmittedToggle, LoadoutStrip, useHideOmitted } from './LoadoutView';
 import { MasterInfo } from './MatchSetup';
@@ -83,7 +83,7 @@ function Connecting() {
 }
 
 function Picking() {
-  const { mySide, locked, opponent, map } = useOnline();
+  const { mySide, locked, opponent, map, time } = useOnline();
   const [master, setMaster] = useState(MASTERS[0].id);
   const [choice, setChoice] = useState<string>('random');
   const loadouts = listLoadouts().filter(isPlayable);
@@ -95,7 +95,7 @@ function Picking() {
       <div className="window online-modal picking">
         <div className="title">
           You play <span style={{ color: SIDE_COLORS[side] }}>{SIDE_NAME[side]}</span>
-          {side === 0 ? ' (you move first)' : ''} against {opponent?.name} · {map?.name}
+          {side === 0 ? ' (you move first)' : ''} against {opponent?.name} · {map?.name} · {describeTime(time)}
         </div>
         <div className="muted small">Pick your Master and Loadout. The other player sees them only once both are locked in.</div>
         <div className="master-grid">
@@ -173,7 +173,7 @@ function Planning() {
 }
 
 function Clocks() {
-  const { banks, elapsed, mySide, me, opponent, pause, pausesUsed, stage, result, report } = useOnline();
+  const { banks, elapsed, mySide, me, opponent, pause, pausesUsed, stage, result, report, time } = useOnline();
   const match = useGame((s) => s.match);
   useNow(250);
   const active = match.units.find((u) => u.id === match.activeUnitId);
@@ -183,7 +183,7 @@ function Clocks() {
   return (
     <div className="online-clocks window">
       {([0, 1] as SideId[]).map((s) => {
-        const face = mover === s ? clockFace(banks[s], elapsed) : { timer: null, bank: banks[s], out: banks[s] === 0 };
+        const face = mover === s ? clockFace(banks[s], elapsed, time) : { timer: null, bank: banks[s], out: banks[s] === 0 };
         return (
           <div key={s} className={`clock ${mover === s ? 'on' : ''}`}>
             <span className="who" style={{ color: SIDE_COLORS[s] }}>

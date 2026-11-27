@@ -3,9 +3,10 @@
 
 import type { MapDef, TurnAction } from '../rules/types';
 import type { MatchResult } from './report';
+import type { TimeSettings } from './clock';
 
 /** Bumped whenever these messages change. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** A player's hidden choice before the Planning Phase. */
 export interface Pick {
@@ -15,8 +16,8 @@ export interface Pick {
 }
 
 export type PeerMsg =
-  /** First message both ways: who I am and what I play by. The creator also sends the map. */
-  | { t: 'hello'; protocol: number; rules: string; playerId: string; name: string; map?: MapDef }
+  /** First message both ways: who I am and what I play by. The creator also sends the map and the time settings. */
+  | { t: 'hello'; protocol: number; rules: string; playerId: string; name: string; map?: MapDef; time?: TimeSettings }
   /** My pick is locked: its hash, revealed once both are locked. */
   | { t: 'lock'; commitment: string }
   | { t: 'reveal'; pick: Pick; salt: string }

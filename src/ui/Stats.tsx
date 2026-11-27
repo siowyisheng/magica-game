@@ -1,4 +1,4 @@
-import { atkHidden, powerStat, statusesOf, type Ability, type Stats, type UnitKind } from '../rules';
+import { atkHidden, statusesOf, type Ability, type Stats, type UnitKind } from '../rules';
 import { Icon } from './icons';
 
 const ORDER: { key: keyof Stats; icon: 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'mov'; aligned: boolean }[] = [

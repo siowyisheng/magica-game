@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { banksAfter, clockFace, spend, TIME_BANK_MS, TURN_TIMER_MS, turnAllowance } from './clock';
+import { banksAfter, clockFace, spend, startBanks, TIME_BANK_MS, TURN_TIMER_MS, turnAllowance, validTime } from './clock';
 import { canonical, comparisonKey, resultStatus, SECOND_REPORT_WAIT_MS, type MatchReport } from './report';
 import { commitPick, rulesFingerprint, verifyPick } from './fingerprint';
 import { createMatch } from '../rules';
@@ -21,6 +21,18 @@ describe('Online clock', () => {
     expect(clockFace(30_000, 2_000)).toEqual({ timer: 8_000, bank: 30_000, out: false });
     expect(clockFace(30_000, 12_000)).toEqual({ timer: 0, bank: 28_000, out: false });
     expect(clockFace(0, 10_000).out).toBe(true);
+  });
+
+  it('uses the Turn Timer and Time Bank the creator picked, from the offered choices only', () => {
+    const t = { turnMs: 5_000, bankMs: 120_000 };
+    expect(startBanks(t)).toEqual([120_000, 120_000]);
+    expect(turnAllowance(0, t)).toBe(5_000);
+    expect(spend(120_000, 7_000, t)).toBe(118_000);
+    expect(clockFace(0, 5_000, { turnMs: 5_000, bankMs: 0 }).out).toBe(true);
+    expect(banksAfter([{ side: 1, ms: 9_000 }], t)).toEqual([120_000, 116_000]);
+    expect(validTime(t)).toEqual(t);
+    expect(validTime({ turnMs: 7_000, bankMs: 60_000 })).toBeNull();
+    expect(validTime(undefined)).toBeNull();
   });
 });
 
