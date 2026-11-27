@@ -406,20 +406,26 @@ button:disabled { opacity: 0.4; cursor: default; }
 .hud-side { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
 .hud-side.s1 { flex-direction: row-reverse; }
 .hud-portrait { flex: none; width: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.hud-portrait img {
-  width: 60px; height: 75px; object-fit: contain; image-rendering: pixelated;
+.hud-face {
+  width: 60px; height: 75px; overflow: hidden; position: relative;
   background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--side) 55%, #000) 0%, #0b0d16 75%);
   border: 2px solid var(--side); border-radius: 6px; box-shadow: 0 0 8px color-mix(in srgb, var(--side) 60%, transparent), inset 0 0 0 1px #000;
 }
+/* the sprite fills the frame's height (its icon has room around the figure) */
+.hud-face img {
+  position: absolute; left: 50%; bottom: -10px; height: 165%; width: auto; transform: translateX(-50%);
+  image-rendering: pixelated;
+}
 .hud-army {
+  display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%;
   font: 900 20px/1 'Trebuchet MS', sans-serif; letter-spacing: 0.02em; color: #fff3c4;
   -webkit-text-stroke: 4px #1a0f00; paint-order: stroke fill; text-shadow: 0 2px 0 #000, 0 0 8px #ffb02088;
   pointer-events: auto; cursor: default;
 }
-.hud-army::before { content: 'ARMY '; font-size: 9px; vertical-align: 4px; letter-spacing: 0.08em; -webkit-text-stroke: 3px #1a0f00; color: #ffd23f; }
+.hud-army .lbl { font-size: 9px; letter-spacing: 0.1em; color: #ffd23f; -webkit-text-stroke: 3px #1a0f00; margin-bottom: 1px; }
 .hud-bars { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding-top: 4px; }
 .hud-bar {
-  position: relative; height: 18px; background: #0a0b12; border: 2px solid var(--side);
+  position: relative; height: 18px; background: #0a0b12; border: 1px solid #000;
   box-shadow: inset 0 0 0 1px #000, 0 2px 0 #0009; overflow: visible; pointer-events: auto;
   transform: skewX(-14deg);
 }
@@ -427,11 +433,26 @@ button:disabled { opacity: 0.4; cursor: default; }
 .hud-bar .hud-fill { position: absolute; top: 0; bottom: 0; width: calc(var(--f) * 100%); transition: width 0.35s ease-out, background-color 0.3s; }
 .hud-side.s0 .hud-fill, .hud-side.s0 .hud-chunk { right: 0; }
 .hud-side.s1 .hud-fill, .hud-side.s1 .hud-chunk { left: 0; }
-.hud-bar.hp .hud-fill { background: linear-gradient(180deg, #b8ffb0, #3fcf4f 45%, #1f8a2c); }
-.hud-bar.hp.injured .hud-fill { background: linear-gradient(180deg, #fff4a8, #f2cf32 45%, #b08a10); }
-.hud-bar.hp.critical .hud-fill { background: linear-gradient(180deg, #ffd0a0, #ff8a2a 45%, #b04a0a); }
+.hud-side.s0 .hud-bar.hp .hud-fill { background: linear-gradient(180deg, #d4ffd0, #5ef06e 45%, #2cae3c); }
+.hud-side.s1 .hud-bar.hp .hud-fill { background: linear-gradient(180deg, #ffd6d0, #ff5a52 45%, #c42a2a); }
+/* dividers: the HP bar's 10 segments, the Income bar's base and Stone shares */
+.hud-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: #0a0b12; z-index: 1; }
+.hud-side.s0 .hud-mark { right: calc(var(--at) * 100%); margin-right: -1px; }
+.hud-side.s1 .hud-mark { left: calc(var(--at) * 100%); margin-left: -1px; }
+.hud-bar.income .hud-mark { width: 1px; background: #10121a; }
 .hud-bar.mana .hud-fill { background: linear-gradient(180deg, #c8e4ff, #4a8cff 45%, #2348b8); }
-.hud-bar.income, .hud-bar.upkeep { height: 7px; border-width: 1px; }
+.hud-bar.income, .hud-bar.upkeep { height: 7px; }
+.hud-econ { position: relative; display: flex; flex-direction: column; pointer-events: auto; }
+.hud-econ .hud-bar.upkeep { border-top: none; }
+.hud-num.econ { font-size: 12px; line-height: 14px; color: #ffd23f; }
+.hud-num.econ.neg { color: #ff5a4a; }
+.hud-tip {
+  display: none; position: absolute; top: 100%; z-index: 50; margin-top: 3px; white-space: nowrap;
+  background: #0d1020f2; border: 1px solid var(--win-edge); padding: 3px 6px; font-size: 11px; color: var(--text);
+}
+.hud-side.s0 .hud-tip { right: 0; }
+.hud-side.s1 .hud-tip { left: 0; }
+.hud-econ:hover .hud-tip { display: block; }
 .hud-bar.income .hud-fill { background: #e0b040; }
 .hud-bar.income .hud-fill.lap2 { background: #fff4c8; box-shadow: 0 0 4px #fff4c8; }
 .hud-bar.upkeep .hud-fill { background: #e0603a; }
