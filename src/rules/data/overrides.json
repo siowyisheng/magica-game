@@ -158,8 +158,17 @@
       "signatureStat": "mov"
     },
     "sling": {
-      "abilityName": "Add Entangle Here!",
-      "signatureStat": "def"
+      "abilityName": "Entangle",
+      "signatureStat": "def",
+      "stats": {
+        "atk": 6,
+        "def": 5,
+        "mp": 0,
+        "mdf": 4,
+        "spd": 1,
+        "mov": 5
+      },
+      "abilityId": "flashfire"
     },
     "beetle": {
       "stats": {
@@ -175,6 +184,17 @@
     },
     "dryad": {
       "abilityName": "Avalanche"
+    },
+    "titan": {
+      "stats": {
+        "atk": 13,
+        "def": 8,
+        "mp": 0,
+        "mdf": 9,
+        "spd": 4,
+        "mov": 5
+      },
+      "abilityName": "Shake Earth"
     }
   },
   "abilities": {
@@ -209,9 +229,16 @@
       "name": "Wind Hex",
       "kind": "damage",
       "power": "mp",
-      "range": 5,
+      "range": 4,
       "radius": 0,
-      "trajectory": "high"
+      "trajectory": "high",
+      "riders": [
+        {
+          "kind": "hex",
+          "amount": 3,
+          "minutes": 180
+        }
+      ]
     },
     "lightning": {
       "id": "lightning",
@@ -221,6 +248,28 @@
       "range": 5,
       "radius": 0,
       "trajectory": "direct"
+    },
+    "shockwave": {
+      "id": "shockwave",
+      "name": "Shockwave",
+      "kind": "damage",
+      "power": "atk",
+      "range": 0,
+      "radius": 1,
+      "burst": true
+    },
+    "flashfire": {
+      "id": "flashfire",
+      "name": "Entangle",
+      "kind": "damage",
+      "power": "atk",
+      "range": 1,
+      "radius": 0,
+      "riders": [
+        {
+          "kind": "entangle"
+        }
+      ]
     }
   }
 }
