@@ -35,6 +35,8 @@ import {
   classOf,
   isPhysical,
   powerStat,
+  atkHidden,
+  type Hex,
 } from './index';
 import { ELEMENTS } from './data/familiars';
 import * as matchModule from './match';
@@ -1064,16 +1066,31 @@ describe('Empower', () => {
     const r2 = applyTurn(s2, { unitId: a2.id, to: a2.pos, facing: 0, command: { type: 'act', target: hex(5, 3) } });
     expect(r2.events.find((e) => e.type === 'damage')).toMatchObject({ amount: before + 3 });
     expect(getUnit(r2.state, ally.id).empowered).toBeUndefined();
-    // the caster may Empower itself; a second Empower doesn't stack
+    // a second Empower doesn't stack
     const s3 = r2.state;
     activate(s3, getUnit(s3, kindle.id));
-    s3.sides[0].mana = 50;
-    const self = { unitId: kindle.id, to: getUnit(s3, kindle.id).pos, facing: 0 as const, command: { type: 'act' as const, target: getUnit(s3, kindle.id).pos } };
-    expect(validateTurn(s3, self)).toBeNull();
-    const r3 = applyTurn(s3, self);
-    expect(getUnit(r3.state, kindle.id).empowered).toBe(3);
+    const again = { unitId: kindle.id, to: getUnit(s3, kindle.id).pos, facing: 0 as const, command: { type: 'act' as const, target: getUnit(s3, ally.id).pos } };
+    const r3 = applyTurn(s3, again);
+    expect(getUnit(r3.state, ally.id).empowered).toBe(3);
     activate(r3.state, getUnit(r3.state, kindle.id));
-    expect(getUnit(applyTurn(r3.state, { ...self, to: getUnit(r3.state, kindle.id).pos }).state, kindle.id).empowered).toBe(3);
+    expect(getUnit(applyTurn(r3.state, { ...again, to: getUnit(r3.state, kindle.id).pos }).state, ally.id).empowered).toBe(3);
+  });
+
+  it('never goes to a Familiar whose ATK is hidden: not Kindle itself, nor an aligned Caster at its Time of Day', () => {
+    const state = createMatch(testMap(8, 8));
+    state.clock = 22 * 60; // Night
+    state.units = state.units.filter((u) => kindOf(u).isMaster);
+    for (const u of state.units) u.pos = u.side === 0 ? hex(3, 4) : hex(7, 0);
+    const kindle = place(state, 'wisp', 0, 3, 3);
+    const coral = place(state, 'crab', 0, 4, 3); // a Night Caster: ATK 0, lifted to 1 at Night
+    expect(atkHidden(kindOf(coral))).toBe(true);
+    activate(state, kindle);
+    const at = (h: Hex) => validateTurn(state, { unitId: kindle.id, to: kindle.pos, facing: 0, command: { type: 'act', target: h } });
+    expect(at(kindle.pos)).not.toBeNull();
+    expect(at(coral.pos)).not.toBeNull();
+    // a Master's ATK is never hidden
+    const master = state.units.find((u) => kindOf(u).isMaster && u.side === 0)!;
+    expect(at(master.pos)).toBeNull();
   });
 });
 

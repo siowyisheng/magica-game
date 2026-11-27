@@ -70,3 +70,8 @@ export function isBurst(a: Ability): a is Exclude<Ability, { kind: 'water' }> {
 export function powerStat(k: UnitKind): Power {
   return isPhysical(k.ability) ? 'atk' : 'mp';
 }
+
+/** Whether a Unit's ATK is hidden (and 0 before Alignment): a Familiar whose Ability doesn't hit with ATK. */
+export function atkHidden(k: UnitKind): boolean {
+  return !k.isMaster && powerStat(k) !== 'atk';
+}

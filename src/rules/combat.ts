@@ -1,7 +1,7 @@
 import { type Hex, hexDistance, hexesInRange, hexSub, ringPosition, hexEq } from './hex';
 import { COVER, ELEMENT_BONUS, FACING_BONUS, MAX_HP } from './data/tuning';
 import { kindOf } from './kinds';
-import { isHostile, statusesOf } from './ability';
+import { atkHidden, isHostile, statusesOf } from './ability';
 import { mapHexAt, surfaceHeight, surfaceOf, targetAt } from './terrain';
 import { alignmentBonus } from './time';
 import { isObstacle, type Element, type UnitKind, type Ability, type MatchState, type Target, type Trajectory, type Unit } from './types';
@@ -297,10 +297,11 @@ export function shotAllowed(state: MatchState, shooterId: number, trajectory: Tr
 
 export type AreaAbility = Exclude<Ability, { kind: 'water' }>;
 
-/** Damage hits enemies and Obstacles; Hex and Entangle enemy Units; heals and Empower allies (the caster included). */
+/** Damage hits enemies and Obstacles; Hex and Entangle enemy Units; heals and Empower allies (the caster included; Empower never one whose ATK is hidden). */
 function matchesTargets(ability: AreaAbility, caster: Unit, t: Target): boolean {
   if (isObstacle(t)) return ability.kind === 'damage';
   if (ability.kind === 'damage' && ability.burst) return t.id !== caster.id; // a Burst spares only its caster
+  if (ability.kind === 'empower' && atkHidden(kindOf(t))) return false; // Empower only helps a Unit that hits with ATK
   return isHostile(ability) ? t.side !== caster.side : t.side === caster.side;
 }
 
