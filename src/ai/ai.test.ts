@@ -444,3 +444,53 @@ describe('the light scorer (for Hard\'s playouts)', () => {
     expect(validateTurn(s, a)).toBeNull();
   });
 });
+
+describe('Hex and Entangle', () => {
+  const withAbility = async (ability: Record<string, unknown>, fn: () => void) => {
+    const { getLocalBalance, setLocalBalance } = await import('../rules');
+    const before = getLocalBalance();
+    setLocalBalance({ kinds: { imp: { abilityId: 'test-status' } }, abilities: { 'test-status': { id: 'test-status', name: 'Test', range: 3, radius: 0, trajectory: 'high', ...ability } as never } });
+    try {
+      fn();
+    } finally {
+      setLocalBalance(before);
+    }
+  };
+  const setup = () => {
+    const hexes: MapHex[] = [];
+    for (let r = 0; r < 9; r++) for (let q = 0; q < 9; q++) hexes.push({ hex: hex(q, r), height: 2, terrain: 'plain' });
+    const map: MapDef = { name: 't', hexes, waterLevel: 0, startClock: 600, spawns: [hex(0, 8), hex(8, 0)], spawnFacing: [0, 3] };
+    const st = createMatch(map, { ai: [true, true], masters: ['regent', 'hermit'] });
+    st.units.push({ id: 60, kind: 'imp', side: 0, pos: hex(3, 5), facing: 0, hp: 10, av: 0, stranded: false });
+    // a caster of mine that can use a Hex, and an enemy fighter coming
+    st.units.push({ id: 61, kind: 'pyromancer', side: 0, pos: hex(2, 5), facing: 0, hp: 10, av: 30, stranded: false });
+    st.units.push({ id: 62, kind: 'minotaur', side: 1, pos: hex(5, 3), facing: 3, hp: 10, av: 20, stranded: false });
+    st.units.forEach((u) => { if (u.id !== 60) u.av = Math.max(u.av, 20); });
+    st.activeUnitId = 60;
+    return st;
+  };
+
+  const enemyAt = (st: ReturnType<typeof setup>, h: { q: number; r: number }) => st.units.find((u) => u.side === 1 && u.pos.q === h.q && u.pos.r === h.r);
+
+  it('Entangles an enemy, and not once every enemy already is', async () => {
+    await withAbility({ kind: 'entangle' }, () => {
+      const st = setup();
+      const a = chooseAction(st, undefined, 'normal');
+      expect(a.command.type).toBe('act');
+      if (a.command.type === 'act') expect(enemyAt(st, a.command.target)).toBeDefined();
+      for (const u of st.units) if (u.side === 1) u.entangled = true;
+      expect(chooseAction(st, undefined, 'normal').command.type).not.toBe('act');
+    });
+  });
+
+  it('Hexes an enemy its casters can reach, and not once every enemy is Hexed as hard', async () => {
+    await withAbility({ kind: 'hex', amount: 3, minutes: 180 }, () => {
+      const st = setup();
+      const a = chooseAction(st, undefined, 'normal');
+      expect(a.command.type).toBe('act');
+      if (a.command.type === 'act') expect(enemyAt(st, a.command.target)).toBeDefined();
+      for (const u of st.units) if (u.side === 1) u.hex = { amount: 3, until: st.clock + 300 };
+      expect(chooseAction(st, undefined, 'normal').command.type).not.toBe('act');
+    });
+  });
+});

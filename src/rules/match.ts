@@ -10,9 +10,9 @@ import {
   UPKEEP_DIVISOR,
 } from './data/tuning';
 import { DEFAULT_MASTER, FAMILIARS, kindOf } from './kinds';
-import { affectedUnits, computeDamage, computeEmpower, computeHeal, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
+import { affectedUnits, computeDamage, computeEmpower, computeHeal, computeStatus, minAimDistance, shotAllowed, trajectoryOf, type Effect } from './combat';
 import { alignmentBonus } from './time';
-import { isPhysical, powerOf } from './ability';
+import { isPhysical, powerOf, statusesOf } from './ability';
 import { canPlace, canSummonAt, isStranded, mapHexAt, reachable, surfaceOf } from './terrain';
 import { isObstacle, type GameEvent, type MapDef, type MatchState, type SideId, type TurnAction, type Unit, type UnitKind } from './types';
 
@@ -266,9 +266,16 @@ export function previewEffects(state: MatchState, action: TurnAction): Effect[] 
     const ab = kind.ability;
     if (ab.kind === 'water') return [];
     const hit = powerOf(ab) === 'atk' ? 'physical' : 'magic';
-    return affectedUnits(view, caster, ab, cmd.target).map((t) =>
-      ab.kind === 'heal' && !isObstacle(t) ? computeHeal(view, caster, t) : ab.kind === 'empower' && !isObstacle(t) ? computeEmpower(ab, t) : computeDamage(view, caster, action.to, t, hit),
-    );
+    // riders: a damaging Ability's Hex / Entangle land on the enemy Units it hits
+    const riders = ab.kind === 'damage' ? statusesOf(ab) : {};
+    return affectedUnits(view, caster, ab, cmd.target).map((t) => {
+      if (isObstacle(t)) return computeDamage(view, caster, action.to, t, hit);
+      if (ab.kind === 'heal') return computeHeal(view, caster, t);
+      if (ab.kind === 'empower') return computeEmpower(ab, t);
+      if (ab.kind === 'hex' || ab.kind === 'entangle') return computeStatus(ab, t);
+      const e = computeDamage(view, caster, action.to, t, hit);
+      return t.side !== caster.side ? { ...e, ...riders } : e;
+    });
   }
   return [];
 }
@@ -349,9 +356,20 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
       } else if (e.kind === 'empower') {
         t.empowered = Math.max(t.empowered ?? 0, e.amount);
         events.push({ type: 'empower', unitId: t.id, amount: e.amount, source: unit.id });
-      } else {
+      } else if (e.kind === 'heal') {
         t.hp = Math.min(MAX_HP, t.hp + e.amount);
         events.push({ type: 'heal', unitId: t.id, amount: e.amount, source: unit.id });
+      }
+      // Hex and Entangle, standalone or riding on damage (a Unit the hit kills gets neither)
+      if (t.hp > 0 && e.hex) {
+        // a second Hex doesn't stack: the stronger amount, and whichever lasts longer
+        const until = state.clock + e.hex.minutes;
+        t.hex = t.hex ? { amount: Math.max(t.hex.amount, e.hex.amount), until: Math.max(t.hex.until, until) } : { amount: e.hex.amount, until };
+        events.push({ type: 'hex', unitId: t.id, amount: t.hex.amount, until: t.hex.until, source: unit.id });
+      }
+      if (t.hp > 0 && e.entangle) {
+        t.entangled = true;
+        events.push({ type: 'entangle', unitId: t.id, source: unit.id });
       }
     }
     // a physical hit uses up Empower (its damage above already counted it)
@@ -385,6 +403,8 @@ export function applyTurn(prev: MatchState, action: TurnAction): TurnResult {
   }
 
   unit.av = turnDelay(kind, moved, cmd.type !== 'wait');
+  // Entangle lasts until the end of the Unit's next turn: this one
+  delete unit.entangled;
   state.turnNumber++;
   resolveDeaths(state, events);
   advance(state, events);
@@ -443,6 +463,12 @@ function advance(state: MatchState, events: GameEvent[]): void {
     }
     state.clock = to;
     for (const u of state.units) u.av -= delta;
+    // a Hex wears off once the Game Clock reaches its end
+    for (const u of state.units)
+      if (u.hex && u.hex.until <= state.clock) {
+        delete u.hex;
+        events.push({ type: 'hexEnd', unitId: u.id });
+      }
     state.activeUnitId = next.id;
     events.push({ type: 'turnStart', unitId: next.id, clock: state.clock });
 

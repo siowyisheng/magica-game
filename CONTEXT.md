@@ -148,7 +148,7 @@ What a Unit does after it Moves, or after it chooses not to: Wait, **Act** (use 
 _Avoid_: Action (when meaning a menu choice), Attack and Magic (as Commands: since one Ability per Unit there is only Act)
 
 **Ability**:
-The one thing a Unit does when it Acts; every Unit has exactly one, shared from a library (editing one changes every Unit that uses it). It has a range (a maximum only, with no minimum), an area, an effect, and for damage a **power**: physical (ATK against DEF; Strike, Shot and Lob are the plain ones) or magical (MP against MDF). It also has a **label**, the Act button's name: Attack, Heal, Buff or Debuff. A Unit may give its Ability its own name (Harpoon for a Shot, say). Abilities are free: they cost no Mana. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. Heals and Empower hit allies and may include the user. Areas reach 1 hex around the aimed hex (2 for a Burst). Facing is always measured from the attacker's hex, for every Unit an area hits. Abilities have no power of their own: their strength comes only from the user's ATK or MP.
+The one thing a Unit does when it Acts; every Unit has exactly one, shared from a library (editing one changes every Unit that uses it). It has a range (a maximum only, with no minimum), an area, an effect, and for damage a **power**: physical (ATK against DEF; Strike, Shot and Lob are the plain ones) or magical (MP against MDF). It also has a **label**, the Act button's name: Attack, Heal, Buff or Debuff. A Unit may give its Ability its own name (Harpoon for a Shot, say). Abilities are free: they cost no Mana. Damaging abilities only ever hit enemies and Obstacles, never the user or allies, except a Burst. A damaging Ability may carry **riders**: a Hex and/or Entangle on every enemy Unit it hits (not Obstacles, nor allies a Burst catches, nor a Unit the hit kills). Hex and Entangle are also Abilities of their own (Debuffs, enemy Units only). Heals and Empower hit allies and may include the user. Areas reach 1 hex around the aimed hex (2 for a Burst). Facing is always measured from the attacker's hex, for every Unit an area hits. Abilities have no power of their own: their strength comes only from the user's ATK or MP.
 _Avoid_: Skill, spell (as a code term), Magic Ability (every Ability is an Ability, physical ones too)
 
 **Burst**:
@@ -180,6 +180,12 @@ _Avoid_: Backstab bonus, flanking
 
 **Damage**:
 Attacker's ATK − defender's DEF + Element Bonus + Facing Bonus − the defender's terrain cover; MP and MDF for a magical hit. Alignment changes the stats first. A result of 0 or less deals 0: there is no minimum. It is not limited by the defender's remaining HP (the Damage Number shows it all), but HP never drops below 0. For example, ATK 5 against DEF 1 with a Counter from behind deals 5 − 1 + 4 + 2 = 10.
+
+**Hex**:
+An effect (an Ability of its own, or a rider on damage) that lowers each enemy Unit it hits's MDF by 3 for 180 Game Clock minutes; both numbers are set per Ability. MDF can go below 0 this way, so magical hits do more. A second Hex doesn't stack: the Unit keeps the larger amount and whichever lasts longer. A **Hexed** Unit shows a violet eye.
+
+**Entangle**:
+An effect (an Ability of its own, or a rider on damage) that sets each enemy Unit it hits's MOV to 0 until the end of its next turn: on that turn it can't move, but can still act. An **Entangled** Unit shows a vine.
 
 **Empower**:
 A Buff Ability (Kindle's) that targets one friendly Unit within range 1, the user included, and gives it +3 ATK until its next physical hit. The Unit is then **Empowered**, and shows a golden aura: the bonus counts in the damage previews of its hits, and its next physical hit uses it up. A second Empower before then doesn't stack. It helps only Units that hit with ATK.

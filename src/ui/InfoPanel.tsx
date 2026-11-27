@@ -209,6 +209,16 @@ function UnitCard({ unitId }: { unitId: number }) {
       </div>
       <StatGrid stats={k.stats} align={align} atkBonus={u.empowered ?? 0} hide={hiddenStat(k)} boosted={u.signature ? signatureStatOf(k) : undefined} />
       {!!u.empowered && <div className="good small">Empowered: +{u.empowered} ATK until its next physical hit</div>}
+      {u.hex && (
+        <div className="small hexed">
+          <Icon name="hex" size={12} /> Hexed: −{u.hex.amount} MDF until {formatClock(u.hex.until)}
+        </div>
+      )}
+      {u.entangled && (
+        <div className="small entangled">
+          <Icon name="entangle" size={12} /> Entangled: can’t move on its next turn
+        </div>
+      )}
       <div className="muted small">
         {!k.isMaster && (
           <>

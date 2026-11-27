@@ -291,6 +291,38 @@ const ICONS = {
       '....o....',
     ],
   },
+  hex: {
+    title: 'Hex (MDF lowered)',
+    // a cracked violet eye
+    palette: { o: O, v: '#b070ff', l: '#e0c8ff', k: '#2a1040' },
+    grid: [
+      '.........',
+      '...ooo...',
+      '.oovvvoo.',
+      'ovvlklvvo',
+      'ovlkkklvo',
+      'ovvlklvvo',
+      '.oovvvoo.',
+      '...ooo...',
+      '.........',
+    ],
+  },
+  entangle: {
+    title: 'Entangled (no movement)',
+    // a looping vine
+    palette: { o: O, g: '#5fc04a', l: '#b8f08a' },
+    grid: [
+      '..oo.....',
+      '.oglo....',
+      'oglgo.oo.',
+      'ogogo.ogo',
+      '.oggoogl.',
+      '..ogglgo.',
+      '...oggo..',
+      '..oglo...',
+      '..ooo....',
+    ],
+  },
   signature: {
     title: 'Signature Familiar',
     // a gold five-point star

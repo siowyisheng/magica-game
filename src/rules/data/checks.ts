@@ -3,7 +3,7 @@
 
 import type { UnitKind } from '../types';
 import { MDF_FLOOR } from '../statgen';
-import { abilityDisplayName, isPhysical, powerStat } from '../ability';
+import { abilityDisplayName, isHostile, isPhysical, powerStat } from '../ability';
 
 export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[] {
   const w: string[] = [];
@@ -34,7 +34,8 @@ export function kindWarnings(k: UnitKind, roster: readonly UnitKind[]): string[]
     if (m.kind === 'damage' && m.burst && m.range !== 0) w.push(`${name}: a Burst has range 0 (it is centred on the user)`);
     if (m.kind === 'damage' && m.burst && m.radius === 0) w.push(`${name}: a Burst needs an area (radius 1 or 2)`);
     if (m.radius === 2 && !(m.kind === 'damage' && m.burst)) w.push(`${name}: only a Burst may have radius 2`);
-    if (m.range < (m.kind === 'damage' && !m.burst ? 1 : 0)) w.push(`${name}: range too short to aim`);
+    if (m.range < (isHostile(m) && !(m.kind === 'damage' && m.burst) ? 1 : 0)) w.push(`${name}: range too short to aim`);
+    if (m.kind !== 'damage' && 'riders' in m && m.riders?.length) w.push(`${name}: only a damaging Ability carries riders`);
     if (m.range > 1 && !m.trajectory) w.push(`${name}: a ranged Ability needs a Trajectory`);
   }
   if (k.isMaster && !isPhysical(m)) w.push('Masters have a physical Ability (ATK against DEF)');

@@ -19,7 +19,30 @@ export function isPhysical(a: Ability): boolean {
 /** The Act button's name: the Ability's label, else the default for its kind. */
 export function abilityLabel(a: Ability): AbilityLabel {
   if (a.label) return a.label;
-  return a.kind === 'damage' ? 'attack' : a.kind === 'heal' ? 'heal' : 'buff';
+  return a.kind === 'damage' ? 'attack' : a.kind === 'heal' ? 'heal' : a.kind === 'hex' || a.kind === 'entangle' ? 'debuff' : 'buff';
+}
+
+/** Aimed at enemies: damage (and its riders), Hex, Entangle. */
+export function isHostile(a: Ability): boolean {
+  return a.kind === 'damage' || a.kind === 'hex' || a.kind === 'entangle';
+}
+
+/** MDF a Hex takes away, and for how many Game Clock minutes, when its Ability doesn't say. */
+export const HEX_AMOUNT = 3;
+export const HEX_MINUTES = 180;
+
+/** The Hex and Entangle an Ability puts on each enemy Unit it hits (standalone, or riding on damage). */
+export function statusesOf(a: Ability): { hex?: { amount: number; minutes: number }; entangle?: boolean } {
+  if (a.kind === 'water') return {};
+  if (a.kind === 'hex') return { hex: { amount: a.amount ?? HEX_AMOUNT, minutes: a.minutes ?? HEX_MINUTES } };
+  if (a.kind === 'entangle') return { entangle: true };
+  if (a.kind !== 'damage' || !a.riders?.length) return {};
+  const out: { hex?: { amount: number; minutes: number }; entangle?: boolean } = {};
+  for (const r of a.riders) {
+    if (r.kind === 'hex') out.hex = { amount: r.amount ?? HEX_AMOUNT, minutes: r.minutes ?? HEX_MINUTES };
+    else out.entangle = true;
+  }
+  return out;
 }
 
 export const LABEL_TEXT: Record<AbilityLabel, string> = { attack: 'Attack', heal: 'Heal', buff: 'Buff', debuff: 'Debuff' };

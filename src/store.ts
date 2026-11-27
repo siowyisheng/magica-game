@@ -284,6 +284,12 @@ function describe(match: MatchState, e: GameEvent): string | null {
       return `${e.side === 0 ? 'Green' : 'Red'} captured a Magic Stone`;
     case 'water':
       return `Water Level is now ${e.level}`;
+    case 'hex':
+      return `${name(e.source)} hexed ${name(e.unitId)}: −${e.amount} MDF until ${formatClock(e.until)}`;
+    case 'entangle':
+      return `${name(e.source)} entangled ${name(e.unitId)}: it can't move on its next turn`;
+    case 'hexEnd':
+      return `${name(e.unitId)}'s Hex wore off`;
     case 'stranded':
       return `${name(e.unitId)} is Stranded`;
     case 'death':

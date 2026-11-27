@@ -104,11 +104,27 @@ rebuild();
  * A kind by id, or a Unit's kind: a Unit summoned as its Side's Signature gets
  * the kind with its Signature Bonus (+1 to its Signature stat).
  */
-export function kindOf(x: string | { kind: string; signature?: boolean }): UnitKind {
+export function kindOf(x: string | { kind: string; signature?: boolean; hex?: { amount: number }; entangled?: boolean }): UnitKind {
   const id = typeof x === 'string' ? x : x.kind;
   const k = KINDS.get(id);
   if (!k) throw new Error(`unknown unit kind ${id}`);
-  return typeof x !== 'string' && x.signature ? signatureKind(k) : k;
+  if (typeof x === 'string') return k;
+  const base = x.signature ? signatureKind(k) : k;
+  return x.hex || x.entangled ? statusKind(base, x.hex?.amount ?? 0, !!x.entangled) : base;
+}
+
+const STATUS_KINDS = new WeakMap<UnitKind, Map<string, UnitKind>>();
+/** A kind under a Hex (MDF lowered, even below 0) and/or Entangled (MOV 0). */
+function statusKind(k: UnitKind, hex: number, entangled: boolean): UnitKind {
+  let per = STATUS_KINDS.get(k);
+  if (!per) STATUS_KINDS.set(k, (per = new Map()));
+  const key = `${hex}|${entangled ? 1 : 0}`;
+  let s = per.get(key);
+  if (!s) {
+    s = { ...k, stats: { ...k.stats, mdf: k.stats.mdf - hex, mov: entangled ? 0 : k.stats.mov } };
+    per.set(key, s);
+  }
+  return s;
 }
 
 /** The stat a kind's Signature Bonus raises. */

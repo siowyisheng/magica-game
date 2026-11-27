@@ -173,7 +173,11 @@ export function predictKindCost(k: UnitKind, m: FamiliarCostModel = FAMILIAR_COS
   const a = k.ability;
   const physical = a.kind === 'damage' && a.power === 'atk';
   const magic: MagicSpec | null =
-    physical || a.kind === 'water' ? null : { kind: a.kind, range: a.range, radius: a.radius, burst: a.burst, trajectory: a.trajectory, manaCost: 0 };
+    physical || a.kind === 'water'
+      ? null
+      : // Hex and Entangle have no reference Familiars: priced like Empower, the other support Ability.
+        // Riders on a damage Ability aren't priced at all (no reference data): tune those by hand.
+        { kind: a.kind === 'hex' || a.kind === 'entangle' ? 'empower' : a.kind, range: a.range, radius: a.radius, burst: a.burst, trajectory: a.trajectory, manaCost: 0 };
   const attack = physical && a.range > 1 ? { range: a.range, trajectory: a.trajectory } : { range: 1 };
   return predictCost({ stats: k.stats, moveTypes: k.moveTypes, attack, magic }, m);
 }

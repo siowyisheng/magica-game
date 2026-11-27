@@ -4,6 +4,7 @@ import {
   applyTurn,
   computeDamage,
   previewEffects,
+  abilityLabel,
   powerOf,
   createMatch,
   facingBonus,
@@ -37,6 +38,7 @@ import {
   powerStat,
 } from './index';
 import { ELEMENTS } from './data/familiars';
+import * as matchModule from './match';
 import { MANA_START } from './data/tuning';
 
 // ---------- helpers ----------
@@ -122,8 +124,8 @@ describe('roster', () => {
     for (const e of ELEMENTS) {
       const s = FAMILIARS.filter((x) => x.element === e);
       expect(s.map((x) => x.cost).sort((a, b) => a - b)).toEqual([16, 24, 32, 40, 48, 56, 64, 72, 80, 88]);
-      // aligned Familiars per Element (designer's current tuning): Fire 1 Day + 1 Night, Earth 2 + 1, Water and Air 1 + 2
-      const [day, night] = e === 'fire' ? [1, 1] : e === 'earth' ? [2, 1] : [1, 2];
+      // aligned Familiars per Element (designer's current tuning): Fire and Air 1 Day + 1 Night, Earth 2 + 1, Water 1 + 2
+      const [day, night] = e === 'fire' || e === 'air' ? [1, 1] : e === 'earth' ? [2, 1] : [1, 2];
       expect(s.filter((x) => x.alignment === 'day')).toHaveLength(day);
       expect(s.filter((x) => x.alignment === 'night')).toHaveLength(night);
     }
@@ -302,17 +304,25 @@ describe('movement', () => {
     expect(nodes.has(hexKey(hex(3, 1)))).toBe(false); // climb of 2 is blocked
   });
 
-  it('lets fly cross water but not end on it; swim only in water', () => {
+  it('lets fly cross water but not end on it; swim only in water', async () => {
     const state = createMatch(testMap(5, 1, (q) => (q === 1 || q === 2 ? { height: 0 } : { height: 2 }), 2)); // water level 2: h0 deep
     state.units = [];
     const hawk = place(state, 'hawk', 0, 0, 0);
     const n = reachable(state, hawk);
     expect(n.get(hexKey(hex(1, 0)))?.canEnd).toBe(false);
     expect(n.get(hexKey(hex(3, 0)))?.canEnd).toBe(true);
-    const shark = place(state, 'shark', 0, 1, 0);
-    const s = reachable(state, shark);
-    expect(s.get(hexKey(hex(2, 0)))?.canEnd).toBe(true);
-    expect(s.has(hexKey(hex(3, 0)))).toBe(false);
+    // no Familiar swims only (swimmers also Walk or go Slow on land): give the Shark Swim alone
+    const { getLocalBalance, setLocalBalance } = await import('./index');
+    const before = getLocalBalance();
+    setLocalBalance({ kinds: { shark: { moveTypes: ['swim'] } }, abilities: {} });
+    try {
+      const shark = place(state, 'shark', 0, 1, 0);
+      const s = reachable(state, shark);
+      expect(s.get(hexKey(hex(2, 0)))?.canEnd).toBe(true);
+      expect(s.has(hexKey(hex(3, 0)))).toBe(false);
+    } finally {
+      setLocalBalance(before);
+    }
   });
 
   it('stops ground units entering an enemy Zone of Control; flyers ignore it', () => {
@@ -1089,5 +1099,87 @@ describe('Mana Income and the Master\'s Alignment', () => {
     m.kind = 'banshee'; // Night, MP 7
     expect(manaIncome(s, 0, 22 * 60)).toBe(2 * 2 * 8);
     expect(manaIncome(s, 0, 12 * 60)).toBe(2 * 2 * 6);
+  });
+});
+
+describe('Hex and Entangle', () => {
+  /** A match where Green's Familiar `id` has `ability` (applied as a temporary local balance). */
+  const withAbility = async (id: string, ability: Record<string, unknown>, fn: () => void) => {
+    const { getLocalBalance, setLocalBalance } = await import('./index');
+    const before = getLocalBalance();
+    setLocalBalance({ kinds: { [id]: { abilityId: 'test-ability' } }, abilities: { 'test-ability': { id: 'test-ability', name: 'Test', ...ability } as never } });
+    try {
+      fn();
+    } finally {
+      setLocalBalance(before);
+    }
+  };
+  const setup = () => {
+    const state = createMatch(testMap(9, 9));
+    state.units = state.units.filter((u) => kindOf(u).isMaster);
+    for (const u of state.units) u.pos = u.side === 0 ? hex(0, 8) : hex(8, 0);
+    const me = place(state, 'imp', 0, 3, 4);
+    const foe = place(state, 'clod', 1, 5, 4, 3);
+    activate(state, me);
+    return { state, me, foe };
+  };
+
+  it('a Hex takes MDF away (below 0 too) for its minutes, refreshes rather than stacks, and wears off', async () => {
+    await withAbility('imp', { kind: 'hex', range: 3, radius: 0, trajectory: 'high', amount: 3, minutes: 180 }, () => {
+      const { state, me, foe } = setup();
+      const mdf = kindOf(foe).stats.mdf;
+      const r = applyTurn(state, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: foe.pos } });
+      const hexed = getUnit(r.state, foe.id);
+      expect(hexed.hex).toEqual({ amount: 3, until: state.clock + 180 });
+      expect(kindOf(hexed).stats.mdf).toBe(mdf - 3);
+      expect(r.events.some((e) => e.type === 'hex' && e.unitId === foe.id)).toBe(true);
+      // a big enough Hex goes below 0
+      expect(kindOf({ ...hexed, hex: { amount: mdf + 2 } }).stats.mdf).toBe(-2);
+      // it ends when the Game Clock reaches its end
+      const { advanceForTest } = matchModule;
+      const s = r.state;
+      s.clock = hexed.hex!.until - 1;
+      for (const u of s.units) u.av = Math.max(u.av, 5);
+      advanceForTest(s);
+      expect(getUnit(s, foe.id).hex).toBeUndefined();
+    });
+  });
+
+  it('rides on a damage Ability: damage, then Hex and Entangle on enemy Units it hits (not Obstacles)', async () => {
+    await withAbility('imp', { kind: 'damage', power: 'mp', range: 3, radius: 0, trajectory: 'high', riders: [{ kind: 'hex', amount: 2, minutes: 60 }, { kind: 'entangle' }] }, () => {
+      const { state, me, foe } = setup();
+      const preview = previewEffects(state, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: foe.pos } });
+      expect(preview[0]).toMatchObject({ kind: 'damage', hex: { amount: 2, minutes: 60 }, entangle: true });
+      const r = applyTurn(state, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: foe.pos } });
+      const f = getUnit(r.state, foe.id);
+      expect(f.hp).toBeLessThan(10);
+      expect(f.hex).toEqual({ amount: 2, until: state.clock + 60 });
+      expect(f.entangled).toBe(true);
+    });
+  });
+
+  it('Entangle: MOV 0 on the Unit’s next turn (it can still act), cleared at the end of that turn', async () => {
+    await withAbility('imp', { kind: 'entangle', range: 3, radius: 0, trajectory: 'high' }, () => {
+      const { state, me, foe } = setup();
+      const r = applyTurn(state, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: foe.pos } });
+      const s = r.state;
+      const f = getUnit(s, foe.id);
+      expect(f.entangled).toBe(true);
+      activate(s, f);
+      const nodes = [...reachable(s, getUnit(s, foe.id)).values()].filter((n) => n.canEnd);
+      expect(nodes.map((n) => n.hex)).toEqual([f.pos]);
+      expect(validateTurn(s, { unitId: f.id, to: hex(6, 4), facing: 0, command: { type: 'wait' } })).not.toBeNull();
+      const r2 = applyTurn(s, { unitId: f.id, to: f.pos, facing: 3, command: { type: 'wait' } });
+      expect(getUnit(r2.state, foe.id).entangled).toBeUndefined();
+    });
+  });
+
+  it('Hex and Entangle are Debuffs aimed at enemies only', async () => {
+    await withAbility('imp', { kind: 'hex', range: 3, radius: 0, trajectory: 'high' }, () => {
+      const { state, me } = setup();
+      const ally = place(state, 'hound', 0, 3, 5);
+      expect(abilityLabel(kindOf(me).ability)).toBe('debuff');
+      expect(validateTurn(state, { unitId: me.id, to: me.pos, facing: 0, command: { type: 'act', target: ally.pos } })).not.toBeNull();
+    });
   });
 });

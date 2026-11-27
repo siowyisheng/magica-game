@@ -1,4 +1,4 @@
-import { powerStat, type Ability, type Stats, type UnitKind } from '../rules';
+import { powerStat, statusesOf, type Ability, type Stats, type UnitKind } from '../rules';
 import { Icon } from './icons';
 
 const ORDER: { key: keyof Stats; icon: 'atk' | 'def' | 'mp' | 'mdf' | 'spd' | 'mov'; aligned: boolean }[] = [
@@ -48,9 +48,16 @@ export function hiddenStat(k: UnitKind): keyof Stats | undefined {
 /** Short rules text for an Ability (no power: that comes from the user's ATK or MP). */
 export function abilityText(m: Ability): string {
   if (m.kind === 'water') return `${m.delta > 0 ? 'raise' : 'lower'} the Water Level`;
-  if (m.kind === 'damage' && m.burst) return `${m.power === 'atk' ? 'physical ' : ''}Burst: hits everything within ${m.radius} (allies too)`;
+  const st = statusesOf(m);
+  const hexText = st.hex ? `Hex (−${st.hex.amount} MDF for ${st.hex.minutes / 60} h)` : '';
+  const riders = m.kind === 'damage' ? [hexText, st.entangle ? 'Entangle' : ''].filter(Boolean).join(' + ') : '';
+  const plus = riders ? ` + ${riders} on enemies hit` : '';
+  if (m.kind === 'damage' && m.burst) return `${m.power === 'atk' ? 'physical ' : ''}Burst: hits everything within ${m.radius} (allies too)${plus}`;
   const traj = m.range > 1 ? ` · ${m.trajectory === 'direct' ? 'Direct' : 'High'}` : '';
+  const where = `range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${traj}`;
   if (m.kind === 'empower') return `+${m.amount ?? 3} ATK to an ally or itself until its next physical hit, range ${m.range}`;
+  if (m.kind === 'hex') return `${hexText} on enemies, ${where}`;
+  if (m.kind === 'entangle') return `Entangle enemies (no movement on their next turn), ${where}`;
   const what = m.kind === 'heal' ? 'heal' : m.power === 'atk' ? 'physical damage' : 'magic damage';
-  return `${what}, range ${m.range}${m.radius ? `, area ${m.radius}` : ''}${traj}`;
+  return `${what}, ${where}${plus}`;
 }
