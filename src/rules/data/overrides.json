@@ -1,4 +1,149 @@
 {
-  "kinds": {},
-  "abilities": {}
+  "kinds": {
+    "treant": {
+      "moveTypes": [
+        "walk",
+        "wade"
+      ]
+    },
+    "imp": {
+      "stats": {
+        "atk": 0,
+        "def": 1,
+        "mp": 5,
+        "mdf": 2,
+        "spd": 5,
+        "mov": 5
+      },
+      "abilityName": "Burn",
+      "abilityId": "new-ability"
+    },
+    "wisp": {
+      "signatureStat": "mov"
+    },
+    "hound": {
+      "abilityName": "Fire Ram",
+      "signatureStat": "spd"
+    },
+    "salamander": {
+      "abilityName": "Flame Shot"
+    },
+    "archer": {
+      "abilityName": "Sizzle Arrow",
+      "signatureStat": "mdf"
+    },
+    "newt": {
+      "stats": {
+        "atk": 8,
+        "def": 6,
+        "mp": 0,
+        "mdf": 5,
+        "spd": 7,
+        "mov": 5
+      },
+      "abilityName": "Char Punch"
+    },
+    "golem": {
+      "abilityName": "Hot Crush",
+      "signatureStat": "mdf"
+    },
+    "pyromancer": {
+      "stats": {
+        "atk": 0,
+        "def": 6,
+        "mp": 10,
+        "mdf": 6,
+        "spd": 4,
+        "mov": 5
+      },
+      "signatureStat": "spd"
+    },
+    "minotaur": {
+      "abilityName": "Dread Stomp"
+    },
+    "drake": {
+      "abilityName": "Incinerate",
+      "signatureStat": "def"
+    },
+    "shark": {
+      "moveTypes": [
+        "slow",
+        "swim"
+      ]
+    },
+    "sprite": {
+      "abilityName": "Poke",
+      "signatureStat": "spd"
+    },
+    "bat": {
+      "stats": {
+        "atk": 0,
+        "def": 3,
+        "mp": 4,
+        "mdf": 2,
+        "spd": 4,
+        "mov": 5
+      }
+    },
+    "hawk": {
+      "abilityName": "Gust",
+      "signatureStat": "mdf"
+    },
+    "monk": {
+      "alignment": "none",
+      "abilityName": "Pelt",
+      "signatureStat": "spd"
+    },
+    "harpy": {
+      "signatureStat": "def"
+    },
+    "muse": {
+      "stats": {
+        "atk": 0,
+        "def": 4,
+        "mp": 2,
+        "mdf": 5,
+        "spd": 5,
+        "mov": 5
+      },
+      "abilityName": "Wind Hex"
+    }
+  },
+  "abilities": {
+    "new-ability": {
+      "id": "new-ability",
+      "name": "Magic Strike",
+      "kind": "damage",
+      "power": "mp",
+      "range": 1,
+      "radius": 0
+    },
+    "gale-shot": {
+      "id": "gale-shot",
+      "name": "Gale Shot",
+      "kind": "damage",
+      "power": "mp",
+      "range": 4,
+      "radius": 0,
+      "trajectory": "direct"
+    },
+    "lob-2": {
+      "id": "lob-2",
+      "name": "Lob",
+      "kind": "damage",
+      "power": "atk",
+      "range": 2,
+      "radius": 0,
+      "trajectory": "direct"
+    },
+    "wind-lance": {
+      "id": "wind-lance",
+      "name": "Wind Hex",
+      "kind": "damage",
+      "power": "mp",
+      "range": 5,
+      "radius": 0,
+      "trajectory": "high"
+    }
+  }
 }
