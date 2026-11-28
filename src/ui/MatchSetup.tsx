@@ -2,7 +2,7 @@
 // and whether a person or the AI plays it.
 
 import { useState } from 'react';
-import { INCOME_MULTIPLIER, LOADOUT_SIZE, STONE_BASE, MASTERS, FAMILIARS, type SideId } from '../rules';
+import { INCOME_MULTIPLIER, LOADOUT_SIZE, STONE_BASE, MASTERS, type SideId } from '../rules';
 import { listMaps, RANDOM_MAP_ID } from '../maps/library';
 import { isPlayable, listLoadouts } from '../loadouts/library';
 import { HideOmittedToggle, LoadoutStrip, useHideOmitted } from './LoadoutView';
@@ -42,9 +42,6 @@ export function MatchSetupDialog() {
               </option>
             ))}
           </select>
-        </label>
-        <label className="dev-check" title={`Both Sides may Summon all ${FAMILIARS.length} Familiars, ignoring Loadouts`}>
-          <input type="checkbox" checked={setup.test} onChange={(e) => update((s) => ({ ...s, test: e.target.checked }))} /> Test match (all {FAMILIARS.length} Familiars for both Sides)
         </label>
         <div className="setup-sides">
           {([0, 1] as SideId[]).map((side) => (
@@ -105,13 +102,12 @@ export function MatchSetupDialog() {
                 ))}
               </div>
               <MasterInfo id={setup.masters[side]} />
-              {!setup.test && (
+              {(
                 <>
                   <label className="slider">
                     <span>Loadout</span>
-                    <select value={setup.loadouts[side] === 'auto' || loadouts.some((l) => l.id === setup.loadouts[side] && isPlayable(l)) ? setup.loadouts[side] : 'random'} onChange={(e) => update((s) => ((s.loadouts[side] = e.target.value), s))}>
+                    <select value={loadouts.some((l) => l.id === setup.loadouts[side] && isPlayable(l)) ? setup.loadouts[side] : 'random'} onChange={(e) => update((s) => ((s.loadouts[side] = e.target.value), s))}>
                       <option value="random" title={`${LOADOUT_SIZE} Familiars drawn at random, at least 2 of them an Element's cheapest`}>Random (any {LOADOUT_SIZE} Familiars)</option>
-                      <option value="auto">Auto (built for the Master)</option>
                       {loadouts.map((l) => (
                         <option key={l.id} value={l.id} disabled={!isPlayable(l)}>
                           {l.name}

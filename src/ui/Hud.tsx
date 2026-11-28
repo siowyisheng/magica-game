@@ -3,10 +3,17 @@
 // and Upkeep as thin bars below. The Game Clock sits between them; each Master's
 // portrait and Army Value sit at the outer corners.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   alignmentBonus,
+  ELEMENTS,
+  FAMILIARS,
   formatClock,
+  inRoster,
+  isSignature,
+  onMap,
+  SIGNATURE_LIMIT,
+  summonLimit,
   INCOME_MULTIPLIER,
   kindOf,
   MANA_MAX,
@@ -24,8 +31,11 @@ import { onlineSide, useGame } from '../store';
 import { useOnline } from '../online/session';
 import { loadIdentity } from '../online/api';
 import { animElapsed } from '../anim';
-import { SIDE_COLORS, unitIconUrl } from '../render/sprites';
-import { Icon } from './icons';
+import { ELEMENT_COLORS, SIDE_COLORS, unitIconUrl } from '../render/sprites';
+import { ClassIcon, Icon } from './icons';
+import { SignatureStar } from './LoadoutView';
+import { useLoadoutHover } from './HoverCard';
+import { makePlan } from '../ai/plan';
 
 /** How long the chunk just lost lingers before draining, and the pop number stays. */
 const CHUNK_HOLD_MS = 450;
@@ -139,6 +149,8 @@ function SideHud({ side }: { side: SideId }) {
   const portraitKind = master?.kind ?? lastKind.current ?? startKind;
   const shownName = portraitKind ? kindOf(portraitKind).name : '';
   const hp = useShownMasterHp(side);
+  const showPlans = useGame((s) => s.showPlans);
+  const [loadoutOpen, setLoadoutOpen] = useState(false);
   const mana = match.sides[side].mana;
   // Mana per Stone-hour, with the Master's Alignment at the next hour mark
   const mp = mk ? INCOME_MULTIPLIER * Math.max(0, mk.stats.mp + alignmentBonus(mk.alignment, nextIncomeAt(match.clock))) : 0;
@@ -164,7 +176,17 @@ function SideHud({ side }: { side: SideId }) {
   return (
     <div className={`hud-side s${side}`} style={{ ['--side' as string]: SIDE_COLORS[side] }}>
       <div className="hud-portrait">
-        <div className="hud-face">{portraitKind && <img src={unitIconUrl(portraitKind, side)} alt="" />}</div>
+        <div
+          className={`hud-face ${loadoutOpen ? 'open' : ''}`}
+          title="Show or hide this Master's Loadout"
+          onClick={() => setLoadoutOpen((o) => !o)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setLoadoutOpen((o) => !o);
+          }}
+        >
+          {portraitKind && <img src={unitIconUrl(portraitKind, side)} alt="" />}
+        </div>
         <div className="hud-army" title="Army Value: the total Cost of this Side's Familiars on the map">
           <span className="lbl">ARMY</span>
           <span>{armyValue(match, side)}</span>
@@ -198,7 +220,77 @@ function SideHud({ side }: { side: SideId }) {
         <div className="hud-names">
           <b>{shownName}</b> <span>{playerName(match, side, online)}</span>
         </div>
+        {showPlans && match.sides[side].ai && match.winner === null && <AiPlanLine side={side} />}
       </div>
+      {loadoutOpen && <PortraitLoadout side={side} />}
+    </div>
+  );
+}
+
+/** One line: what an AI Side is trying to do (docs/ai-plan.md). */
+function AiPlanLine({ side }: { side: SideId }) {
+  const match = useGame((s) => s.match);
+  const text = useMemo(() => makePlan(match, side).text, [match, side]);
+  return (
+    <div className="hud-plan" title="The AI's Plan this turn">
+      {text}
+    </div>
+  );
+}
+
+/**
+ * A Master's Loadout, hanging below its portrait: its Familiars by Element, cheapest
+ * first, the Signature starred, those already on the map and those it can't afford yet marked.
+ */
+function PortraitLoadout({ side }: { side: SideId }) {
+  const match = useGame((s) => s.match);
+  const mana = match.sides[side].mana;
+  useEffect(() => () => useLoadoutHover.setState({ kind: null }), []);
+  return (
+    <div className="portrait-loadout window">
+      {ELEMENTS.map((e) => {
+        const row = FAMILIARS.filter((k) => k.element === e && inRoster(match, side, k.id))
+          .slice()
+          .sort((a, b) => a.cost - b.cost);
+        if (!row.length) return null;
+        return (
+          <div key={e} className="summon-row">
+            {row.map((k) => {
+              const sig = isSignature(match, side, k.id);
+              const have = onMap(match, side, k.id);
+              const full = have >= summonLimit(match, side, k.id);
+              const poor = mana < k.cost;
+              return (
+                <div
+                  key={k.id}
+                  className={`summon-tile ${full || poor ? 'disabled' : ''} ${full ? 'full' : ''} ${poor ? 'poor' : ''}`}
+                  style={{ background: `${ELEMENT_COLORS[e]}2e`, borderColor: `${ELEMENT_COLORS[e]}66` }}
+                  onMouseEnter={() => useLoadoutHover.setState({ kind: { id: k.id, side, signature: sig } })}
+                  onMouseLeave={() => useLoadoutHover.setState({ kind: null })}
+                >
+                  <img src={unitIconUrl(k.id, side)} alt="" />
+                  <span className="cls">
+                    <ClassIcon kind={k} size={12} />
+                  </span>
+                  <span className="nm">{k.name}</span>
+                  <span className="cost">{k.cost}</span>
+                  {sig && (
+                    <span className="sig-star">
+                      <SignatureStar size={11} />
+                    </span>
+                  )}
+                  {sig && (
+                    <span className="sig-count">
+                      {have}/{SIGNATURE_LIMIT}
+                    </span>
+                  )}
+                  {full && <span className="on-map">on map</span>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }

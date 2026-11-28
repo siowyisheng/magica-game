@@ -45,7 +45,7 @@ import {
   trajectoryOf,
   type ShotBlocker,
 } from './rules';
-import { autoLoadout, chooseAction } from './ai/ai';
+import { chooseAction } from './ai/ai';
 import { getLoadout, isPlayable } from './loadouts/library';
 import { mapFor, randomMap, RANDOM_MAP_ID } from './maps/library';
 import { animWallMs, planTurnAnim, type TurnAnim } from './anim';
@@ -56,10 +56,8 @@ export type HpBarsMode = 'always' | 'damaged' | 'off';
 /** Match Setup: map, and per Side a Master ('random' allowed) and who plays it. */
 export interface MatchSetup {
   mapId: string;
-  /** Test Match: both Sides may Summon every Familiar. */
-  test: boolean;
   masters: [string, string];
-  /** Loadout id per Side, or 'random' (LOADOUT_SIZE random Familiars) or 'auto' (built for the Master). */
+  /** Loadout id per Side, or 'random' (LOADOUT_SIZE random Familiars). */
   loadouts: [string, string];
   ai: [boolean, boolean];
   /** AI strength per Side (used when that Side is AI). */
@@ -70,7 +68,6 @@ const SETUP_KEY = 'magica.setup';
 function loadSetup(): MatchSetup {
   const d: MatchSetup = {
     mapId: RANDOM_MAP_ID,
-    test: false,
     masters: ['regent', 'random'],
     loadouts: ['random', 'random'],
     ai: [false, true],
@@ -80,6 +77,9 @@ function loadSetup(): MatchSetup {
     // setups saved before the rename keep their Masters under `summoners`
     if (!saved.masters && Array.isArray(saved.summoners)) saved.masters = saved.summoners;
     delete saved.summoners;
+    // Test Matches and AI-built ('auto') Loadouts are gone
+    delete saved.test;
+    if (Array.isArray(saved.loadouts)) saved.loadouts = saved.loadouts.map((l: string) => (l === 'auto' ? 'random' : l));
     if (saved.mapId && saved.mapId !== RANDOM_MAP_ID && !mapFor(saved.mapId)) saved.mapId = RANDOM_MAP_ID;
     return { ...d, ...saved };
   } catch {
@@ -94,21 +94,21 @@ export function resolveMasters(choice: [string, string], rand: () => number = Ma
   return [pick(choice[0]), pick(choice[1])];
 }
 
-/** Resolve a Loadout choice into its Familiars and Signature (random and AI-built Loadouts get a random one). */
-export function resolveLoadout(choice: string, masterId: string, rand: () => number = Math.random): { familiars: string[]; signature: string } {
+/** Resolve a Loadout choice into its Familiars and Signature (a random Loadout gets a random one). */
+export function resolveLoadout(choice: string, rand: () => number = Math.random): { familiars: string[]; signature: string } {
   const l = getLoadout(choice);
-  if (choice !== 'auto' && l && isPlayable(l)) return { familiars: [...l.familiars], signature: l.signature! };
-  // 'auto', 'random', or a choice that can't be played: an old 'random18' or starter, a deleted or incomplete Loadout
-  const familiars = choice === 'auto' ? autoLoadout(masterId, rand) : randomLoadout(rand);
+  if (l && isPlayable(l)) return { familiars: [...l.familiars], signature: l.signature! };
+  // 'random', or a choice that can't be played: an old 'auto' or 'random18' or starter, a deleted or incomplete Loadout
+  const familiars = randomLoadout(rand);
   return { familiars, signature: randomSignature(familiars, rand) };
 }
 
-/** Masters and Loadouts for a Match Setup ('random' / 'auto' resolved). */
-export function resolveSetup(setup: Pick<MatchSetup, 'test' | 'masters' | 'loadouts'>, rand: () => number = Math.random) {
+/** Masters and Loadouts for a Match Setup ('random' resolved). */
+export function resolveSetup(setup: Pick<MatchSetup, 'masters' | 'loadouts'>, rand: () => number = Math.random) {
   const masters = resolveMasters(setup.masters, rand);
-  const l = setup.test ? null : ([resolveLoadout(setup.loadouts[0], masters[0], rand), resolveLoadout(setup.loadouts[1], masters[1], rand)] as const);
-  const rosters: [string[] | null, string[] | null] = l ? [l[0].familiars, l[1].familiars] : [null, null];
-  const signatures: [string | null, string | null] = l ? [l[0].signature, l[1].signature] : [null, null];
+  const l = [resolveLoadout(setup.loadouts[0], rand), resolveLoadout(setup.loadouts[1], rand)] as const;
+  const rosters: [string[] | null, string[] | null] = [l[0].familiars, l[1].familiars];
+  const signatures: [string | null, string | null] = [l[0].signature, l[1].signature];
   return { masters, rosters, signatures };
 }
 
@@ -169,8 +169,6 @@ interface Store {
   /** The Match Setup dialog is open. */
   setupOpen: boolean;
   /** The in-match Loadouts view is open. */
-  loadoutsOpen: boolean;
-  setLoadoutsOpen: (open: boolean) => void;
   /** Last Match Setup (remembered between visits). */
   setup: MatchSetup;
   phase: Phase;
@@ -194,7 +192,10 @@ interface Store {
   /** Bumped on every applied turn; used to animate. */
   version: number;
 
+  /** Rematch: the current match again from its start. */
   newMatch: () => void;
+  /** New Random: you against a Normal AI on a Random Map, the AI's Master and Loadout random. */
+  newRandom: () => void;
   /** Start a match on a map (e.g. from the editor). */
   startMatch: (map: MapDef, mapId?: string, setup?: Partial<MatchSetup>) => void;
   setMapId: (id: string) => void;
@@ -398,8 +399,6 @@ export const useGame = create<Store>((set, get) => {
     mapId: loadSetup().mapId,
     screen: 'game',
     setupOpen: false,
-    loadoutsOpen: false,
-    setLoadoutsOpen: (loadoutsOpen) => set({ loadoutsOpen }),
     setup: loadSetup(),
     phase: phaseFor(initial),
     hoverHex: null,
@@ -419,8 +418,28 @@ export const useGame = create<Store>((set, get) => {
     replay: null,
 
     newMatch: () => {
-      const map = mapFor(get().mapId) ?? get().match.map;
-      get().startMatch(map);
+      // Rematch: the live match's start again (the same map, Masters, Loadouts, Signatures and AI Sides)
+      const s = get();
+      const start: MatchState = s.replay ? (s.replay.live.recording?.initial ?? s.replay.replay.initial) : (s.recording?.initial ?? s.match);
+      const live: MatchState = s.replay ? s.replay.live.match : s.match;
+      const master = (side: SideId) => start.units.find((u: Unit) => u.side === side && kindOf(u).isMaster)!.kind;
+      const m = createMatch(start.map, {
+        ai: [live.sides[0].ai, live.sides[1].ai],
+        aiLevels: [live.sides[0].aiLevel ?? 'normal', live.sides[1].aiLevel ?? 'normal'],
+        seed: Date.now() & 0xffff,
+        masters: [master(0), master(1)],
+        rosters: [start.sides[0].roster ?? null, start.sides[1].roster ?? null],
+        signatures: [start.sides[0].signature ?? null, start.sides[1].signature ?? null],
+      });
+      if (s.replay) endTemporaryBalance();
+      set({ match: m, recording: { ...newReplay(m, activeBalance()), head: m }, replay: null, paused: false, aiThinking: false, anim: null, inspected: [], phase: phaseFor(m), log: [`${m.map.name}: rematch — ${formatClock(m.clock)}`], version: get().version + 1 });
+      signal({ type: 'newMatch' });
+    },
+    newRandom: () => {
+      // you (Green, with your last Match Setup's Master and Loadout) against a Normal AI, all else random
+      const last = get().setup;
+      get().startMatch(randomMap(), RANDOM_MAP_ID, { masters: [last.masters[0], 'random'], loadouts: [last.loadouts[0], 'random'], ai: [false, true], aiLevels: ['normal', 'normal'] });
+      set({ screen: 'game' });
     },
     startMatch: (map, mapId, setup) => {
       const last = get().setup;
