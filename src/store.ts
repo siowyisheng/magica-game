@@ -157,8 +157,8 @@ const signal = (s: GameSignal) => signalListeners.forEach((fn) => fn(s));
 
 export type CommandHover = 'wait' | 'act' | 'summon' | null;
 
-/** Maximum number of other units whose ranges can be shown at once. */
-export const MAX_INSPECTED = 3;
+/** Other units whose ranges can be shown at once: one (right-clicking another switches to it). */
+export const MAX_INSPECTED = 1;
 
 interface Store {
   match: MatchState;

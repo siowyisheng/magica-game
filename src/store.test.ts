@@ -107,7 +107,7 @@ describe('selection, quick actions and range toggles', () => {
     expect(useGame.getState().phase).toEqual({ kind: 'move', selected: true });
   });
 
-  it('right-click toggles other units’ ranges (max 3, oldest dropped) and clears when the turn ends', () => {
+  it('right-click toggles another unit’s ranges (one at a time: a second switches to it) and clears when the turn ends', () => {
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
     const extra = [201, 202, 203].map((id, i) => ({ ...me, id, kind: 'imp', side: 1 as const, pos: hex(i, 0), av: 500 }));
@@ -117,10 +117,14 @@ describe('selection, quick actions and range toggles', () => {
       useGame.getState().setHoverUnit(id);
       useGame.getState().rightClick();
     }
-    expect(useGame.getState().inspected).toEqual([201, 202, 203]);
+    expect(useGame.getState().inspected).toEqual([203]);
+    // right-clicking it again turns it off; another one switches to that
+    useGame.getState().setHoverUnit(203);
+    useGame.getState().rightClick();
+    expect(useGame.getState().inspected).toEqual([]);
     useGame.getState().setHoverUnit(202);
     useGame.getState().rightClick();
-    expect(useGame.getState().inspected).toEqual([201, 203]);
+    expect(useGame.getState().inspected).toEqual([202]);
     expect(useGame.getState().phase).toEqual({ kind: 'move', selected: true });
     useGame.getState().setHoverUnit(null);
     useGame.getState().clickHex(me.pos);
