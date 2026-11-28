@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { Board } from './render/Board';
 import { Timeline } from './ui/Timeline';
-import { InfoPanel } from './ui/InfoPanel';
+import { HoverCard } from './ui/HoverCard';
+import { BottomMenu } from './ui/BottomMenu';
 import { FamiliarCard } from './ui/FamiliarCard';
 import { Hud } from './ui/Hud';
 import { useGame } from './store';
@@ -10,7 +11,6 @@ import { MapEditor } from './editor/MapEditor';
 import { DevTool } from './dev/DevTool';
 import { MatchSetupDialog } from './ui/MatchSetup';
 import { LoadoutEditor } from './ui/LoadoutEditor';
-import { LoadoutsModal } from './ui/LoadoutView';
 import { PauseButton, PausedBanner, ReplayBar, TakeoverDialog } from './ui/ReplayControls';
 import { ReplaysScreen } from './ui/ReplaysScreen';
 import { OnlineScreen, joinCodeFromUrl } from './ui/OnlineScreen';
@@ -125,11 +125,11 @@ export function App() {
           <ReplayBar />
           <GameOver />
           <OnlinePanel />
+          <HoverCard />
+          <BottomMenu />
         </div>
-        <InfoPanel />
       </div>
       <MatchSetupDialog />
-      <LoadoutsModal />
       <TakeoverDialog />
     </div>
   );

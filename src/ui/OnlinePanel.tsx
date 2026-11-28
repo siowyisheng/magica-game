@@ -126,7 +126,7 @@ function Picking() {
           <button
             disabled={mine}
             onClick={() => {
-              const l = resolveLoadout(choice, master);
+              const l = resolveLoadout(choice);
               void lockPick({ master, familiars: l.familiars, signature: l.signature });
             }}
           >

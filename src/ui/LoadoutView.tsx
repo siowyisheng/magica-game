@@ -3,11 +3,10 @@
 // Setup, the in-match Loadouts view and the Loadout builder.
 
 import { useState } from 'react';
-import { ELEMENTS, FAMILIARS, kindOf, signatureStatOf, type SideId } from '../rules';
+import { ELEMENTS, FAMILIARS, signatureStatOf, type SideId } from '../rules';
 import { ELEMENT_COLORS, unitIconUrl } from '../render/sprites';
 import { ClassIcon, Icon } from './icons';
 import { STAT_NAME } from './Stats';
-import { useGame } from '../store';
 
 /** The Signature's star. */
 export function SignatureStar({ size = 12 }: { size?: number }) {
@@ -115,49 +114,6 @@ export function LoadoutStrip({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-/** In-match view of both Sides' Master and Loadout, one above the other. */
-export function LoadoutsModal() {
-  const open = useGame((s) => s.loadoutsOpen);
-  const setOpen = useGame((s) => s.setLoadoutsOpen);
-  const match = useGame((s) => s.match);
-  const [hide, setHide] = useHideOmitted();
-  if (!open) return null;
-  return (
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}>
-      <div className="window loadouts-modal">
-        <div className="title">Loadouts</div>
-        <div className="loadouts-stack">
-          {([0, 1] as SideId[]).map((side) => {
-            const master = match.units.find((u) => u.side === side && kindOf(u).isMaster);
-            const roster = match.sides[side].roster ?? null;
-            const sig = roster ? match.sides[side].signature ?? null : null;
-            return (
-              <div key={side}>
-                <div className="side-name" style={{ color: side === 0 ? 'var(--green)' : 'var(--red)' }}>
-                  {side === 0 ? 'Green' : 'Red'} · {master ? kindOf(master).name : 'Master fallen'}
-                  {sig && (
-                    <span className="muted small">
-                      {' '}
-                      · <SignatureStar size={10} /> {kindOf(sig).name} (+1 {STAT_NAME[signatureStatOf(kindOf(sig))]})
-                    </span>
-                  )}
-                  {!roster && <span className="muted small"> · Test match: all Familiars</span>}
-                </div>
-                <LoadoutStrip familiars={roster} signature={sig} side={side} big hideOmitted={hide} />
-              </div>
-            );
-          })}
-        </div>
-        <div className="btn-row end">
-          <HideOmittedToggle hide={hide} setHide={setHide} />
-          <span className="spacer" />
-          <button onClick={() => setOpen(false)}>Close</button>
-        </div>
-      </div>
     </div>
   );
 }

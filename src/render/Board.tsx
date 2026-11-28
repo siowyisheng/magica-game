@@ -763,7 +763,6 @@ function UnitView({
   unit,
   displayPos,
   facing,
-  isActive,
   previewPath,
   inspected = false,
   ghost = false,
@@ -968,7 +967,7 @@ function UnitView({
           <meshBasicMaterial color={SIDE_COLORS[unit.side]} side={THREE.DoubleSide} />
         </mesh>
       )}
-      {!ghost && (hovered || isActive || inspected) && (
+      {!ghost && (hovered || inspected) && (
         <mesh ref={ring} geometry={ringGeo} position={[0, 0.04, 0]} raycast={() => null}>
           <meshBasicMaterial color={hovered ? '#ffe066' : inspected ? '#9fd0ff' : '#ffffff'} transparent opacity={0.9} />
         </mesh>

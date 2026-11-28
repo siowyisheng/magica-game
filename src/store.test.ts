@@ -20,7 +20,7 @@ describe('closestFacing', () => {
 
 describe('facing is set while the command menu is open', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'random', masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     newTestMatch();
   });
 
@@ -57,7 +57,7 @@ describe('facing is set while the command menu is open', () => {
 
 describe('selection, quick actions and range toggles', () => {
   beforeEach(() => {
-    useGame.setState({ animate: false, setup: { mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'random', masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     newTestMatch();
   });
 
@@ -136,7 +136,7 @@ describe('selection, quick actions and range toggles', () => {
 describe('choosing a summon hex', () => {
   it('selects the valid adjacent hex closest in angle to the cursor, even through crowded hexes', async () => {
     const { summonDirToward, validSummonDirs } = await import('./store');
-    useGame.setState({ animate: false, setup: { mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.setState({ animate: false, setup: { mapId: 'random', masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [false, true] } });
     newTestMatch();
     const m = useGame.getState().match;
     const me = activeUnit(m)!;
@@ -178,7 +178,7 @@ describe('handing a Side to a person', () => {
     vi.useFakeTimers();
     try {
       useGame.setState({ animate: true, anim: null, aiThinking: false });
-      useGame.getState().startFromSetup({ mapId: 'random', test: true, masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, true] });
+      useGame.getState().startFromSetup({ mapId: 'random', masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, true] });
       for (let i = 0; i < 40 && !useGame.getState().anim; i++) {
         useGame.getState().tickAi();
         vi.advanceTimersByTime(500);
@@ -195,5 +195,33 @@ describe('handing a Side to a person', () => {
       useGame.setState({ animate: false, anim: null });
       vi.useRealTimers();
     }
+  });
+});
+
+describe('Rematch and New Random', () => {
+  it('Rematch replays the same map, Masters, Loadouts, Signatures and AI Sides, even where the setup said random', () => {
+    useGame.setState({ animate: false, setup: { mapId: 'random', masters: ['random', 'random'], loadouts: ['random', 'random'], ai: [false, true] } });
+    useGame.getState().newRandom();
+    const before = useGame.getState().match;
+    const masters = (m: typeof before) => [0, 1].map((s) => m.units.find((u) => u.side === s && u.id <= 2)?.kind);
+    useGame.getState().newMatch();
+    const after = useGame.getState().match;
+    expect(after.map).toEqual(before.map);
+    expect(masters(after)).toEqual(masters(before));
+    expect(after.sides.map((s) => [s.roster, s.signature, s.ai, s.aiLevel ?? 'normal'])).toEqual(before.sides.map((s) => [s.roster, s.signature, s.ai, s.aiLevel ?? 'normal']));
+    expect(after.clock).toBe(before.clock);
+  });
+
+  it('New Random: you (Green) against a Normal AI with a random Master, on a Random Map, keeping your setup’s Master', () => {
+    useGame.setState({ animate: false, setup: { mapId: 'random', masters: ['regent', 'regent'], loadouts: ['random', 'random'], ai: [true, false], aiLevels: ['hard', 'hard'] } });
+    useGame.getState().newRandom();
+    const m = useGame.getState().match;
+    expect(m.sides.map((s) => s.ai)).toEqual([false, true]);
+    expect(m.sides[1].aiLevel ?? 'normal').toBe('normal');
+    expect(m.units.find((u) => u.side === 0 && u.kind === 'regent')).toBeTruthy();
+    expect(m.map.name).toMatch(/^Random/);
+    expect(m.sides[1].roster?.length).toBe(20);
+    // the remembered Match Setup is left as it was
+    expect(useGame.getState().setup.ai).toEqual([true, false]);
   });
 });
