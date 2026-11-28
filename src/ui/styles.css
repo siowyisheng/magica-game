@@ -441,10 +441,11 @@ button:disabled { opacity: 0.4; cursor: default; }
 .hud-side.s1 .hud-mark { left: calc(var(--at) * 100%); margin-left: -1px; }
 .hud-bar.income .hud-mark { width: 1px; background: #10121a; }
 .hud-bar.mana .hud-fill { background: linear-gradient(180deg, #c8e4ff, #4a8cff 45%, #2348b8); }
-.hud-bar.income, .hud-bar.upkeep { height: 7px; }
+/* the joined pair is as tall as the Mana bar (18px) */
+.hud-bar.income, .hud-bar.upkeep { height: 9px; }
 .hud-econ { position: relative; display: flex; flex-direction: column; pointer-events: auto; }
 .hud-econ .hud-bar.upkeep { border-top: none; }
-.hud-num.econ { line-height: 14px; } /* same look as the HP and Mana numbers, centred on the joined pair */
+.hud-num.econ { line-height: 18px; } /* same look as the HP and Mana numbers, centred on the joined pair */
 .hud-tip {
   display: none; position: absolute; top: 100%; z-index: 50; margin-top: 3px; white-space: nowrap;
   background: #0d1020f2; border: 1px solid var(--win-edge); padding: 3px 6px; font-size: 11px; color: var(--text);
