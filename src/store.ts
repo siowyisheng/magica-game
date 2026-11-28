@@ -407,7 +407,7 @@ export const useGame = create<Store>((set, get) => {
     hoverSummon: null,
     inspected: [],
     hpBars: 'damaged',
-    showPlans: true,
+    showPlans: false,
     log: ['Match start — 06:00'],
     aiThinking: false,
     anim: null,
