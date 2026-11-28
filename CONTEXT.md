@@ -13,18 +13,21 @@ The single leader Unit of each Side. Its Ability is a physical one (a Strike, or
 _Avoid_: Summoner, hero, commander
 
 **Loadout**:
-A set of exactly 20 of the 40 Familiars: the only Familiars a Side may Summon in a match. It is chosen separately from the Master. Players save Loadouts in the browser; none ship with the game. One of the 20 is its Signature. A Loadout saved when Loadouts were smaller, or before Signatures existed, stays saved but can't be played until it is edited to 20 with a Signature. A Side may also take a **random Loadout**: 20 Familiars drawn at random, at least two of them an Element's cheapest Familiar, with a random Signature, or one the AI builds for its Master (its Signature also picked at random). Both Sides' Loadouts, their Signatures, and the Familiars each one leaves out, are visible to both players during the match.
+A set of exactly 20 of the 40 Familiars: the only Familiars a Side may Summon in a match. It is chosen separately from the Master. Players save Loadouts in the browser; none ship with the game. One of the 20 is its Signature. A Loadout saved when Loadouts were smaller, or before Signatures existed, stays saved but can't be played until it is edited to 20 with a Signature. A Side may also take a **random Loadout**: 20 Familiars drawn at random, at least two of them an Element's cheapest Familiar, with a random Signature. Both Sides' Loadouts, their Signatures, and the Familiars each one leaves out, are visible to both players during the match (clicking a Master's portrait shows its Loadout, marking the Familiars already on the map and those it can't afford yet).
 _Avoid_: Deck, army, roster (as a player-facing term)
 
 **Signature Familiar** (or **Signature**):
 The one Familiar of a Loadout that its Side may have up to 3 of on the map at once (every other Familiar is limited to one). Each copy gets its **Signature Bonus**: +1 to one stat fixed for that Familiar (ATK, DEF, MP, MDF, Speed or Move). Its Cost and Upkeep are unchanged.
 _Avoid_: Favourite, ace
 
-**Test Match**:
-A match where both Sides may Summon all 40 Familiars, ignoring Loadouts, as many of each as they like; there is no Signature. For trying things out.
-
 **Match Setup**:
-The choices made before a match: the map, whether it is a Test Match, and for each Side its Master, its Loadout and whether a person or the AI plays it.
+The choices made before a match: the map, and for each Side its Master, its Loadout and whether a person or the AI plays it.
+
+**Rematch**:
+The same match again from the start: the same map, Masters, Loadouts and Signatures, and the same Sides played by the AI, even where the Match Setup said random.
+
+**New Random**:
+A match started in one step: you play Green against the AI (Normal) on a Random Map, with your Master and Loadout from your last Match Setup and a random Master and Loadout for the AI.
 
 **Pause**:
 Stopping a match in place: no turn starts and no Command can be given until it is resumed. The map can still be looked at and Units inspected. In an Online Match either player may Pause (3 times each per match) and either may resume; a Pause ends by itself after 2 minutes, and the Time Bank and Turn Timer stop while it lasts.
