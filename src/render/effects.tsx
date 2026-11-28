@@ -231,3 +231,115 @@ export function StoneHealFx({ step, at }: { step: Extract<AnimStep, { kind: 'sto
     </group>
   );
 }
+
+// ---------- Entangle: roots wrapping a Unit's lower half ----------
+
+/** A strip of pixel-art roots rising from the ground (deterministic for a seed). */
+function rootsTexture(seed: number, back: boolean): THREE.Texture {
+  const W = 40;
+  const H = 30;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d')!;
+  let s = seed >>> 0 || 1;
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+  const OUT = back ? '#0f1808' : '#16240b';
+  const BODY = back ? '#3a5a1c' : '#5a8a2a';
+  const HI = back ? '#5f8a30' : '#9ccc52';
+  const LEAF = back ? '#4f8a2c' : '#7fd04a';
+  const strands = back ? 6 : 7;
+  const px = (x: number, y: number, col: string) => {
+    g.fillStyle = col;
+    g.fillRect(Math.round(x), Math.round(y), 1, 1);
+  };
+  for (let i = 0; i < strands; i++) {
+    // spread across the width, leaning inward like roots hugging the legs
+    let x = 3 + ((W - 6) * (i + 0.5)) / strands + (rnd() - 0.5) * 3;
+    const lean = (W / 2 - x) * (0.02 + rnd() * 0.03);
+    const tall = (back ? 14 : 12) + rnd() * (back ? 12 : 14);
+    const pts: [number, number][] = [];
+    for (let y = H - 1; y > H - tall; y--) {
+      x += lean + (rnd() - 0.5) * 0.9;
+      pts.push([x, y]);
+    }
+    // outline, then body, then a highlight down one side
+    for (const [x0, y0] of pts) for (const dx of [-2, -1, 0, 1, 2]) px(x0 + dx, y0, OUT);
+    for (const [x0, y0] of pts) for (const dx of [-1, 0, 1]) px(x0 + dx, y0, BODY);
+    for (const [x0, y0] of pts) px(x0 - 1, y0, HI);
+    // a curling tip and a leaf or two
+    const [tx, ty] = pts[pts.length - 1] ?? [x, H - 2];
+    const dir = rnd() < 0.5 ? -1 : 1;
+    px(tx + dir, ty - 1, BODY);
+    px(tx + 2 * dir, ty - 1, OUT);
+    if (rnd() < 0.7) {
+      const [lx, ly] = pts[Math.floor(pts.length * (0.3 + rnd() * 0.4))] ?? [tx, ty];
+      const side = rnd() < 0.5 ? -1 : 1;
+      px(lx + 2 * side, ly, LEAF);
+      px(lx + 3 * side, ly, LEAF);
+      px(lx + 3 * side, ly - 1, LEAF);
+      px(lx + 4 * side, ly - 1, OUT);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const GROW_MS = 450;
+
+/**
+ * Roots wrapping an Entangled Unit's lower half: a layer behind it and one in front,
+ * growing up out of the ground when they appear and swaying a little. `width` and
+ * `height` are the Unit sprite's world size; `on` turns them on (they regrow each time).
+ */
+export function EntangleRoots({ width, height, seed, on }: { width: number; height: number; seed: number; on: { current: boolean } }) {
+  const front = useMemo(() => rootsTexture(seed * 7 + 3, false), [seed]);
+  const back = useMemo(() => rootsTexture(seed * 13 + 11, true), [seed]);
+  const group = useRef<THREE.Group>(null);
+  const fr = useRef<THREE.Sprite>(null);
+  const bk = useRef<THREE.Sprite>(null);
+  const since = useRef<number | null>(null);
+  const w = width * 0.62;
+  const h = height * 0.32;
+  useFrame(({ camera }) => {
+    const now = performance.now();
+    if (!on.current) {
+      since.current = null;
+      if (group.current) group.current.visible = false;
+      return;
+    }
+    if (since.current === null) since.current = now;
+    const grow = Math.min(1, (now - since.current) / GROW_MS);
+    const k = 1 - (1 - grow) ** 3; // ease out
+    const sway = Math.sin(now / 520 + seed) * 0.02;
+    if (group.current) group.current.visible = true;
+    // the front layer sits a touch toward the camera, the back one a touch away, so the Unit is between them
+    const toCam = new THREE.Vector3();
+    if (group.current) {
+      group.current.getWorldPosition(toCam);
+      toCam.subVectors(camera.position, toCam).setY(0).normalize();
+    }
+    for (const [sp, dist, sc] of [
+      [fr.current, 0.12, 1],
+      [bk.current, -0.08, 0.92],
+    ] as const) {
+      if (!sp) continue;
+      // grows from the ground: the bottom edge stays put while it gets taller
+      sp.scale.set(w * sc * (1 + sway), h * sc * k, 1);
+      sp.position.set(toCam.x * dist, (h * sc * k) / 2 + 0.02, toCam.z * dist);
+    }
+  });
+  return (
+    <group ref={group} visible={false}>
+      <sprite ref={bk} raycast={() => null} renderOrder={9}>
+        <spriteMaterial map={back} transparent alphaTest={0.5} />
+      </sprite>
+      <sprite ref={fr} raycast={() => null} renderOrder={10}>
+        <spriteMaterial map={front} transparent alphaTest={0.5} />
+      </sprite>
+    </group>
+  );
+}

@@ -132,6 +132,12 @@ function SideHud({ side }: { side: SideId }) {
   const online = useOnline();
   const master = match.units.find((u) => u.side === side && kindOf(u).isMaster);
   const mk = master ? kindOf(master) : null;
+  // a fallen Master leaves the map, but stays in its portrait: the last one seen, else the match's start
+  const startKind = useGame((s) => (s.replay?.replay.initial ?? s.recording?.initial)?.units.find((u) => u.side === side && kindOf(u).isMaster)?.kind ?? null);
+  const lastKind = useRef<string | null>(null);
+  if (master) lastKind.current = master.kind;
+  const portraitKind = master?.kind ?? lastKind.current ?? startKind;
+  const shownName = portraitKind ? kindOf(portraitKind).name : '';
   const hp = useShownMasterHp(side);
   const mana = match.sides[side].mana;
   // Mana per Stone-hour, with the Master's Alignment at the next hour mark
@@ -158,7 +164,7 @@ function SideHud({ side }: { side: SideId }) {
   return (
     <div className={`hud-side s${side}`} style={{ ['--side' as string]: SIDE_COLORS[side] }}>
       <div className="hud-portrait">
-        <div className="hud-face">{master && <img src={unitIconUrl(master.kind, side)} alt="" />}</div>
+        <div className="hud-face">{portraitKind && <img src={unitIconUrl(portraitKind, side)} alt="" />}</div>
         <div className="hud-army" title="Army Value: the total Cost of this Side's Familiars on the map">
           <span className="lbl">ARMY</span>
           <span>{armyValue(match, side)}</span>
@@ -171,7 +177,7 @@ function SideHud({ side }: { side: SideId }) {
             fill={hp / MAX_HP}
             chunks={hpChunks}
             kind="hp"
-            title={`${mk?.name ?? 'Master'}: ${hp}/${MAX_HP} HP`}
+            title={`${shownName || 'Master'}: ${hp}/${MAX_HP} HP`}
             marks={Array.from({ length: MAX_HP - 1 }, (_, i) => (i + 1) / MAX_HP)}
           />
           <span className="hud-num hp">{hp}</span>
@@ -183,14 +189,14 @@ function SideHud({ side }: { side: SideId }) {
         <div className="hud-econ">
           <Bar className="income" fill={gross / MANA_MAX} marks={stoneMarks} />
           <Bar className="upkeep" fill={up / MANA_MAX} />
-          <span className={`hud-num econ ${net < 0 ? 'neg' : ''}`}>{Math.abs(net)}</span>
+          <span className="hud-num econ">{Math.abs(net)}</span>
           <div className="hud-tip">
             Income +{gross} (base {base} + {stones} stone{stones === 1 ? '' : 's'} × {mp}) · Upkeep −{up} · Net {net >= 0 ? '+' : ''}
             {net}/h
           </div>
         </div>
         <div className="hud-names">
-          <b>{mk?.name ?? ''}</b> <span>{playerName(match, side, online)}</span>
+          <b>{shownName}</b> <span>{playerName(match, side, online)}</span>
         </div>
       </div>
     </div>
