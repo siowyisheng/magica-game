@@ -183,7 +183,7 @@ function SideHud({ side }: { side: SideId }) {
         <div className="hud-econ">
           <Bar className="income" fill={gross / MANA_MAX} marks={stoneMarks} />
           <Bar className="upkeep" fill={up / MANA_MAX} />
-          <span className={`hud-num econ ${net < 0 ? 'neg' : ''}`}>{Math.abs(net)}</span>
+          <span className="hud-num econ">{Math.abs(net)}</span>
           <div className="hud-tip">
             Income +{gross} (base {base} + {stones} stone{stones === 1 ? '' : 's'} × {mp}) · Upkeep −{up} · Net {net >= 0 ? '+' : ''}
             {net}/h

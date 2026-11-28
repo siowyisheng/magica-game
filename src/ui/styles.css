@@ -444,8 +444,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .hud-bar.income, .hud-bar.upkeep { height: 7px; }
 .hud-econ { position: relative; display: flex; flex-direction: column; pointer-events: auto; }
 .hud-econ .hud-bar.upkeep { border-top: none; }
-.hud-num.econ { font-size: 12px; line-height: 14px; color: #ffd23f; }
-.hud-num.econ.neg { color: #ff5a4a; }
+.hud-num.econ { line-height: 14px; } /* same look as the HP and Mana numbers, centred on the joined pair */
 .hud-tip {
   display: none; position: absolute; top: 100%; z-index: 50; margin-top: 3px; white-space: nowrap;
   background: #0d1020f2; border: 1px solid var(--win-edge); padding: 3px 6px; font-size: 11px; color: var(--text);
