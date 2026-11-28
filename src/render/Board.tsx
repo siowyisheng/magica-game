@@ -49,7 +49,7 @@ import {
 } from './sprites';
 import { FLY_LAND_MS, FLY_RISE_MS, KO_FADE_MS, SUMMON_PHASES, animElapsed, fliesKind, moveDurationMs, type AnimStep } from '../anim';
 import { Overlay } from '../ui/Overlay';
-import { EMPOWER_COLOR, EmpowerFx, StatusAura, StoneHealFx } from './effects';
+import { EMPOWER_COLOR, EmpowerFx, EntangleRoots, StatusAura, StoneHealFx } from './effects';
 import { anchorPositions, anchorSources } from './anchors';
 import { STEP, columnGeo, hexToWorld, HeightEdges, ObstacleView, PitTile, ThemedTile, Water, worldToHex } from './Terrain';
 import { themeOf, type Theme } from './themes';
@@ -801,6 +801,8 @@ function UnitView({
   const arrow = useRef<THREE.Mesh>(null);
   const body = useRef<THREE.Sprite>(null);
   const aura = useRef<THREE.Group>(null);
+  /** Entangled: roots wrap its lower half (from the moment the Entangle lands). */
+  const rooted = useRef(false);
   const bodyMat = useRef<THREE.SpriteMaterial>(null);
   const [tx, tz] = hexToWorld(displayPos);
   const ty = standY(match, unit.kind, displayPos);
@@ -843,10 +845,12 @@ function UnitView({
     let fade = 0; // KO: fades out from the lethal impact
     // Empowered: from the moment an Empower lands until the unit's Attack hits
     let empowered = !!unit.empowered;
+    let entangled = !!unit.entangled;
 
     if (anim) {
       const t = animElapsed(anim, now);
       for (const imp of anim.impacts) if (imp.kind === 'empower' && imp.unitId === unit.id && t >= imp.t) empowered = true;
+      for (const imp of anim.impacts) if (imp.unitId === unit.id && (imp.kind === 'entangle' || imp.entangle) && t >= imp.t) entangled = true;
       if (anim.actorId === unit.id && anim.steps.some((s) => (s.kind === 'melee' && s.unitId === unit.id) || (s.kind === 'projectile' && s.style === 'arrow'))) {
         const hit = anim.impacts.find((imp) => imp.kind === 'damage');
         if (!hit || t >= hit.t) empowered = false;
@@ -939,6 +943,7 @@ function UnitView({
     }
     if (outline.current && body.current) outline.current.position.copy(body.current.position);
     if (aura.current) aura.current.visible = empowered && fade === 0;
+    rooted.current = !ghost && entangled && fade === 0;
     if (bodyMat.current && !ghost) {
       const a = 1 - fade;
       // sprites cut out at alphaTest 0.5: lower it while fading so the fade is smooth
@@ -973,6 +978,7 @@ function UnitView({
           <StatusAura color={EMPOWER_COLOR} height={scale} seed={unit.id} />
         </group>
       )}
+      {!ghost && <EntangleRoots width={size} height={size} seed={unit.id} on={rooted} />}
       {mark && !ghost && (
         <sprite ref={outline} scale={[size, size, 1]} position={[0, lift, 0]} raycast={() => null} renderOrder={9}>
           <spriteMaterial ref={outlineMat} transparent alphaTest={0.3} depthTest={false} />
