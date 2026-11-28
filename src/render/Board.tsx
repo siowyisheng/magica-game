@@ -319,7 +319,7 @@ function useOutlines(): OutlineLayer[] {
       const o = match.units.find((x) => x.id === id);
       if (!o) continue;
       const r = unitReach(match, o);
-      layers.push({ key: `i${id}m`, region: r.move, style: { color: PALE_SIDE[o.side], width: 0.05, opacity: 0.9 } });
+      layers.push({ key: `i${id}m`, region: r.move, style: { color: PALE_SIDE[o.side], width: 0.05, opacity: 0.9 }, fill: { color: LINE_COLORS.move, opacity: MOVE_FILL } });
       if (r.act.size)
         layers.push({
           key: `i${id}a`,
